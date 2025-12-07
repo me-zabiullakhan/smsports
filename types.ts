@@ -100,6 +100,7 @@ export interface AuctionState {
   timer: number;
   bidIncrement: number; // Global fallback increment
   auctionLog: AuctionLog[];
+  biddingEnabled: boolean; // Global toggle for team bidding
 }
 
 export enum UserRole {
@@ -168,6 +169,7 @@ export interface AuctionContextType {
     endAuction: () => Promise<void>;
     resetAuction: () => Promise<void>;
     resetCurrentPlayer: () => Promise<void>;
+    toggleBidding: () => Promise<void>; // New toggle function
     logout: () => void;
     error: string | null;
     joinAuction: (id: string) => void;

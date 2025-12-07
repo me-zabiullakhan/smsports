@@ -19,6 +19,7 @@ const initialState: AuctionState = {
   timer: BID_INTERVAL,
   bidIncrement: 10,
   auctionLog: [],
+  biddingEnabled: true, // Default enabled
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -107,7 +108,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     timer: data.timer || BID_INTERVAL,
                     currentPlayerId: data.currentPlayerId,
                     highestBidder,
-                    bidIncrement: data.bidIncrement || 10
+                    bidIncrement: data.bidIncrement || 10,
+                    biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true
                 };
             });
         } else {
@@ -144,7 +146,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     const unsubLog = auctionDocRef.collection('log').orderBy('timestamp', 'desc').limit(50).onSnapshot((s) => {
          const auctionLog = s.docs.map(d => {
               const data = d.data();
-              // Handle both Firestore Timestamp (object with toMillis) and standard Number
               let ts = Date.now();
               if (data.timestamp && typeof data.timestamp.toMillis === 'function') {
                   ts = data.timestamp.toMillis();
@@ -181,14 +182,17 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const calculateNextBid = () => {
       const { currentPlayerIndex, unsoldPlayers, currentBid, categories, bidIncrement } = state;
       const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+      
+      // Safety Check: If no player loaded yet, return 0 (will be handled by UI)
       if (!currentPlayer) return 0;
 
       const basePrice = Number(currentPlayer.basePrice || 0);
       const currentPrice = Number(currentBid || 0);
 
       // 1. Initial Bid Scenario: If no bid yet, next bid is exactly Base Price
+      // IMPORTANT: Ensure basePrice is valid (>0)
       if (currentPrice === 0) {
-          return basePrice;
+          return basePrice > 0 ? basePrice : 0;
       }
 
       // 2. Determine Increment: Check Slabs -> Category Default -> Global Default
@@ -199,7 +203,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           if (playerCat) {
               if (playerCat.slabs && playerCat.slabs.length > 0) {
                   // Find applicable slab
-                  // Sort descending to find the highest matching slab
                   const activeSlab = [...playerCat.slabs]
                       .sort((a, b) => b.from - a.from) 
                       .find(s => currentPrice >= s.from);
@@ -207,7 +210,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                   if (activeSlab) {
                       effectiveIncrement = Number(activeSlab.increment);
                   } else {
-                      // If current price is below all slabs, fallback to cat default or global
                       if (playerCat.bidIncrement > 0) effectiveIncrement = Number(playerCat.bidIncrement);
                   }
               } else if (playerCat.bidIncrement > 0) {
@@ -217,13 +219,31 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       // 3. Calc
-      // We take Max(Current, Base) just in case Base > Current (shouldn't happen with correct logic but good safety)
       const startPoint = Math.max(currentPrice, basePrice);
       return startPoint + effectiveIncrement;
   };
 
+  const toggleBidding = async () => {
+      if (!activeAuctionId) return;
+      try {
+          // Toggle current state
+          await db.collection('auctions').doc(activeAuctionId).update({
+              biddingEnabled: !state.biddingEnabled
+          });
+      } catch(e: any) {
+          console.error("Toggle Bidding Error", e);
+          alert("Failed to toggle bidding: " + e.message);
+      }
+  };
+
   const placeBid = async (teamId: number | string, amount: number) => {
       if (!activeAuctionId) return;
+      // Check client-side first for feedback, server rules will also enforce
+      if (!state.biddingEnabled) {
+          alert("Bidding is currently disabled by the Admin.");
+          return;
+      }
+
       const auctionRef = db.collection('auctions').doc(activeAuctionId);
 
       try {
@@ -233,43 +253,37 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             const data = auctionSnap.data() as any;
 
             if (data?.status !== AuctionStatus.InProgress) throw "Auction not in progress";
+            if (data?.biddingEnabled === false) throw "Bidding is currently paused by Admin";
             
             const currentPlayerId = data?.currentPlayerId;
             if (!currentPlayerId) throw "No active player";
 
-            // Fetch Player details inside transaction to get authoritative Base Price
             const playerRef = auctionRef.collection('players').doc(String(currentPlayerId));
             const playerSnap = await transaction.get(playerRef);
             if (!playerSnap.exists) throw "Player data missing";
             const playerData = playerSnap.data() as Player;
             const basePrice = Number(playerData.basePrice || 0);
 
-            // Fetch Team
             const teamRef = auctionRef.collection('teams').doc(String(teamId));
             const teamSnap = await transaction.get(teamRef);
             if (!teamSnap.exists) throw "Team not found";
             const teamData = teamSnap.data() as Team;
 
-            // VALIDATION
             const currentHighest = Number(data?.currentBid || 0);
             
-            // 1. Amount must be >= Base Price
             if (amount < basePrice) {
                 throw `Bid (${amount}) cannot be lower than Base Price (${basePrice})`;
             }
 
-            // 2. Amount must be > Current Highest (if it exists)
-            // Note: If currentHighest is 0 (start of auction), any amount >= basePrice is valid.
             if (currentHighest > 0 && amount <= currentHighest) {
                 throw `Bid (${amount}) must be higher than current bid (${currentHighest})`;
             }
 
-            // 3. Budget Check
             if (Number(teamData.budget) < amount) throw "Insufficient funds";
 
             transaction.update(auctionRef, {
                 currentBid: Number(amount),
-                highestBidderId: String(teamId), // Force String ID
+                highestBidderId: String(teamId),
                 timer: BID_INTERVAL 
             });
 
@@ -288,7 +302,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
   };
 
-  // --- REFACTORED SELL PLAYER (FAIL-SAFE MODE) ---
   const sellPlayer = async (customTeamId?: string | number, customPrice?: number) => {
       if (!activeAuctionId) {
           alert("Error: No active auction ID. Try refreshing.");
@@ -300,24 +313,20 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       try {
         console.log("Starting Sell Process...");
         
-        // 1. Get current auction state
         const auctionSnap = await auctionRef.get();
         if (!auctionSnap.exists) throw new Error("Auction not found");
         const auctionData = auctionSnap.data() as any;
         
         const currentPlayerId = auctionData.currentPlayerId;
         
-        // Determine Winning Team and Price
-        // If customTeamId is provided (from Modal), use it. Otherwise use highestBidderId from DB.
         let targetTeamId = customTeamId ? String(customTeamId) : auctionData.highestBidderId;
-        if (targetTeamId) targetTeamId = String(targetTeamId); // Ensure string
+        if (targetTeamId) targetTeamId = String(targetTeamId); 
 
         const finalBid = customPrice !== undefined ? Number(customPrice) : Number(auctionData.currentBid || 0);
 
         if (!currentPlayerId) throw new Error("No current player active.");
         if (!targetTeamId) throw new Error("No bidder found. Use 'Unsold' or select a team manually.");
 
-        // 2. Get Data References
         const playerRef = auctionRef.collection('players').doc(String(currentPlayerId));
         const teamRef = auctionRef.collection('teams').doc(targetTeamId);
         
@@ -328,13 +337,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         const teamSnap = await teamRef.get();
         if (!teamSnap.exists) throw new Error("Winning team not found. ID: " + targetTeamId);
         
-        // 3. READ-MODIFY-WRITE for Team Budget & Squad
         const teamData = teamSnap.data() as Team;
         const currentBudget = Number(teamData.budget || 0);
         const newBudget = currentBudget - finalBid;
         const currentPlayers = teamData.players || [];
 
-        // Prepare Lightweight Player Object
         const playerSummary = {
             id: String(playerData.id),
             name: String(playerData.name || 'Unknown'),
@@ -342,25 +349,19 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             soldPrice: finalBid
         };
 
-        // Create a new array with the player added
         const updatedPlayers = [...currentPlayers, playerSummary];
 
-        // 4. Perform Updates (Sequential to ensure data integrity)
-        
-        // A. Update Team (Budget & Squad)
         await teamRef.update({
             budget: newBudget,
             players: updatedPlayers
         });
 
-        // B. Update Player Status
         await playerRef.update({
             status: 'SOLD',
             soldPrice: finalBid,
             soldTo: teamData.name
         });
 
-        // C. Reset Auction State
         await auctionRef.update({
             status: AuctionStatus.Paused,
             currentPlayerId: null,
@@ -369,7 +370,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             timer: BID_INTERVAL
         });
 
-        // D. Log
         await auctionRef.collection('log').add({
             message: `SOLD! ${playerData.name} to ${teamData.name} for ${finalBid}`,
             timestamp: Date.now(),
@@ -377,10 +377,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         });
 
         console.log("Sell Complete");
-
-        // Auto-next attempt
-        // We use startAuction but we don't care about the return value here
-        // The Admin UI will handle the "Next Player" button state
         setTimeout(() => startAuction(), 1500);
 
       } catch (e: any) {
@@ -404,7 +400,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             const pDoc = await playerRef.get();
             if (pDoc.exists) {
                 playerName = (pDoc.data() as any).name;
-                // Mark Player as UNSOLD in their document
                 await playerRef.update({ status: 'UNSOLD' });
             }
         }
@@ -431,23 +426,19 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
   };
 
-  // Option 1: Reset ONLY the current player's bid status
   const resetCurrentPlayer = async () => {
       if (!activeAuctionId) {
           alert("Error: No active auction. Refresh page.");
           return;
       }
-      
       try {
           const auctionRef = db.collection('auctions').doc(activeAuctionId);
-          
           await auctionRef.update({
               currentBid: 0,
               highestBidderId: null, 
               timer: BID_INTERVAL,
-              status: AuctionStatus.InProgress // Ensure unpaused
+              status: AuctionStatus.InProgress 
           });
-          
           await auctionRef.collection('log').add({
               message: "Current Player Reset by Admin (Bids Cleared)",
               timestamp: Date.now(),
@@ -460,16 +451,13 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
   };
 
-  // Option 2: Full Auction Reset
   const resetAuction = async () => {
     if (!activeAuctionId) {
         alert("Error: No active auction.");
         return;
     }
-    
     try {
         const auctionRef = db.collection('auctions').doc(activeAuctionId);
-        
         await auctionRef.update({
             status: AuctionStatus.NotStarted,
             currentPlayerId: null,
@@ -477,13 +465,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             highestBidderId: null,
             timer: BID_INTERVAL,
         });
-        
         await auctionRef.collection('log').add({
             message: 'FULL AUCTION RESET by Admin.',
             timestamp: Date.now(),
             type: 'SYSTEM'
         });
-
         alert("Auction Fully Reset to 'Not Started'.");
     } catch (e: any) {
         console.error("Full Reset Failed:", e);
@@ -506,11 +492,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     try {
         const auctionRef = db.collection('auctions').doc(activeAuctionId);
         
-        // Fetch all players
         const playersSnap = await auctionRef.collection('players').get();
         const players = playersSnap.docs.map(d => ({id: d.id, ...d.data()} as Player));
         
-        // Sort players to maintain order
         players.sort((a,b) => {
             const idA = Number(a.id);
             const idB = Number(b.id);
@@ -518,16 +502,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             return String(a.id).localeCompare(String(b.id));
         });
 
-        // Find next player who is NOT 'SOLD' and NOT 'UNSOLD'
-        // This prevents infinite loops of the same player
         const nextPlayer = players.find(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
 
         if (!nextPlayer) {
-            // DO NOT AUTO FINISH. RETURN FALSE.
             return false;
         }
 
-        // Set Current Bid to 0 initially so first bid can be Base Price
         await auctionRef.update({
             status: AuctionStatus.InProgress,
             currentPlayerId: nextPlayer.id,
@@ -575,6 +555,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         endAuction,
         resetAuction,
         resetCurrentPlayer,
+        toggleBidding,
         logout: handleLogout,
         error,
         joinAuction,
