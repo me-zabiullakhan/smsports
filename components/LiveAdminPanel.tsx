@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, Save, ChevronDown, Shuffle, Hand, MousePointer } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
@@ -19,6 +19,8 @@ const LiveAdminPanel: React.FC = () => {
 
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
+  const [playerSearchTerm, setPlayerSearchTerm] = useState('');
+  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false);
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
@@ -41,7 +43,7 @@ const LiveAdminPanel: React.FC = () => {
 
       const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
       if (availablePlayers.length === 0) {
-          alert("Cannot start auction: No available players in the pool. Please go back to Dashboard > Edit Auction > Registrations to approve players.");
+          alert("Cannot start auction: No more players available.");
           return;
       }
 
@@ -55,6 +57,7 @@ const LiveAdminPanel: React.FC = () => {
       } else {
           // Clear manual selection
           setManualPlayerId('');
+          setPlayerSearchTerm('');
       }
       setIsProcessing(false);
   }
@@ -75,19 +78,15 @@ const LiveAdminPanel: React.FC = () => {
   
   const copyOBSLink = (type: 'transparent' | 'green') => {
       if (!activeAuctionId) return;
-      if (window.location.protocol === 'blob:') {
-          alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary and local.\n\nAction Required:\n1. Deploy this app (e.g. Firebase Hosting).\n2. Open the deployed website.\n3. Copy the link from there.");
-          return;
-      }
       const baseUrl = window.location.href.split('#')[0];
       const route = type === 'green' ? 'obs-green' : 'obs-overlay';
       const url = `${baseUrl}#/${route}/${activeAuctionId}`;
       navigator.clipboard.writeText(url);
       
       if (type === 'green') {
-          alert("🟩 GREEN SCREEN URL Copied!\n\nUse Chroma Key filter in OBS to remove the green background.");
+          alert("PROJECTOR VIEW URL Copied!\n\nOpen this link on the projector screen.");
       } else {
-          alert("🎥 TRANSPARENT OBS URL Copied!\n\nUse this in OBS Browser Source. It has a transparent background.");
+          alert("OBS OVERLAY URL Copied!\n\nPaste this into OBS Browser Source.");
       }
   };
   
@@ -127,6 +126,18 @@ const LiveAdminPanel: React.FC = () => {
           setIsProcessing(false);
       }
   }
+
+  // Filter Players for Manual Selection
+  const filteredManualPlayers = useMemo(() => {
+      const available = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+      if (!playerSearchTerm) return available;
+      return available.filter(p => 
+          p.name.toLowerCase().includes(playerSearchTerm.toLowerCase()) || 
+          p.category.toLowerCase().includes(playerSearchTerm.toLowerCase())
+      );
+  }, [players, playerSearchTerm]);
+
+  const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
@@ -216,25 +227,80 @@ const LiveAdminPanel: React.FC = () => {
 
       // 2. NEXT PLAYER SELECTION (Based on Mode)
       if (playerSelectionMode === 'MANUAL') {
-          const availableList = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
           return (
               <div className="space-y-3 bg-primary/30 p-3 rounded-lg border border-gray-600">
                   <div>
-                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player (Manual Mode)</label>
+                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Search & Select Next Player</label>
+                      
+                      {/* Search Dropdown */}
                       <div className="relative">
-                        <select 
-                            value={manualPlayerId} 
-                            onChange={(e) => setManualPlayerId(e.target.value)}
-                            className="w-full bg-primary border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-highlight appearance-none"
-                        >
-                            <option value="">-- Choose Player --</option>
-                            {availableList.map(p => (
-                                <option key={p.id} value={p.id}>{p.name} ({p.category}) - {p.basePrice}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input 
+                                type="text"
+                                placeholder="Search by name or category..."
+                                className="w-full bg-primary border border-gray-600 rounded p-2 pl-9 text-sm text-white outline-none focus:border-highlight"
+                                value={playerSearchTerm}
+                                onChange={(e) => {
+                                    setPlayerSearchTerm(e.target.value);
+                                    setShowPlayerDropdown(true);
+                                }}
+                                onFocus={() => setShowPlayerDropdown(true)}
+                            />
+                            {manualPlayerId && (
+                                <button 
+                                    onClick={() => {
+                                        setManualPlayerId('');
+                                        setPlayerSearchTerm('');
+                                    }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                          </div>
+
+                          {/* Dropdown List */}
+                          {showPlayerDropdown && (
+                              <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-20 custom-scrollbar">
+                                  {filteredManualPlayers.length > 0 ? filteredManualPlayers.map(p => (
+                                      <div 
+                                        key={p.id}
+                                        onClick={() => {
+                                            setManualPlayerId(String(p.id));
+                                            setPlayerSearchTerm(p.name);
+                                            setShowPlayerDropdown(false);
+                                        }}
+                                        className="p-2 hover:bg-gray-700 cursor-pointer flex justify-between items-center text-sm border-b border-gray-700 last:border-0"
+                                      >
+                                          <div className="flex items-center gap-2">
+                                              {p.photoUrl ? (
+                                                  <img src={p.photoUrl} className="w-6 h-6 rounded-full object-cover"/>
+                                              ) : (
+                                                  <User className="w-6 h-6 bg-gray-600 p-1 rounded-full"/>
+                                              )}
+                                              <span className="text-white font-medium">{p.name}</span>
+                                          </div>
+                                          <div className="text-xs text-gray-400">
+                                              {p.category} • {p.basePrice}
+                                          </div>
+                                      </div>
+                                  )) : (
+                                      <div className="p-3 text-xs text-gray-500 text-center">No matching players found</div>
+                                  )}
+                              </div>
+                          )}
                       </div>
+
+                      {/* Selected Preview */}
+                      {selectedPlayerObj && (
+                          <div className="mt-2 p-2 bg-highlight/10 border border-highlight/30 rounded flex items-center gap-2 text-sm text-highlight">
+                              <Check className="w-4 h-4" />
+                              <span>Selected: <b>{selectedPlayerObj.name}</b></span>
+                          </div>
+                      )}
                   </div>
+
                   <button 
                     onClick={() => handleStart(manualPlayerId)} 
                     disabled={isStartDisabled || !manualPlayerId}
@@ -269,14 +335,17 @@ const LiveAdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative">
+    <div 
+        className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative"
+        onClick={() => setShowPlayerDropdown(false)} // Close dropdown on outside click
+    >
       
       <div className="flex justify-between items-center mb-4 border-b border-accent pb-2">
           <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-highlight uppercase tracking-wider">Auctioneer</h2>
               <div className="flex items-center bg-primary/50 rounded-lg p-1">
                   <button 
-                    onClick={() => copyOBSLink('transparent')}
+                    onClick={(e) => { e.stopPropagation(); copyOBSLink('transparent'); }}
                     className="p-1.5 rounded hover:bg-white/10 text-highlight transition-colors"
                     title="Copy OBS Transparent Link"
                   >
@@ -284,15 +353,15 @@ const LiveAdminPanel: React.FC = () => {
                   </button>
                   <div className="w-px h-4 bg-gray-600 mx-1"></div>
                   <button 
-                    onClick={() => copyOBSLink('green')}
+                    onClick={(e) => { e.stopPropagation(); copyOBSLink('green'); }}
                     className="p-1.5 rounded hover:bg-white/10 text-green-400 transition-colors"
-                    title="Copy OBS Green Screen Link"
+                    title="Copy Projector View Link"
                   >
                       <Monitor className="w-4 h-4" />
                   </button>
                   <div className="w-px h-4 bg-gray-600 mx-1"></div>
                   <button
-                    onClick={toggleBidding}
+                    onClick={(e) => { e.stopPropagation(); toggleBidding(); }}
                     className={`p-1.5 rounded transition-colors ${biddingEnabled ? 'text-green-400 hover:bg-green-900/30' : 'text-red-400 hover:bg-red-900/30'}`}
                     title={biddingEnabled ? "Disable Bidding for Teams" : "Enable Bidding for Teams"}
                   >
@@ -324,7 +393,7 @@ const LiveAdminPanel: React.FC = () => {
           </div>
       </div>
 
-      <div className="mb-6 space-y-3">
+      <div className="mb-6 space-y-3" onClick={e => e.stopPropagation()}>
          {getControlButtons()}
          
          {!isSellingMode && (

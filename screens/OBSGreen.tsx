@@ -1,128 +1,215 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
-import { Globe, AlertTriangle } from 'lucide-react';
+import { Globe, AlertTriangle, User, TrendingUp, CheckCircle, Wallet } from 'lucide-react';
+import { Team, Player, AuctionStatus } from '../types';
 
-// Simplified Timer for Green Screen (High Contrast)
-const GreenTimer: React.FC<{val: number}> = ({ val }) => (
-    <div className="absolute top-4 right-4 w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center border-4 border-white">
-        <span className={`text-4xl font-bold ${val <= 5 ? 'text-red-500' : 'text-white'}`}>{val}</span>
-    </div>
-);
+interface DisplayState {
+    player: Player | null;
+    bid: number;
+    bidder: Team | null;
+    status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD';
+}
 
-const OBSGreen: React.FC = () => {
+const ProjectorScreen: React.FC = () => {
   const { state, joinAuction } = useAuction();
   const { auctionId } = useParams<{ auctionId: string }>();
-  const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, timer } = state;
-  const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+  
+  const [display, setDisplay] = useState<DisplayState>({
+      player: null,
+      bid: 0,
+      bidder: null,
+      status: 'WAITING'
+  });
+  
+  const [latestLog, setLatestLog] = useState<string>('');
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Force Green Background on Mount
+  // Force White Background for Projector
   useEffect(() => {
       const originalBodyBg = document.body.style.backgroundColor;
-      const originalHtmlBg = document.documentElement.style.backgroundColor;
-
-      // CHROMA GREEN
-      const chromaColor = '#00b140'; 
-      document.body.style.backgroundColor = chromaColor;
-      document.documentElement.style.backgroundColor = chromaColor;
-
+      document.body.style.backgroundColor = '#f3f4f6'; // Light Gray/White
+      document.documentElement.style.backgroundColor = '#f3f4f6';
       return () => {
           document.body.style.backgroundColor = originalBodyBg;
-          document.documentElement.style.backgroundColor = originalHtmlBg;
+          document.documentElement.style.backgroundColor = '';
       };
   }, []);
 
   useEffect(() => {
-      if (auctionId) {
-          joinAuction(auctionId);
-      }
+      if (auctionId) joinAuction(auctionId);
   }, [auctionId]);
 
-  // Check for Preview/Blob environment
-  if (window.location.protocol === 'blob:') {
+  // Sync State
+  useEffect(() => {
+      const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams, auctionLog } = state;
+      const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+
+      // Update Ticker Log
+      if (auctionLog.length > 0) {
+          // Find the most recent meaningful log
+          const relevantLog = auctionLog.find(l => l.type === 'SOLD' || l.type === 'UNSOLD');
+          if (relevantLog) setLatestLog(relevantLog.message);
+      }
+
+      if (currentPlayer) {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          
+          let derivedStatus: 'LIVE' | 'SOLD' | 'UNSOLD' = 'LIVE';
+          if (status === AuctionStatus.Sold || currentPlayer.status === 'SOLD') derivedStatus = 'SOLD';
+          else if (status === AuctionStatus.Unsold || currentPlayer.status === 'UNSOLD') derivedStatus = 'UNSOLD';
+
+          // Resolve Bidder/Winner
+          let resolvedBidder = highestBidder;
+          if (derivedStatus === 'SOLD' && !resolvedBidder && currentPlayer.soldTo) {
+             resolvedBidder = teams.find(t => t.name === currentPlayer.soldTo) || null;
+          }
+
+          setDisplay({
+              player: currentPlayer,
+              bid: currentPlayer.soldPrice || currentBid || currentPlayer.basePrice,
+              bidder: resolvedBidder,
+              status: derivedStatus
+          });
+      } else {
+          // Keep display for a moment after reset or transition
+          if (display.status !== 'WAITING') {
+              timeoutRef.current = setTimeout(() => {
+                  setDisplay({ player: null, bid: 0, bidder: null, status: 'WAITING' });
+              }, 2000); 
+          }
+      }
+  }, [state]);
+
+  if (!display.player) {
       return (
-          <div className="min-h-screen w-full flex items-center justify-center bg-gray-900 p-10">
-              <div className="bg-red-100 border border-red-500 text-red-900 p-8 rounded-xl max-w-2xl text-center">
-                  <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-600" />
-                  <h1 className="text-3xl font-bold mb-4">Overlay Not Available in Preview</h1>
-                  <p>Please deploy the app to use the OBS features.</p>
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-10">
+              <div className="bg-white p-12 rounded-3xl shadow-xl text-center border border-gray-200">
+                  <h1 className="text-5xl font-bold text-gray-800 tracking-wider mb-4">WAITING FOR AUCTION</h1>
+                  <p className="text-gray-500 text-xl animate-pulse">The next player will appear shortly...</p>
               </div>
           </div>
       );
   }
 
-  if (!currentPlayer) {
-      return (
-          <div className="min-h-screen w-full flex items-center justify-center">
-              {/* Placeholder text for waiting state - clean text for OBS */}
-              <div className="bg-gray-900 text-white px-10 py-6 rounded-xl border-4 border-white shadow-none">
-                  <h1 className="text-4xl font-bold uppercase tracking-widest">WAITING FOR AUCTION...</h1>
-              </div>
-          </div>
-      );
-  }
+  const { player, bid, bidder, status } = display;
 
   return (
-    <div className="min-h-screen w-full p-10 flex items-end pb-20">
-        {/* Main Card - No Shadows, Solid Colors for better Keying */}
-        <div className="w-full max-w-6xl mx-auto relative">
+    <div className="min-h-screen w-full bg-gray-100 p-6 flex flex-col font-sans overflow-hidden">
+        
+        {/* MAIN CARD CONTAINER */}
+        <div className="flex-1 flex gap-6 max-h-[75vh]">
             
-            <div className="flex bg-gray-900 border-4 border-white rounded-3xl overflow-hidden relative">
-                {/* Left: Image */}
-                <div className="w-1/3 bg-gray-800 relative overflow-hidden">
-                    <img src={currentPlayer.photoUrl} className="w-full h-full object-cover object-top" alt="" />
-                    <div className="absolute bottom-0 left-0 w-full bg-gray-900 p-4 border-t-4 border-highlight">
-                         <span className="bg-white text-gray-900 font-bold px-3 py-1 rounded text-xl uppercase block text-center">
-                             {currentPlayer.category}
-                         </span>
+            {/* LEFT: PLAYER IMAGE CARD */}
+            <div className="w-[35%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                <img 
+                    src={player.photoUrl} 
+                    alt={player.name} 
+                    className="w-full h-full object-cover object-top"
+                />
+                <div className="absolute top-6 left-6 bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg border border-gray-200">
+                    <span className="font-bold text-2xl text-gray-800 uppercase tracking-wide">{player.category}</span>
+                </div>
+            </div>
+
+            {/* RIGHT: DETAILS & BID */}
+            <div className="flex-1 flex flex-col gap-6">
+                
+                {/* INFO HEADER */}
+                <div className="bg-white rounded-3xl p-8 shadow-xl border border-gray-100 flex justify-between items-start">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2 text-gray-500 font-bold tracking-widest uppercase">
+                            <Globe className="w-5 h-5" /> {player.nationality}
+                        </div>
+                        <h1 className="text-6xl font-black text-gray-900 leading-tight mb-2">{player.name}</h1>
+                        <p className="text-2xl text-highlight font-bold flex items-center">
+                            <User className="w-6 h-6 mr-2"/> {player.speciality || player.category}
+                        </p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mb-1">Base Price</p>
+                        <p className="text-4xl font-bold text-gray-700">{player.basePrice}</p>
                     </div>
                 </div>
 
-                {/* Right: Details & Bid */}
-                <div className="w-2/3 p-8 flex flex-col justify-between relative bg-gray-900 text-white">
-                     <GreenTimer val={timer} />
+                {/* BID DISPLAY AREA */}
+                <div className="flex-1 bg-gray-900 rounded-3xl p-8 shadow-2xl relative overflow-hidden flex flex-col justify-center items-center border-4 border-gray-800">
+                    
+                    {/* Background Glow */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-highlight/10 blur-3xl rounded-full"></div>
 
-                     <div>
-                        <div className="flex items-center space-x-3 mb-2">
-                            <Globe className="text-gray-400 w-6 h-6" />
-                            <span className="text-2xl text-gray-300 uppercase tracking-widest font-bold">{currentPlayer.nationality}</span>
-                        </div>
-                        <h1 className="text-7xl font-black text-white uppercase leading-none mb-2">{currentPlayer.name}</h1>
-                        <p className="text-3xl text-highlight font-bold">{currentPlayer.speciality}</p>
-                     </div>
-
-                     {/* Live Bid Strip - Solid Colors */}
-                     <div className="mt-8 bg-gray-800 rounded-xl p-6 border-4 border-gray-700 flex justify-between items-center relative">
-                        <div>
-                            <p className="text-gray-400 text-sm uppercase mb-1 font-bold tracking-wider">Current Bid</p>
-                            <p className="text-8xl font-black text-white tabular-nums">{currentBid || currentPlayer.basePrice}</p>
-                        </div>
-                        
-                        {/* Base Price Display */}
-                        <div className="px-6 text-center border-l-4 border-gray-700">
-                             <p className="text-gray-400 text-xs uppercase mb-1 font-bold">Base Price</p>
-                             <p className="text-3xl font-bold text-gray-300">{currentPlayer.basePrice}</p>
-                        </div>
-
-                        <div className="flex-grow pl-6 border-l-4 border-gray-700">
-                            <p className="text-gray-400 text-sm uppercase mb-1 font-bold tracking-wider">Held By</p>
-                            {highestBidder ? (
-                                <div className="flex items-center">
-                                    {highestBidder.logoUrl ? (
-                                        <img src={highestBidder.logoUrl} className="w-16 h-16 rounded-full bg-white p-1 mr-4 object-contain" alt="" />
-                                    ) : (
-                                        <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white text-2xl mr-4 border-2 border-white">
-                                            {highestBidder.name.charAt(0)}
-                                        </div>
-                                    )}
-                                    <span className="text-5xl font-black text-green-400 truncate max-w-[250px]">{highestBidder.name}</span>
+                    {/* SOLD OVERLAY ANIMATION */}
+                    {status === 'SOLD' && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+                            <div className="flex flex-col items-center">
+                                <div className="bg-green-600 text-white font-black text-8xl px-12 py-4 border-8 border-white -rotate-12 shadow-[0_0_50px_rgba(22,163,74,0.6)] animate-bounce-in tracking-widest uppercase mb-8">
+                                    SOLD
                                 </div>
-                            ) : (
-                                <span className="text-4xl font-bold text-gray-600 italic uppercase">NO BIDS</span>
-                            )}
+                                {bidder && (
+                                    <div className="bg-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slide-up">
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 font-bold uppercase">Sold To</p>
+                                            <p className="text-3xl font-black text-gray-800">{bidder.name}</p>
+                                        </div>
+                                        {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-16 h-16 rounded-full border border-gray-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center font-bold text-xl">{bidder.name.charAt(0)}</div>}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                     </div>
+                    )}
+                    
+                    {status === 'UNSOLD' && (
+                         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-red-600 text-white font-black text-8xl px-12 py-4 border-8 border-white -rotate-12 shadow-[0_0_50px_rgba(220,38,38,0.6)] animate-bounce-in tracking-widest uppercase">
+                                UNSOLD
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-highlight font-bold text-xl uppercase tracking-[0.5em] mb-4 relative z-10">Current Bid Amount</p>
+                    <div className="text-[10rem] leading-none font-black text-white tabular-nums drop-shadow-2xl relative z-10">
+                        {bid.toLocaleString()}
+                    </div>
+                    
+                    {/* Highest Bidder Indicator (If Live) */}
+                    {status === 'LIVE' && bidder && (
+                         <div className="mt-8 bg-gray-800 px-6 py-3 rounded-full flex items-center gap-4 border border-gray-700 relative z-10">
+                             <div className="text-right">
+                                 <p className="text-[10px] text-gray-400 font-bold uppercase">Highest Bidder</p>
+                                 <p className="text-xl font-bold text-white">{bidder.name}</p>
+                             </div>
+                             {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-10 h-10 rounded-full" /> : <div className="w-10 h-10 bg-gray-600 rounded-full" />}
+                         </div>
+                    )}
+
+                </div>
+            </div>
+        </div>
+
+        {/* BOTTOM SECTION: LOGS & PURSES */}
+        <div className="mt-6 flex gap-6 h-[20vh]">
+            
+            {/* LATEST AUCTION UPDATE LOG */}
+            <div className="w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 p-6 flex flex-col justify-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-2 h-full bg-highlight"></div>
+                <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest mb-2 flex items-center"><TrendingUp className="w-4 h-4 mr-2"/> Recent Activity</h3>
+                <div className="text-2xl font-bold text-gray-800 leading-snug">
+                    {latestLog || "Auction in progress..."}
+                </div>
+            </div>
+
+            {/* TEAM PURSE TICKER (Grid/List View) */}
+            <div className="flex-1 bg-gray-900 rounded-3xl shadow-lg border border-gray-800 p-6 overflow-hidden flex flex-col">
+                <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest mb-3 flex items-center"><Wallet className="w-4 h-4 mr-2"/> Team Purses Remaining</h3>
+                <div className="flex-1 overflow-x-auto overflow-y-hidden flex items-center gap-4 pb-2 custom-scrollbar">
+                    {state.teams.map(team => (
+                        <div key={team.id} className="min-w-[160px] bg-gray-800 p-4 rounded-2xl border border-gray-700 flex flex-col items-center text-center shrink-0">
+                            {team.logoUrl ? <img src={team.logoUrl} className="w-8 h-8 rounded-full mb-2 bg-white p-0.5 object-contain" /> : <div className="w-8 h-8 rounded-full bg-gray-600 mb-2 flex items-center justify-center text-white font-bold">{team.name.charAt(0)}</div>}
+                            <h4 className="text-white font-bold text-sm truncate w-full">{team.name}</h4>
+                            <p className="text-green-400 font-mono font-bold text-lg">{team.budget}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -130,4 +217,4 @@ const OBSGreen: React.FC = () => {
   );
 };
 
-export default OBSGreen;
+export default ProjectorScreen;
