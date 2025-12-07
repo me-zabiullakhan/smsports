@@ -1,8 +1,8 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
-import { Globe, AlertTriangle, User, TrendingUp, CheckCircle, Wallet } from 'lucide-react';
+import { Globe, User, TrendingUp, Wallet } from 'lucide-react';
 import { Team, Player, AuctionStatus } from '../types';
 
 interface DisplayState {
@@ -28,15 +28,27 @@ const ProjectorScreen: React.FC = () => {
 
   // Sponsor Loop State
   const [currentSponsorIndex, setCurrentSponsorIndex] = useState(0);
+  const loopInterval = state.sponsorConfig?.loopInterval || 5;
+  const sponsorsLength = state.sponsors.length;
 
   useEffect(() => {
+      if (sponsorsLength <= 1) return;
       const interval = setInterval(() => {
-          if (state.sponsors && state.sponsors.length > 0) {
-              setCurrentSponsorIndex(prev => (prev + 1) % state.sponsors.length);
-          }
-      }, (state.sponsorConfig?.loopInterval || 5) * 1000);
+          setCurrentSponsorIndex(prev => (prev + 1) % sponsorsLength);
+      }, loopInterval * 1000);
       return () => clearInterval(interval);
-  }, [state.sponsors, state.sponsorConfig]);
+  }, [sponsorsLength, loopInterval]);
+
+  // Construct Marquee Content
+  const marqueeContent = useMemo(() => {
+       const tName = state.tournamentName?.toUpperCase() || "TOURNAMENT";
+       const items = ["WELCOME TO AUCTION"];
+       state.sponsors.forEach(s => {
+           items.push(tName);
+           items.push(s.name.toUpperCase());
+       });
+       return items;
+  }, [state.sponsors, state.tournamentName]);
 
   // Force White Background for Projector
   useEffect(() => {
@@ -60,7 +72,6 @@ const ProjectorScreen: React.FC = () => {
 
       // Update Ticker Log
       if (auctionLog.length > 0) {
-          // Find the most recent meaningful log
           const relevantLog = auctionLog.find(l => l.type === 'SOLD' || l.type === 'UNSOLD');
           if (relevantLog) setLatestLog(relevantLog.message);
       }
@@ -121,9 +132,18 @@ const ProjectorScreen: React.FC = () => {
 
                {/* Scrolling Marquee (Bottom) */}
               {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
-                <div className="fixed bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
+                <div className="fixed bottom-0 left-0 w-full bg-black text-white py-4 overflow-hidden whitespace-nowrap z-50">
                     <div className="inline-block animate-marquee pl-[100%]">
-                         {state.sponsors.map(s => s.name).join('  •  ')}  •  {state.sponsors.map(s => s.name).join('  •  ')}
+                         {marqueeContent.map((text, i) => (
+                           <span key={i} className="mx-12 font-bold text-3xl inline-flex items-center tracking-wide">
+                               {text}
+                           </span>
+                         ))}
+                         {marqueeContent.map((text, i) => (
+                           <span key={`dup-${i}`} className="mx-12 font-bold text-3xl inline-flex items-center tracking-wide">
+                               {text}
+                           </span>
+                         ))}
                     </div>
                      <style>{`
                         @keyframes marquee {
@@ -131,7 +151,7 @@ const ProjectorScreen: React.FC = () => {
                             100% { transform: translateX(-100%); }
                         }
                         .animate-marquee {
-                            animation: marquee 30s linear infinite;
+                            animation: marquee 40s linear infinite;
                             display: inline-block;
                             white-space: nowrap;
                             padding-left: 100%; 
@@ -150,7 +170,7 @@ const ProjectorScreen: React.FC = () => {
         
         {/* TOP OVERLAYS */}
         {state.auctionLogoUrl && (
-            <div className="absolute top-6 left-6 w-24 h-24 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50 border border-gray-200">
+            <div className="absolute top-6 left-6 w-32 h-32 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50 border border-gray-200">
                 <img src={state.auctionLogoUrl} className="max-w-full max-h-full object-contain" />
             </div>
         )}
@@ -282,9 +302,18 @@ const ProjectorScreen: React.FC = () => {
 
         {/* Scrolling Marquee (Bottom) */}
         {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
-            <div className="fixed bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
+            <div className="fixed bottom-0 left-0 w-full bg-black text-white py-4 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight">
                 <div className="inline-block animate-marquee pl-[100%]">
-                    {state.sponsors.map(s => s.name).join('  •  ')}  •  {state.sponsors.map(s => s.name).join('  •  ')}
+                    {marqueeContent.map((text, i) => (
+                        <span key={i} className="mx-12 font-bold text-3xl inline-flex items-center tracking-wide text-shadow">
+                            {text}
+                        </span>
+                    ))}
+                     {marqueeContent.map((text, i) => (
+                        <span key={`dup-${i}`} className="mx-12 font-bold text-3xl inline-flex items-center tracking-wide text-shadow">
+                            {text}
+                        </span>
+                    ))}
                 </div>
                 <style>{`
                     @keyframes marquee {
@@ -292,10 +321,13 @@ const ProjectorScreen: React.FC = () => {
                         100% { transform: translateX(-100%); }
                     }
                     .animate-marquee {
-                        animation: marquee 30s linear infinite;
+                        animation: marquee 40s linear infinite;
                         display: inline-block;
                         white-space: nowrap;
                         padding-left: 100%; 
+                    }
+                    .text-shadow {
+                        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
                     }
                 `}</style>
             </div>

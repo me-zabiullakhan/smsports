@@ -115,6 +115,7 @@ export interface AuctionState {
   biddingEnabled: boolean; // Global toggle for team bidding
   playerSelectionMode: 'MANUAL' | 'AUTO';
   auctionLogoUrl?: string;
+  tournamentName?: string;
   sponsors: Sponsor[];
   sponsorConfig: SponsorConfig;
 }

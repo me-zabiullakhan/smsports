@@ -26,15 +26,16 @@ const OBSOverlay: React.FC = () => {
   });
 
   const [currentSponsorIndex, setCurrentSponsorIndex] = useState(0);
+  const loopInterval = state.sponsorConfig?.loopInterval || 5;
+  const sponsorsLength = state.sponsors.length;
 
   useEffect(() => {
+      if (sponsorsLength <= 1) return;
       const interval = setInterval(() => {
-          if (state.sponsors && state.sponsors.length > 0) {
-              setCurrentSponsorIndex(prev => (prev + 1) % state.sponsors.length);
-          }
-      }, (state.sponsorConfig?.loopInterval || 5) * 1000);
+          setCurrentSponsorIndex(prev => (prev + 1) % sponsorsLength);
+      }, loopInterval * 1000);
       return () => clearInterval(interval);
-  }, [state.sponsors, state.sponsorConfig]);
+  }, [sponsorsLength, loopInterval]);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,7 +57,7 @@ const OBSOverlay: React.FC = () => {
 
   // --- SYNC LOGIC ---
   useEffect(() => {
-      const { currentPlayerId, currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams } = state;
+      const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams } = state;
       const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
 
       if (currentPlayer) {

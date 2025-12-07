@@ -23,7 +23,8 @@ const initialState: AuctionState = {
   playerSelectionMode: 'MANUAL',
   sponsors: [],
   sponsorConfig: { showOnOBS: true, showOnProjector: true, loopInterval: 5 },
-  auctionLogoUrl: ''
+  auctionLogoUrl: '',
+  tournamentName: ''
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -116,6 +117,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true,
                     playerSelectionMode: data.playerSelectionMode || 'MANUAL',
                     auctionLogoUrl: data.logoUrl || '',
+                    tournamentName: data.title || '',
                     // Sponsors populated by subcollection listener below
                     sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 }
                 };
