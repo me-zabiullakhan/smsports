@@ -50,6 +50,9 @@ const AuctionManage: React.FC = () => {
   // Registration View Modal
   const [selectedRegistration, setSelectedRegistration] = useState<RegisteredPlayer | null>(null);
 
+  // Auction Edit Modal
+  const [showEditAuctionModal, setShowEditAuctionModal] = useState(false);
+
   // Real-time Listener for Auction Details
   useEffect(() => {
     if (!id) return;
@@ -379,6 +382,70 @@ const AuctionManage: React.FC = () => {
   };
 
   // --- MODALS ---
+  
+  const EditAuctionDetailsModal = () => {
+      const [title, setTitle] = useState(auction?.title || '');
+      const [logo, setLogo] = useState(auction?.logoUrl || '');
+      const [isUpdating, setIsUpdating] = useState(false);
+      const fileRef = useRef<HTMLInputElement>(null);
+
+      const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (file) {
+              if (file.size > 800 * 1024) return alert("File too large. Max 800KB");
+              const reader = new FileReader();
+              reader.onloadend = () => setLogo(reader.result as string);
+              reader.readAsDataURL(file);
+          }
+      };
+
+      const handleUpdateDetails = async () => {
+          if (!id) return;
+          if (!title.trim()) return alert("Title required");
+          setIsUpdating(true);
+          try {
+              await db.collection('auctions').doc(id).update({
+                  title: title,
+                  logoUrl: logo
+              });
+              alert("Auction details updated successfully!");
+              setShowEditAuctionModal(false);
+          } catch(e: any) {
+              alert("Failed to update: " + e.message);
+          } finally {
+              setIsUpdating(false);
+          }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">Edit Auction Details</h3>
+                    <button onClick={() => setShowEditAuctionModal(false)}><X className="text-gray-400" /></button>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Auction Title</label>
+                        <input type="text" className="w-full border p-2 rounded outline-none" value={title} onChange={e => setTitle(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
+                        <div onClick={() => fileRef.current?.click()} className="border border-dashed p-4 text-center cursor-pointer flex flex-col items-center justify-center min-h-[100px] hover:bg-gray-50">
+                            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+                            {logo ? <img src={logo} className="w-20 h-20 object-contain" /> : <><Upload className="w-6 h-6 text-gray-400"/><span className="text-xs text-gray-500 mt-2">Click to upload</span></>}
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                    <button onClick={() => setShowEditAuctionModal(false)} className="px-3 py-1 border rounded">Cancel</button>
+                    <button onClick={handleUpdateDetails} disabled={isUpdating} className="px-3 py-1 bg-green-600 text-white rounded">{isUpdating ? 'Saving...' : 'Save Changes'}</button>
+                </div>
+            </div>
+        </div>
+      );
+  };
+
   const CreateTeamModal = () => {
       const [form, setForm] = useState<Partial<Team>>(editingTeam || {
           id: '', // Will be generated
@@ -709,7 +776,15 @@ const AuctionManage: React.FC = () => {
             <div className="container mx-auto px-6 py-3 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-700"><ArrowLeft /></button>
-                    <div><h1 className="text-xl font-bold text-gray-700">{loading ? 'Loading...' : auction?.title}</h1><p className="text-xs text-gray-400">{auction?.sport} • {auction?.date}</p></div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-gray-700">{loading ? 'Loading...' : auction?.title}</h1>
+                            <button onClick={() => setShowEditAuctionModal(true)} className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Auction Details">
+                                <Edit className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-400">{auction?.sport} • {auction?.date}</p>
+                    </div>
                 </div>
                 <div>
                     <button 
@@ -930,6 +1005,7 @@ const AuctionManage: React.FC = () => {
         {selectedRegistration && <RegistrationDetailsModal />}
         {showPlayerModal && <EditPlayerModal />}
         {showBulkPriceModal && <BulkPriceModal />}
+        {showEditAuctionModal && <EditAuctionDetailsModal />}
     </div>
   );
 };

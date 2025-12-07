@@ -153,6 +153,8 @@ export interface AuctionSetup {
     createdAt: number;
     createdBy?: string;
     registrationConfig?: RegistrationConfig;
+    logoUrl?: string;
+    bannerUrl?: string;
 }
 
 export interface AuctionContextType {
