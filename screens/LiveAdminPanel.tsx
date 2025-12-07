@@ -350,7 +350,7 @@ const LiveAdminPanel: React.FC = () => {
               </div>
               
               {/* Quick Actions & Theme Selectors */}
-              <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-1.5 w-full">
+              <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full">
                   <div className="flex items-center gap-1">
                     <button 
                         onClick={(e) => { e.stopPropagation(); copyOBSLink('transparent'); }}
@@ -377,28 +377,32 @@ const LiveAdminPanel: React.FC = () => {
 
                   <div className="w-px h-6 bg-gray-600 mx-1"></div>
 
-                  {/* Theme Selectors */}
-                  <div className="flex items-center gap-2 flex-1">
-                      <select 
-                        value={state.projectorLayout || 'STANDARD'} 
-                        onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
-                        className="bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
-                        title="Projector Theme"
-                      >
-                          <option value="STANDARD">Standard</option>
-                          <option value="IPL">Gold/Blue</option>
-                          <option value="MODERN">Modern</option>
-                      </select>
-                      <select 
-                        value={state.obsLayout || 'STANDARD'} 
-                        onChange={(e) => updateTheme('OBS', e.target.value)}
-                        className="bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
-                        title="OBS Theme"
-                      >
-                          <option value="STANDARD">Standard</option>
-                          <option value="MINIMAL">Minimal</option>
-                          <option value="VERTICAL">Vertical</option>
-                      </select>
+                  {/* Theme Selectors with Clearer Labels */}
+                  <div className="flex flex-1 gap-2">
+                      <div className="flex-1">
+                          <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
+                          <select 
+                            value={state.projectorLayout || 'STANDARD'} 
+                            onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
+                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                          >
+                              <option value="STANDARD">Standard</option>
+                              <option value="IPL">Gold/Blue</option>
+                              <option value="MODERN">Modern</option>
+                          </select>
+                      </div>
+                      <div className="flex-1">
+                          <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
+                          <select 
+                            value={state.obsLayout || 'STANDARD'} 
+                            onChange={(e) => updateTheme('OBS', e.target.value)}
+                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                          >
+                              <option value="STANDARD">Standard</option>
+                              <option value="MINIMAL">Minimal</option>
+                              <option value="VERTICAL">Vertical</option>
+                          </select>
+                      </div>
                   </div>
               </div>
           </div>

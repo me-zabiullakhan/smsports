@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig } from '../types';
+import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, ProjectorLayout, OBSLayout } from '../types';
 import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
@@ -142,6 +142,16 @@ const AuctionManage: React.FC = () => {
     });
     return () => unsubscribe();
   }, [id]);
+
+  const updateAuctionField = async (field: keyof AuctionSetup, value: any) => {
+      if (!id) return;
+      try {
+          await db.collection('auctions').doc(id).update({ [field]: value });
+      } catch (e: any) {
+          console.error(e);
+          alert("Failed to update setting: " + e.message);
+      }
+  };
 
   const handleDeleteTeam = async (teamId: string) => {
       if (!id) return;
@@ -884,7 +894,32 @@ const AuctionManage: React.FC = () => {
                         <p className="text-xs text-gray-400">{auction?.sport} • {auction?.date}</p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    {/* Theme Selectors */}
+                    <div className="flex items-center gap-2 border-r border-gray-200 pr-4 mr-2">
+                        <select 
+                            value={auction?.projectorLayout || 'STANDARD'} 
+                            onChange={(e) => updateAuctionField('projectorLayout', e.target.value)}
+                            className="bg-gray-100 text-gray-700 text-xs p-1.5 rounded border border-gray-300 outline-none hover:border-green-500 cursor-pointer"
+                            title="Projector Layout"
+                        >
+                            <option value="STANDARD">Projector: Standard</option>
+                            <option value="IPL">Projector: IPL Style</option>
+                            <option value="MODERN">Projector: Modern</option>
+                        </select>
+
+                        <select 
+                            value={auction?.obsLayout || 'STANDARD'} 
+                            onChange={(e) => updateAuctionField('obsLayout', e.target.value)}
+                            className="bg-gray-100 text-gray-700 text-xs p-1.5 rounded border border-gray-300 outline-none hover:border-green-500 cursor-pointer"
+                            title="OBS Overlay Layout"
+                        >
+                            <option value="STANDARD">OBS: Standard</option>
+                            <option value="MINIMAL">OBS: Minimal</option>
+                            <option value="VERTICAL">OBS: Vertical</option>
+                        </select>
+                    </div>
+
                     <button 
                         onClick={() => copyOBSLink('transparent')}
                         className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 font-bold py-1.5 px-3 rounded text-sm flex items-center transition-colors"
