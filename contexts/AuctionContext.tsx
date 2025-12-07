@@ -41,6 +41,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                          setUserProfile({
                              uid: user.uid,
                              email: `team_${sessionData.teamId}`,
+                             name: `Team ${sessionData.teamId}`,
                              role: UserRole.TEAM_OWNER,
                              teamId: sessionData.teamId
                          });
@@ -57,17 +58,24 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                          setUserProfile({
                              uid: user.uid,
                              email: user.email,
+                             name: user.displayName || `Team ${idPart}`,
                              role: UserRole.TEAM_OWNER,
                              teamId: idPart 
                          });
                      } catch (e) {
-                         setUserProfile({ uid: user.uid, email: user.email, role: UserRole.VIEWER });
+                         setUserProfile({ uid: user.uid, email: user.email, name: 'Viewer', role: UserRole.VIEWER });
                      }
                  } else {
-                     setUserProfile({ uid: user.uid, email: user.email, role: UserRole.ADMIN });
+                     // ADMIN ROLE
+                     setUserProfile({ 
+                         uid: user.uid, 
+                         email: user.email, 
+                         name: user.displayName || user.email.split('@')[0], // Prioritize displayName
+                         role: UserRole.ADMIN 
+                     });
                  }
              } else {
-                setUserProfile({ uid: user.uid, email: 'viewer', role: UserRole.VIEWER });
+                setUserProfile({ uid: user.uid, email: 'viewer', name: 'Guest', role: UserRole.VIEWER });
              }
          } else {
              setUserProfile(null);
@@ -422,6 +430,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   // Option 1: Reset ONLY the current player's bid status
+  // UPDATED: Now Force-Resets without checks to be more reliable
   const resetCurrentPlayer = async () => {
       if (!activeAuctionId) {
           alert("Error: No active auction. Refresh page.");
@@ -431,19 +440,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       try {
           const auctionRef = db.collection('auctions').doc(activeAuctionId);
           
-          // Verify we have a current player before resetting
-          const snap = await auctionRef.get();
-          if (!snap.exists) throw new Error("Auction data missing");
-          const data = snap.data();
-          if (!data?.currentPlayerId) {
-              alert("No player currently active to reset.");
-              return;
-          }
-
           await auctionRef.update({
               currentBid: 0,
-              highestBidderId: null, // This effectively clears the bid
-              timer: BID_INTERVAL
+              highestBidderId: null, 
+              timer: BID_INTERVAL,
+              status: AuctionStatus.InProgress // Ensure unpaused
           });
           
           await auctionRef.collection('log').add({
@@ -459,6 +460,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   // Option 2: Full Auction Reset
+  // UPDATED: Force resets everything to Not Started
   const resetAuction = async () => {
     if (!activeAuctionId) {
         alert("Error: No active auction.");

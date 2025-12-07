@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS Live Overlay</title>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            /* Required CSS */
+            background: rgba(0,0,0,0);
+            margin: 0;
+            overflow: hidden;
+            color: white;
+            font-family: sans-serif;
+            font-size: 48px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.7);
+
+            /* Layout for centering */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #overlayText {
+            text-align: center;
+            /* Optional: Add a slight max-width to prevent edge touching */
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="overlayText">Loading Data...</div>
+
+    <script>
+        // Configuration
+        const API_URL = 'https://example.com/api/message'; // Change this to your real endpoint
+        const REFRESH_INTERVAL = 5000; // 5 seconds
+
+        async function fetchLiveData() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Update the text content if the message property exists
+                if (data && data.message) {
+                    const el = document.getElementById('overlayText');
+                    // Only update DOM if text changed to prevent flickering
+                    if (el.innerText !== data.message) {
+                        el.innerText = data.message;
+                    }
+                }
+            } catch (error) {
+                console.warn('OBS Overlay Fetch Error:', error);
+                // Optionally uncomment below to show errors on stream, 
+                // otherwise keep last known good text.
+                // document.getElementById('overlayText').innerText = "Connection Lost";
+            }
+        }
+
+        // Initial Load
+        fetchLiveData();
+
+        // Interval Loop
+        setInterval(fetchLiveData, REFRESH_INTERVAL);
+    </script>
+
+</body>
+</html>

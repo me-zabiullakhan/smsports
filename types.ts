@@ -111,6 +111,7 @@ export enum UserRole {
 export interface UserProfile {
   uid: string;
   email: string;
+  name?: string;
   role: UserRole;
   teamId?: number | string; // If role is TEAM_OWNER
 }

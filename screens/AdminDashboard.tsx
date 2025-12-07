@@ -119,7 +119,7 @@ const AdminDashboard: React.FC = () => {
 
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-gray-700 transition-colors">
-                    S
+                    {userProfile?.name?.charAt(0) || 'A'}
                 </div>
             </div>
         </div>
@@ -141,10 +141,10 @@ const AdminDashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-lg">
-                        S
+                        {userProfile?.name?.charAt(0) || 'A'}
                     </div>
                     <div>
-                        <h3 className="font-bold text-lg">Welcome, {userProfile?.email?.split('@')[0] || 'Admin'}</h3>
+                        <h3 className="font-bold text-lg">Welcome, {userProfile?.name || 'Admin'}</h3>
                         <button onClick={logout} className="text-sm text-gray-500 hover:text-red-500 flex items-center mt-1 transition-colors">
                              Sign out
                         </button>
@@ -249,4 +249,3 @@ const AdminDashboard: React.FC = () => {
 };
 
 export default AdminDashboard;
-    

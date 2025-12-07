@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, resetAuction, resetCurrentPlayer, state: { teams } } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, resetAuction, resetCurrentPlayer, activeAuctionId, state: { teams } } = useAuction();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -47,6 +47,13 @@ const LiveAdminPanel: React.FC = () => {
       await resetCurrentPlayer();
       setIsProcessing(false);
   }
+  
+  const copyOBSLink = () => {
+      if (!activeAuctionId) return;
+      const url = `${window.location.origin}/#/obs-overlay/${activeAuctionId}`;
+      navigator.clipboard.writeText(url);
+      alert("🎥 OBS Overlay URL Copied!\n\n1. Open OBS Studio\n2. Add Source > Browser\n3. Paste this URL\n4. Set Width: 1920, Height: 1080");
+  };
   
   // Open Modal instead of selling immediately
   const handleSellClick = () => {
@@ -175,7 +182,16 @@ const LiveAdminPanel: React.FC = () => {
       )}
 
       <div className="flex justify-between items-center mb-4 border-b border-accent pb-2">
-          <h2 className="text-xl font-bold text-highlight uppercase tracking-wider">Auctioneer</h2>
+          <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-highlight uppercase tracking-wider">Auctioneer</h2>
+              <button 
+                onClick={copyOBSLink}
+                className="bg-highlight/10 hover:bg-highlight/20 text-highlight p-1.5 rounded transition-colors"
+                title="Copy OBS Overlay Link"
+              >
+                  <Cast className="w-4 h-4" />
+              </button>
+          </div>
           <button onClick={() => navigate('/admin')} className="text-xs text-text-secondary hover:text-white flex items-center">
               <ArrowLeft className="w-3 h-3 mr-1"/> Dashboard
           </button>

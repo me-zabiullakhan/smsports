@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { useAuction } from '../hooks/useAuction';
 import { Link, useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ const AuthScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'team' | 'admin'>('team');
     
     // Admin State
+    const [adminName, setAdminName] = useState('');
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
     const [isAdminRegister, setIsAdminRegister] = useState(false);
@@ -71,7 +72,16 @@ const AuthScreen: React.FC = () => {
 
             // Admin Login Logic
             if (isAdminRegister) {
-                await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
+                if (!adminName.trim()) {
+                    throw new Error("Full Name is required for registration.");
+                }
+                const userCredential = await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
+                // Update Profile with Name
+                if (userCredential.user) {
+                    await userCredential.user.updateProfile({
+                        displayName: adminName
+                    });
+                }
             } else {
                 await auth.signInWithEmailAndPassword(adminEmail, adminPassword);
             }
@@ -181,7 +191,7 @@ const AuthScreen: React.FC = () => {
                     </div>
 
                     <h2 className="text-xl font-bold text-center text-white mb-6">
-                        {activeTab === 'team' ? 'Team Terminal Access' : 'Administrator Login'}
+                        {activeTab === 'team' ? 'Team Terminal Access' : (isAdminRegister ? 'Create Admin Account' : 'Administrator Login')}
                     </h2>
 
                     {/* Critical Config Error Alert */}
@@ -241,6 +251,19 @@ const AuthScreen: React.FC = () => {
                         </form>
                     ) : (
                         <form onSubmit={handleAdminSubmit} className="space-y-5">
+                            {isAdminRegister && (
+                                <div className="relative animate-fade-in">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
+                                    <input
+                                        type="text"
+                                        placeholder="Full Name"
+                                        value={adminName}
+                                        onChange={(e) => setAdminName(e.target.value)}
+                                        required={isAdminRegister}
+                                        className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
+                                    />
+                                </div>
+                            )}
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
                                 <input
@@ -304,4 +327,3 @@ const AuthScreen: React.FC = () => {
 };
 
 export default AuthScreen;
-    
