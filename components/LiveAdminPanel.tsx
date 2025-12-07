@@ -7,7 +7,8 @@ import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, activeAuctionId, state: { teams } } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, activeAuctionId } = useAuction();
+  const { teams, players } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -29,6 +30,18 @@ const LiveAdminPanel: React.FC = () => {
   }, [showSellModal, state.currentBid, state.highestBidder]);
 
   const handleStart = async () => {
+      // VALIDATION CHECKS
+      if (teams.length === 0) {
+          alert("Cannot start auction: No teams added. Please go back to Dashboard > Edit Auction > Teams to add teams.");
+          return;
+      }
+
+      const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+      if (availablePlayers.length === 0) {
+          alert("Cannot start auction: No available players in the pool. Please go back to Dashboard > Edit Auction > Registrations to approve players.");
+          return;
+      }
+
       setIsProcessing(true);
       const hasNextPlayer = await startAuction();
       
@@ -107,6 +120,8 @@ const LiveAdminPanel: React.FC = () => {
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
+      const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
+      const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
 
       if (isRoundActive) {
           return (
@@ -134,8 +149,13 @@ const LiveAdminPanel: React.FC = () => {
       return (
           <button 
             onClick={handleStart} 
-            disabled={isProcessing}
-            className="w-full flex items-center justify-center bg-highlight hover:bg-teal-500 text-primary font-bold py-4 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 disabled:opacity-50 active:scale-95"
+            disabled={isStartDisabled}
+            className={`w-full flex items-center justify-center font-bold py-4 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 active:scale-95
+                ${isStartDisabled 
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                    : 'bg-highlight hover:bg-teal-500 text-primary'}`
+            }
+            title={teams.length === 0 ? "Add teams first" : availablePlayersCount === 0 ? "Add players first" : "Start Auction"}
           >
               {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
               {state.status === AuctionStatus.NotStarted ? 'Start Auction' : 'Next Player'}
