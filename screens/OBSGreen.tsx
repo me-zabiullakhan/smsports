@@ -121,7 +121,7 @@ const ProjectorScreen: React.FC = () => {
 
                {/* Scrolling Marquee (Bottom) */}
               {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
-                <div className="absolute bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
+                <div className="fixed bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
                     <div className="inline-block animate-marquee pl-[100%]">
                          {state.sponsors.map(s => s.name).join('  •  ')}  •  {state.sponsors.map(s => s.name).join('  •  ')}
                     </div>
@@ -146,7 +146,7 @@ const ProjectorScreen: React.FC = () => {
   const { player, bid, bidder, status } = display;
 
   return (
-    <div className="min-h-screen w-full bg-gray-100 p-6 flex flex-col font-sans overflow-hidden relative pb-16">
+    <div className="min-h-screen w-full bg-gray-100 p-6 flex flex-col font-sans overflow-hidden relative pb-20">
         
         {/* TOP OVERLAYS */}
         {state.auctionLogoUrl && (

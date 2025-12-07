@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory } from '../types';
+import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
@@ -116,7 +116,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true,
                     playerSelectionMode: data.playerSelectionMode || 'MANUAL',
                     auctionLogoUrl: data.logoUrl || '',
-                    sponsors: data.sponsors || [],
+                    // Sponsors populated by subcollection listener below
                     sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 }
                 };
             });
@@ -151,6 +151,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         setState(p => ({ ...p, categories }));
     }, (err) => console.error("Categories sync error", err));
 
+    const unsubSponsors = auctionDocRef.collection('sponsors').onSnapshot((s) => {
+        const sponsors = s.docs.map(d => ({ id: d.id, ...d.data() } as Sponsor));
+        setState(p => ({ ...p, sponsors }));
+    }, (err) => console.error("Sponsors sync error", err));
+
     const unsubLog = auctionDocRef.collection('log').orderBy('timestamp', 'desc').limit(50).onSnapshot((s) => {
          const auctionLog = s.docs.map(d => {
               const data = d.data();
@@ -170,6 +175,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         unsubTeams();
         unsubPlayers();
         unsubCats();
+        unsubSponsors();
         unsubLog();
     };
   }, [activeAuctionId]);
@@ -499,6 +505,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         const teamsSnap = await auctionRef.collection('teams').get();
         const playersSnap = await auctionRef.collection('players').get();
         const logsSnap = await auctionRef.collection('log').get();
+        // Don't reset Sponsors or Categories
 
         const batch = db.batch();
 

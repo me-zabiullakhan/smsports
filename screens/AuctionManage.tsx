@@ -73,7 +73,6 @@ const AuctionManage: React.FC = () => {
                     customFields: data.registrationConfig.customFields || []
                 });
             }
-            if (data.sponsors) setSponsors(data.sponsors);
             if (data.sponsorConfig) setSponsorConfig(data.sponsorConfig);
             setErrorMsg(null);
         } else {
@@ -132,6 +131,16 @@ const AuctionManage: React.FC = () => {
           setPoolPlayers(loadedPlayers);
       });
       return () => unsubscribe();
+  }, [id]);
+
+  // Real-time Listener for Sponsors (Sub-collection)
+  useEffect(() => {
+    if (!id) return;
+    const unsubscribe = db.collection('auctions').doc(id).collection('sponsors').onSnapshot((snapshot) => {
+        const loadedSponsors = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Sponsor));
+        setSponsors(loadedSponsors);
+    });
+    return () => unsubscribe();
   }, [id]);
 
   const handleDeleteTeam = async (teamId: string) => {
@@ -408,8 +417,11 @@ const AuctionManage: React.FC = () => {
   const deleteSponsor = async (sponsorId: string) => {
       if (!id) return;
       if (!window.confirm("Remove this sponsor?")) return;
-      const updatedSponsors = sponsors.filter(s => s.id !== sponsorId);
-      await db.collection('auctions').doc(id).update({ sponsors: updatedSponsors });
+      try {
+         await db.collection('auctions').doc(id).collection('sponsors').doc(sponsorId).delete();
+      } catch (e: any) {
+          alert("Error: " + e.message);
+      }
   };
 
   // --- MODALS ---
@@ -434,15 +446,23 @@ const AuctionManage: React.FC = () => {
           if (!id) return;
           if (!name || !image) return alert("Name and Image required");
           setUploading(true);
-          const newSponsor: Sponsor = { id: Date.now().toString(), name, imageUrl: image };
-          const updated = [...sponsors, newSponsor];
-          await db.collection('auctions').doc(id).update({ sponsors: updated });
-          setUploading(false);
-          setShowSponsorModal(false);
+          try {
+              // Create in subcollection 'sponsors'
+              await db.collection('auctions').doc(id).collection('sponsors').add({
+                  name,
+                  imageUrl: image,
+                  createdAt: Date.now()
+              });
+              setUploading(false);
+              setShowSponsorModal(false);
+          } catch(e: any) {
+              alert("Failed to add sponsor: " + e.message);
+              setUploading(false);
+          }
       }
 
       return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
                 <h3 className="font-bold text-lg mb-4">Add Sponsor</h3>
                 <div className="space-y-4">
