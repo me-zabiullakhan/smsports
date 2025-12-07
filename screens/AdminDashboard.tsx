@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2 } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup } from '../types';
 
@@ -83,6 +83,20 @@ const AdminDashboard: React.FC = () => {
   const handleManualRefresh = () => {
       // Force re-mount of listener
       setupListener();
+  };
+
+  const copyOBSLink = (auctionId: string) => {
+      // CHECK FOR PREVIEW ENVIRONMENT
+      if (window.location.protocol === 'blob:') {
+          alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
+          return;
+      }
+
+      // Use current href base to support subdirectories/index.html paths
+      const baseUrl = window.location.href.split('#')[0];
+      const url = `${baseUrl}#/obs-overlay/${auctionId}`;
+      navigator.clipboard.writeText(url);
+      alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
   };
 
   const handleDeleteAuction = async (auctionId: string, title: string) => {
@@ -222,6 +236,13 @@ const AdminDashboard: React.FC = () => {
                                             className="text-green-600 hover:bg-green-50 px-3 py-1 rounded text-sm font-medium transition-colors flex items-center"
                                         >
                                             Live
+                                        </button>
+                                        <button 
+                                            onClick={() => copyOBSLink(auction.id!)}
+                                            className="text-purple-600 hover:bg-purple-50 px-2 py-1 rounded text-sm font-medium transition-colors"
+                                            title="Copy OBS Overlay Link"
+                                        >
+                                            <Cast className="w-4 h-4" />
                                         </button>
                                         <div className="w-px h-4 bg-gray-200 mx-1"></div>
                                         <button 

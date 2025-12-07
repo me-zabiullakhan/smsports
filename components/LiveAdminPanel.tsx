@@ -7,7 +7,7 @@ import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, resetAuction, resetCurrentPlayer, activeAuctionId, state: { teams } } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, activeAuctionId, state: { teams } } = useAuction();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -30,7 +30,14 @@ const LiveAdminPanel: React.FC = () => {
 
   const handleStart = async () => {
       setIsProcessing(true);
-      await startAuction();
+      const hasNextPlayer = await startAuction();
+      
+      if (!hasNextPlayer) {
+          // If no next player, ask admin to complete the auction
+          if (window.confirm("No more players available in the pool.\n\nDo you want to MARK AUCTION AS COMPLETED?")) {
+              await endAuction();
+          }
+      }
       setIsProcessing(false);
   }
 
@@ -50,7 +57,16 @@ const LiveAdminPanel: React.FC = () => {
   
   const copyOBSLink = () => {
       if (!activeAuctionId) return;
-      const url = `${window.location.origin}/#/obs-overlay/${activeAuctionId}`;
+      
+      // CHECK FOR PREVIEW ENVIRONMENT
+      if (window.location.protocol === 'blob:') {
+          alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary and local.\n\nAction Required:\n1. Deploy this app (e.g. Firebase Hosting).\n2. Open the deployed website.\n3. Copy the link from there.");
+          return;
+      }
+
+      // Use current href base to support subdirectories/index.html paths
+      const baseUrl = window.location.href.split('#')[0];
+      const url = `${baseUrl}#/obs-overlay/${activeAuctionId}`;
       navigator.clipboard.writeText(url);
       alert("🎥 OBS Overlay URL Copied!\n\n1. Open OBS Studio\n2. Add Source > Browser\n3. Paste this URL\n4. Set Width: 1920, Height: 1080");
   };

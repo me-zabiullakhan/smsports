@@ -378,7 +378,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         console.log("Sell Complete");
 
-        // Auto-next
+        // Auto-next attempt
+        // We use startAuction but we don't care about the return value here
+        // The Admin UI will handle the "Next Player" button state
         setTimeout(() => startAuction(), 1500);
 
       } catch (e: any) {
@@ -430,7 +432,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   // Option 1: Reset ONLY the current player's bid status
-  // UPDATED: Now Force-Resets without checks to be more reliable
   const resetCurrentPlayer = async () => {
       if (!activeAuctionId) {
           alert("Error: No active auction. Refresh page.");
@@ -460,7 +461,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   // Option 2: Full Auction Reset
-  // UPDATED: Force resets everything to Not Started
   const resetAuction = async () => {
     if (!activeAuctionId) {
         alert("Error: No active auction.");
@@ -491,8 +491,18 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const startAuction = async () => {
-    if (!activeAuctionId) return;
+  const endAuction = async () => {
+      if (!activeAuctionId) return;
+      await db.collection('auctions').doc(activeAuctionId).update({ status: AuctionStatus.Finished });
+      await db.collection('auctions').doc(activeAuctionId).collection('log').add({
+          message: "Auction Manually Completed by Admin.",
+          timestamp: Date.now(),
+          type: 'SYSTEM'
+      });
+  }
+
+  const startAuction = async (): Promise<boolean> => {
+    if (!activeAuctionId) return false;
     try {
         const auctionRef = db.collection('auctions').doc(activeAuctionId);
         
@@ -513,9 +523,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         const nextPlayer = players.find(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
 
         if (!nextPlayer) {
-            await auctionRef.update({ status: AuctionStatus.Finished });
-            alert("No more players available (All SOLD or UNSOLD). Auction Finished.");
-            return;
+            // DO NOT AUTO FINISH. RETURN FALSE.
+            return false;
         }
 
         // Set Current Bid to 0 initially so first bid can be Base Price
@@ -533,9 +542,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             type: 'SYSTEM'
         });
 
+        return true;
+
     } catch (e: any) {
         console.error("Start Auction Error", e);
         alert("Start Failed: " + e.message);
+        return false;
     }
   };
 
@@ -560,6 +572,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         sellPlayer,
         passPlayer,
         startAuction,
+        endAuction,
         resetAuction,
         resetCurrentPlayer,
         logout: handleLogout,

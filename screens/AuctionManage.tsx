@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 const AuctionManage: React.FC = () => {
@@ -317,6 +317,22 @@ const AuctionManage: React.FC = () => {
       navigator.clipboard.writeText(url);
       alert("Registration Link Copied!");
   };
+
+  const copyOBSLink = () => {
+      if (!id) return;
+      
+      // CHECK FOR PREVIEW ENVIRONMENT
+      if (window.location.protocol === 'blob:') {
+          alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
+          return;
+      }
+
+      // Use current href base to support subdirectories/index.html paths
+      const baseUrl = window.location.href.split('#')[0];
+      const url = `${baseUrl}#/obs-overlay/${id}`;
+      navigator.clipboard.writeText(url);
+      alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
+  }
 
   // --- FORM BUILDER LOGIC ---
   const addField = () => {
@@ -694,6 +710,16 @@ const AuctionManage: React.FC = () => {
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-700"><ArrowLeft /></button>
                     <div><h1 className="text-xl font-bold text-gray-700">{loading ? 'Loading...' : auction?.title}</h1><p className="text-xs text-gray-400">{auction?.sport} • {auction?.date}</p></div>
+                </div>
+                <div>
+                    <button 
+                        onClick={copyOBSLink}
+                        className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 font-bold py-1.5 px-3 rounded text-sm flex items-center transition-colors"
+                        title="Copy OBS Overlay Link"
+                    >
+                        <Cast className="w-4 h-4 mr-2" />
+                        Overlay Link
+                    </button>
                 </div>
             </div>
         </header>
