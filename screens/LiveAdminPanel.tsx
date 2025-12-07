@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
@@ -143,6 +143,31 @@ const LiveAdminPanel: React.FC = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
       const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
+
+      // NEW: Finish Auction Option
+      // Show this if no players are left AND we are not currently bidding on one (isRoundActive is false)
+      if (availablePlayersCount === 0 && state.status !== AuctionStatus.NotStarted && !isRoundActive) {
+          return (
+             <div className="bg-green-900/30 border border-green-500/50 p-6 rounded-xl text-center animate-fade-in shadow-inner">
+                <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-3 drop-shadow-lg" />
+                <h3 className="text-white font-bold text-xl mb-2">Auction Completed!</h3>
+                <p className="text-gray-300 text-sm mb-6">All players have been auctioned. You can now finalize the event.</p>
+                <button 
+                    onClick={async () => {
+                        if(window.confirm("Are you sure you want to finish the auction? This will enable the summary view for all users.")) {
+                            setIsProcessing(true);
+                            await endAuction();
+                            setIsProcessing(false);
+                        }
+                    }}
+                    disabled={isProcessing}
+                    className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide"
+                >
+                    {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : "GENERATE SUMMARY & FINISH"}
+                </button>
+            </div>
+          );
+      }
 
       // 1. ACTIVE ROUND CONTROLS (SOLD / UNSOLD)
       if (isRoundActive) {
