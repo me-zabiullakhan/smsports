@@ -20,6 +20,7 @@ const initialState: AuctionState = {
   bidIncrement: 10,
   auctionLog: [],
   biddingEnabled: true, // Default enabled
+  playerSelectionMode: 'MANUAL',
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -109,7 +110,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     currentPlayerId: data.currentPlayerId,
                     highestBidder,
                     bidIncrement: data.bidIncrement || 10,
-                    biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true
+                    biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true,
+                    playerSelectionMode: data.playerSelectionMode || 'MANUAL'
                 };
             });
         } else {
@@ -233,6 +235,18 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       } catch(e: any) {
           console.error("Toggle Bidding Error", e);
           alert("Failed to toggle bidding: " + e.message);
+      }
+  };
+
+  const toggleSelectionMode = async () => {
+      if (!activeAuctionId) return;
+      try {
+          const newMode = state.playerSelectionMode === 'AUTO' ? 'MANUAL' : 'AUTO';
+          await db.collection('auctions').doc(activeAuctionId).update({
+              playerSelectionMode: newMode
+          });
+      } catch(e: any) {
+          console.error("Toggle Selection Mode Error", e);
       }
   };
 
@@ -362,9 +376,10 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             soldTo: teamData.name
         });
 
+        // Set status to SOLD but keep current player visible (Manual mode requirement)
         await auctionRef.update({
-            status: AuctionStatus.Paused,
-            currentPlayerId: null,
+            status: AuctionStatus.Sold,
+            // Don't clear currentPlayerId yet so users can see the "Sold" screen
             currentBid: null,
             highestBidderId: null,
             timer: BID_INTERVAL
@@ -377,7 +392,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         });
 
         console.log("Sell Complete");
-        setTimeout(() => startAuction(), 1500);
+
+        // AUTO MODE: Advance automatically
+        // MANUAL MODE: Do nothing, wait for admin to pick next
+        if (state.playerSelectionMode === 'AUTO') {
+             setTimeout(() => startAuction(), 3000);
+        }
 
       } catch (e: any) {
           console.error("Sell Error:", e);
@@ -405,8 +425,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
 
         await auctionRef.update({
-            status: AuctionStatus.Paused,
-            currentPlayerId: null,
+            status: AuctionStatus.Unsold,
+            // Don't clear currentPlayerId yet
             currentBid: null,
             highestBidderId: null,
             timer: BID_INTERVAL
@@ -418,7 +438,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             type: 'UNSOLD'
         });
 
-        setTimeout(() => startAuction(), 1500);
+        if (state.playerSelectionMode === 'AUTO') {
+             setTimeout(() => startAuction(), 3000);
+        }
 
       } catch (e: any) {
           console.error("Pass Player Error", e);
@@ -500,8 +522,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             });
         });
 
-        // 6. Delete Logs (Note: If log count > 500, this simple batch might fail. 
-        // Ideally should iterate, but for typical usage this is fine)
+        // 6. Delete Logs
         logsSnap.docs.forEach(doc => {
             batch.delete(doc.ref);
         });
@@ -533,7 +554,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       });
   }
 
-  const startAuction = async (): Promise<boolean> => {
+  const startAuction = async (specificPlayerId?: string | number): Promise<boolean> => {
     if (!activeAuctionId) return false;
     try {
         const auctionRef = db.collection('auctions').doc(activeAuctionId);
@@ -541,14 +562,32 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         const playersSnap = await auctionRef.collection('players').get();
         const players = playersSnap.docs.map(d => ({id: d.id, ...d.data()} as Player));
         
-        players.sort((a,b) => {
-            const idA = Number(a.id);
-            const idB = Number(b.id);
-            if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
-            return String(a.id).localeCompare(String(b.id));
-        });
+        // Determine Next Player
+        let nextPlayer: Player | undefined;
 
-        const nextPlayer = players.find(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+        if (specificPlayerId) {
+             nextPlayer = players.find(p => String(p.id) === String(specificPlayerId));
+        } else {
+             const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+             
+             if (state.playerSelectionMode === 'AUTO') {
+                 // Random Selection
+                 if (availablePlayers.length > 0) {
+                     const randomIndex = Math.floor(Math.random() * availablePlayers.length);
+                     nextPlayer = availablePlayers[randomIndex];
+                 }
+             } else {
+                 // Fallback Sequential for manual button click without ID
+                 // Sort players: Number IDs first, then String IDs
+                 availablePlayers.sort((a,b) => {
+                    const idA = Number(a.id);
+                    const idB = Number(b.id);
+                    if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
+                    return String(a.id).localeCompare(String(b.id));
+                 });
+                 nextPlayer = availablePlayers[0];
+             }
+        }
 
         if (!nextPlayer) {
             return false;
@@ -602,6 +641,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         resetAuction,
         resetCurrentPlayer,
         toggleBidding,
+        toggleSelectionMode,
         logout: handleLogout,
         error,
         joinAuction,

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Player, PlayerCategory } from '../types';
+import { Player, PlayerCategory, AuctionStatus } from '../types';
 import { useAuction } from '../hooks/useAuction';
 import { Shield, Globe, User } from 'lucide-react';
 
@@ -38,10 +38,14 @@ const Timer: React.FC = () => {
 
 const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
   const { state } = useAuction();
-  const { currentBid, highestBidder } = state;
+  const { currentBid, highestBidder, status } = state;
 
   // Logic to ensure we don't show a bid lower than base price if data desyncs
   const displayPrice = (currentBid !== null && currentBid > 0) ? Math.max(currentBid, player.basePrice) : player.basePrice;
+
+  // Final sold check: Either status is SOLD, or player object has status SOLD (persistence in Manual mode)
+  const isSold = status === AuctionStatus.Sold || player.status === 'SOLD';
+  const isUnsold = status === AuctionStatus.Unsold || player.status === 'UNSOLD';
 
   return (
     <div className="bg-secondary rounded-lg shadow-2xl p-4 md:p-6 relative overflow-hidden border-2 border-accent flex flex-col justify-between min-h-[350px] md:min-h-[400px]">
@@ -78,6 +82,23 @@ const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
 
             {/* Bidding Info - Centered and Large */}
             <div className="bg-primary/40 p-4 md:p-6 rounded-xl border border-white/5 flex flex-col items-center justify-center flex-grow relative overflow-hidden">
+                {isSold && (
+                    <div className="absolute inset-0 bg-black/60 z-20 flex flex-col items-center justify-center animate-fade-in backdrop-blur-sm">
+                        <div className="bg-green-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">
+                            SOLD
+                        </div>
+                        {player.soldTo && <div className="mt-4 text-white text-lg font-bold">To {player.soldTo}</div>}
+                        {player.soldPrice && <div className="text-highlight text-xl font-bold">for {player.soldPrice}</div>}
+                    </div>
+                )}
+                {isUnsold && (
+                    <div className="absolute inset-0 bg-black/60 z-20 flex items-center justify-center animate-fade-in backdrop-blur-sm">
+                        <div className="bg-red-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">
+                            UNSOLD
+                        </div>
+                    </div>
+                )}
+
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-highlight to-transparent"></div>
                 
                 <p className="text-text-secondary uppercase tracking-widest text-[10px] md:text-sm font-bold mb-1 md:mb-2">

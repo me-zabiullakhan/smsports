@@ -1,34 +1,39 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { AuctionStatus, Team } from '../types';
+import { AuctionStatus, Team, Player } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, Save, ChevronDown, Shuffle, Hand, MousePointer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, toggleBidding, activeAuctionId } = useAuction();
-  const { teams, players, biddingEnabled } = state;
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, toggleBidding, toggleSelectionMode, activeAuctionId } = useAuction();
+  const { teams, players, biddingEnabled, playerSelectionMode } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Sell Modal State
-  const [showSellModal, setShowSellModal] = useState(false);
+  // Inline Sell State
+  const [isSellingMode, setIsSellingMode] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [finalPrice, setFinalPrice] = useState<number>(0);
 
+  // Manual Player Selection State
+  const [manualPlayerId, setManualPlayerId] = useState<string>('');
+
+  // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
-      if (showSellModal && state.currentBid !== null) {
+      if (state.currentBid !== null) {
           setFinalPrice(Number(state.currentBid));
           if (state.highestBidder) {
               setSelectedTeamId(String(state.highestBidder.id));
-          } else {
+          } else if (!isSellingMode) {
+              // Only reset if not already editing
               setSelectedTeamId('');
           }
       }
-  }, [showSellModal, state.currentBid, state.highestBidder]);
+  }, [state.currentBid, state.highestBidder, isSellingMode]);
 
-  const handleStart = async () => {
+  const handleStart = async (specificId?: string) => {
       if (teams.length === 0) {
           alert("Cannot start auction: No teams added. Please go back to Dashboard > Edit Auction > Teams to add teams.");
           return;
@@ -41,12 +46,15 @@ const LiveAdminPanel: React.FC = () => {
       }
 
       setIsProcessing(true);
-      const hasNextPlayer = await startAuction();
+      const hasNextPlayer = await startAuction(specificId);
       
       if (!hasNextPlayer) {
           if (window.confirm("No more players available in the pool.\n\nDo you want to MARK AUCTION AS COMPLETED?")) {
               await endAuction();
           }
+      } else {
+          // Clear manual selection
+          setManualPlayerId('');
       }
       setIsProcessing(false);
   }
@@ -84,7 +92,11 @@ const LiveAdminPanel: React.FC = () => {
   };
   
   const handleSellClick = () => {
-      setShowSellModal(true);
+      setIsSellingMode(true);
+  };
+
+  const cancelSell = () => {
+      setIsSellingMode(false);
   };
 
   const confirmSell = async () => {
@@ -100,7 +112,7 @@ const LiveAdminPanel: React.FC = () => {
       setIsProcessing(true);
       try {
           await sellPlayer(selectedTeamId, finalPrice);
-          setShowSellModal(false);
+          setIsSellingMode(false);
       } catch(e) {
           console.error(e);
       } finally {
@@ -121,7 +133,65 @@ const LiveAdminPanel: React.FC = () => {
       const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
 
+      // 1. ACTIVE ROUND CONTROLS (SOLD / UNSOLD)
       if (isRoundActive) {
+          if (isSellingMode) {
+              return (
+                  <div className="bg-primary/20 p-3 rounded-lg border border-gray-600 animate-fade-in space-y-3">
+                      <div className="flex items-center gap-2 mb-2 text-white font-bold border-b border-gray-600 pb-1">
+                          <Check className="w-4 h-4 text-green-500" /> Confirm Sale
+                      </div>
+                      
+                      {/* Inline Form */}
+                      <div>
+                          <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Sold To Team</label>
+                          <div className="relative">
+                            <select 
+                                value={selectedTeamId} 
+                                onChange={(e) => setSelectedTeamId(e.target.value)}
+                                className="w-full bg-primary border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-green-500 appearance-none"
+                            >
+                                <option value="">-- Select Team --</option>
+                                {teams.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name} ({t.budget})</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                          </div>
+                      </div>
+                      
+                      <div>
+                          <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Final Price</label>
+                          <div className="relative">
+                              <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                              <input 
+                                type="number" 
+                                value={finalPrice} 
+                                onChange={(e) => setFinalPrice(Number(e.target.value))}
+                                className="w-full bg-primary border border-gray-600 rounded p-2 pl-8 text-sm text-white font-bold outline-none focus:border-green-500"
+                              />
+                          </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                          <button 
+                            onClick={cancelSell}
+                            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded text-sm font-bold transition-colors"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                            onClick={confirmSell}
+                            disabled={isProcessing}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-bold shadow-lg flex items-center justify-center transition-colors"
+                          >
+                              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Confirm'}
+                          </button>
+                      </div>
+                  </div>
+              );
+          }
+
           return (
               <div className="grid grid-cols-2 gap-3">
                   <button 
@@ -144,19 +214,56 @@ const LiveAdminPanel: React.FC = () => {
           );
       }
 
+      // 2. NEXT PLAYER SELECTION (Based on Mode)
+      if (playerSelectionMode === 'MANUAL') {
+          const availableList = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+          return (
+              <div className="space-y-3 bg-primary/30 p-3 rounded-lg border border-gray-600">
+                  <div>
+                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player (Manual Mode)</label>
+                      <div className="relative">
+                        <select 
+                            value={manualPlayerId} 
+                            onChange={(e) => setManualPlayerId(e.target.value)}
+                            className="w-full bg-primary border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-highlight appearance-none"
+                        >
+                            <option value="">-- Choose Player --</option>
+                            {availableList.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.category}) - {p.basePrice}</option>
+                            ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => handleStart(manualPlayerId)} 
+                    disabled={isStartDisabled || !manualPlayerId}
+                    className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 active:scale-95
+                        ${isStartDisabled || !manualPlayerId
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                            : 'bg-highlight hover:bg-teal-500 text-primary'}`
+                    }
+                  >
+                      {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
+                      Start Bidding for Selected
+                  </button>
+              </div>
+          );
+      }
+
+      // AUTO MODE
       return (
           <button 
-            onClick={handleStart} 
+            onClick={() => handleStart()} 
             disabled={isStartDisabled}
             className={`w-full flex items-center justify-center font-bold py-4 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 active:scale-95
                 ${isStartDisabled 
                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
                     : 'bg-highlight hover:bg-teal-500 text-primary'}`
             }
-            title={teams.length === 0 ? "Add teams first" : availablePlayersCount === 0 ? "Add players first" : "Start Auction"}
           >
-              {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
-              {state.status === AuctionStatus.NotStarted ? 'Start Auction' : 'Next Player'}
+              {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Shuffle className="mr-2 h-5 w-5"/>} 
+              {state.status === AuctionStatus.NotStarted ? 'Start Auction (Auto Random)' : 'Next Random Player'}
           </button>
       );
   }
@@ -164,56 +271,6 @@ const LiveAdminPanel: React.FC = () => {
   return (
     <div className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative">
       
-      {showSellModal && (
-          <div className="absolute inset-0 z-50 bg-secondary/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 rounded-lg animate-fade-in">
-              <h3 className="text-white font-bold text-lg mb-4 flex items-center"><Check className="w-5 h-5 text-green-500 mr-2"/> Confirm Sale</h3>
-              
-              <div className="w-full space-y-4">
-                  <div>
-                      <label className="block text-xs text-text-secondary uppercase font-bold mb-1">Sold To</label>
-                      <select 
-                        value={selectedTeamId} 
-                        onChange={(e) => setSelectedTeamId(e.target.value)}
-                        className="w-full bg-primary border border-gray-600 rounded p-2 text-white outline-none focus:border-green-500"
-                      >
-                          <option value="">-- Select Team --</option>
-                          {teams.map(t => (
-                              <option key={t.id} value={t.id}>{t.name} (Budget: {t.budget})</option>
-                          ))}
-                      </select>
-                  </div>
-                  
-                  <div>
-                      <label className="block text-xs text-text-secondary uppercase font-bold mb-1">Final Price</label>
-                      <div className="relative">
-                          <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                          <input 
-                            type="number" 
-                            value={finalPrice} 
-                            onChange={(e) => setFinalPrice(Number(e.target.value))}
-                            className="w-full bg-primary border border-gray-600 rounded p-2 pl-8 text-white font-bold outline-none focus:border-green-500"
-                          />
-                      </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                      <button 
-                        onClick={() => setShowSellModal(false)}
-                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded font-bold"
-                      >
-                          Cancel
-                      </button>
-                      <button 
-                        onClick={confirmSell}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded font-bold shadow-lg"
-                      >
-                          Confirm
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
       <div className="flex justify-between items-center mb-4 border-b border-accent pb-2">
           <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-highlight uppercase tracking-wider">Auctioneer</h2>
@@ -248,29 +305,50 @@ const LiveAdminPanel: React.FC = () => {
           </button>
       </div>
       
+      {/* SELECTION MODE TOGGLE */}
+      <div className="bg-primary/40 rounded-lg p-2 mb-4 flex justify-between items-center border border-gray-700">
+          <span className="text-xs font-bold text-text-secondary uppercase ml-1">Selection Mode</span>
+          <div className="flex bg-gray-800 rounded p-1">
+              <button 
+                onClick={playerSelectionMode !== 'MANUAL' ? toggleSelectionMode : undefined}
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${playerSelectionMode === 'MANUAL' ? 'bg-highlight text-primary shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                  Manual
+              </button>
+              <button 
+                onClick={playerSelectionMode !== 'AUTO' ? toggleSelectionMode : undefined}
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${playerSelectionMode === 'AUTO' ? 'bg-highlight text-primary shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                  Auto
+              </button>
+          </div>
+      </div>
+
       <div className="mb-6 space-y-3">
          {getControlButtons()}
          
-         <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-accent/30">
-             <button 
-                onClick={handleResetPlayer} 
-                disabled={isProcessing || !state.currentPlayerId}
-                className="flex flex-col items-center justify-center bg-yellow-600 hover:bg-yellow-700 text-xs text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Clears bids for current player only"
-             >
-                <RotateCcw className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
-                Reset Current
-             </button>
-             <button 
-                onClick={handleResetFull} 
-                disabled={isProcessing}
-                className="flex flex-col items-center justify-center bg-red-900/80 hover:bg-red-900 text-xs text-red-200 border border-red-800 py-2 rounded transition-colors disabled:opacity-50"
-                title="Resets auction status to Not Started"
-             >
-                <AlertOctagon className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
-                Reset Full
-             </button>
-         </div>
+         {!isSellingMode && (
+             <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-accent/30">
+                 <button 
+                    onClick={handleResetPlayer} 
+                    disabled={isProcessing || !state.currentPlayerId}
+                    className="flex flex-col items-center justify-center bg-yellow-600 hover:bg-yellow-700 text-xs text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Clears bids for current player only"
+                 >
+                    <RotateCcw className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
+                    Reset Current
+                 </button>
+                 <button 
+                    onClick={handleResetFull} 
+                    disabled={isProcessing}
+                    className="flex flex-col items-center justify-center bg-red-900/80 hover:bg-red-900 text-xs text-red-200 border border-red-800 py-2 rounded transition-colors disabled:opacity-50"
+                    title="Resets auction status to Not Started"
+                 >
+                    <AlertOctagon className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
+                    Reset Full
+                 </button>
+             </div>
+         )}
       </div>
 
       <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase Teams Overview">Teams Overview</h3>

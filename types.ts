@@ -101,6 +101,7 @@ export interface AuctionState {
   bidIncrement: number; // Global fallback increment
   auctionLog: AuctionLog[];
   biddingEnabled: boolean; // Global toggle for team bidding
+  playerSelectionMode: 'MANUAL' | 'AUTO';
 }
 
 export enum UserRole {
@@ -156,6 +157,7 @@ export interface AuctionSetup {
     registrationConfig?: RegistrationConfig;
     logoUrl?: string;
     bannerUrl?: string;
+    playerSelectionMode?: 'MANUAL' | 'AUTO';
 }
 
 export interface AuctionContextType {
@@ -165,11 +167,12 @@ export interface AuctionContextType {
     placeBid: (teamId: number | string, amount: number) => Promise<void>;
     sellPlayer: (teamId?: string | number, customPrice?: number) => Promise<void>;
     passPlayer: () => Promise<void>;
-    startAuction: () => Promise<boolean>;
+    startAuction: (specificPlayerId?: string | number) => Promise<boolean>;
     endAuction: () => Promise<void>;
     resetAuction: () => Promise<void>;
     resetCurrentPlayer: () => Promise<void>;
     toggleBidding: () => Promise<void>; // New toggle function
+    toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
     logout: () => void;
     error: string | null;
     joinAuction: (id: string) => void;
