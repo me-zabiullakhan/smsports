@@ -25,6 +25,17 @@ const OBSOverlay: React.FC = () => {
       status: 'WAITING'
   });
 
+  const [currentSponsorIndex, setCurrentSponsorIndex] = useState(0);
+
+  useEffect(() => {
+      const interval = setInterval(() => {
+          if (state.sponsors && state.sponsors.length > 0) {
+              setCurrentSponsorIndex(prev => (prev + 1) % state.sponsors.length);
+          }
+      }, (state.sponsorConfig?.loopInterval || 5) * 1000);
+      return () => clearInterval(interval);
+  }, [state.sponsors, state.sponsorConfig]);
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Force Transparency on Mount
@@ -94,7 +105,16 @@ const OBSOverlay: React.FC = () => {
   // Waiting State
   if (display.status === 'WAITING' || !display.player) {
       return (
-          <div className="min-h-screen w-full flex items-end justify-center pb-20">
+          <div className="min-h-screen w-full flex flex-col items-center justify-end pb-20 relative">
+              {/* Show Sponsor in Waiting State too if enabled */}
+              {state.sponsorConfig?.showOnOBS && state.sponsors.length > 0 && (
+                  <div className="absolute top-6 right-6 w-32 h-20 bg-white/10 backdrop-blur rounded-lg p-2 flex items-center justify-center border border-white/20">
+                        <img 
+                            src={state.sponsors[currentSponsorIndex]?.imageUrl} 
+                            className="max-w-full max-h-full object-contain"
+                        />
+                  </div>
+              )}
               <div className="bg-slate-900/90 text-white px-12 py-4 rounded-full border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse">
                   <h1 className="text-2xl font-bold tracking-[0.5em] uppercase text-cyan-400">Waiting for Auction</h1>
               </div>
@@ -106,6 +126,18 @@ const OBSOverlay: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full overflow-hidden relative font-sans">
+        
+        {/* SPONSOR LOGO (TOP RIGHT) */}
+        {state.sponsorConfig?.showOnOBS && state.sponsors.length > 0 && (
+            <div className="absolute top-6 right-6 w-40 h-24 bg-white/90 backdrop-blur rounded-xl shadow-lg p-2 flex items-center justify-center z-50 border-2 border-white/20 overflow-hidden">
+                 <img 
+                    src={state.sponsors[currentSponsorIndex]?.imageUrl} 
+                    className="max-w-full max-h-full object-contain"
+                    alt="Sponsor"
+                />
+            </div>
+        )}
+
         {/* LOWER THIRDS BAR CONTAINER */}
         <div className="absolute bottom-10 left-4 right-4 md:left-10 md:right-10 h-32 bg-slate-900/95 rounded-2xl border border-slate-700 shadow-2xl flex items-center overflow-visible animate-slide-up max-w-[95vw] mx-auto">
             

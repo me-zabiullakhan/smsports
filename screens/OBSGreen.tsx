@@ -26,6 +26,18 @@ const ProjectorScreen: React.FC = () => {
   const [latestLog, setLatestLog] = useState<string>('');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sponsor Loop State
+  const [currentSponsorIndex, setCurrentSponsorIndex] = useState(0);
+
+  useEffect(() => {
+      const interval = setInterval(() => {
+          if (state.sponsors && state.sponsors.length > 0) {
+              setCurrentSponsorIndex(prev => (prev + 1) % state.sponsors.length);
+          }
+      }, (state.sponsorConfig?.loopInterval || 5) * 1000);
+      return () => clearInterval(interval);
+  }, [state.sponsors, state.sponsorConfig]);
+
   // Force White Background for Projector
   useEffect(() => {
       const originalBodyBg = document.body.style.backgroundColor;
@@ -84,11 +96,49 @@ const ProjectorScreen: React.FC = () => {
 
   if (!display.player) {
       return (
-          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-10">
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-10 relative">
+              {/* Tournament Logo (Top Left) */}
+              {state.auctionLogoUrl && (
+                  <div className="absolute top-6 left-6 w-32 h-32 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50">
+                      <img src={state.auctionLogoUrl} className="max-w-full max-h-full object-contain" />
+                  </div>
+              )}
+               {/* Sponsor Logo (Top Right) */}
+               {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
+                  <div className="absolute top-6 right-6 w-40 h-24 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50 overflow-hidden">
+                      <img 
+                          src={state.sponsors[currentSponsorIndex]?.imageUrl} 
+                          className="max-w-full max-h-full object-contain transition-opacity duration-500"
+                          alt="Sponsor"
+                      />
+                  </div>
+              )}
+
               <div className="bg-white p-12 rounded-3xl shadow-xl text-center border border-gray-200">
                   <h1 className="text-5xl font-bold text-gray-800 tracking-wider mb-4">WAITING FOR AUCTION</h1>
                   <p className="text-gray-500 text-xl animate-pulse">The next player will appear shortly...</p>
               </div>
+
+               {/* Scrolling Marquee (Bottom) */}
+              {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
+                <div className="absolute bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
+                    <div className="inline-block animate-marquee pl-[100%]">
+                         {state.sponsors.map(s => s.name).join('  •  ')}  •  {state.sponsors.map(s => s.name).join('  •  ')}
+                    </div>
+                     <style>{`
+                        @keyframes marquee {
+                            0% { transform: translateX(0%); }
+                            100% { transform: translateX(-100%); }
+                        }
+                        .animate-marquee {
+                            animation: marquee 30s linear infinite;
+                            display: inline-block;
+                            white-space: nowrap;
+                            padding-left: 100%; 
+                        }
+                    `}</style>
+                </div>
+              )}
           </div>
       );
   }
@@ -96,10 +146,26 @@ const ProjectorScreen: React.FC = () => {
   const { player, bid, bidder, status } = display;
 
   return (
-    <div className="min-h-screen w-full bg-gray-100 p-6 flex flex-col font-sans overflow-hidden">
+    <div className="min-h-screen w-full bg-gray-100 p-6 flex flex-col font-sans overflow-hidden relative pb-16">
         
+        {/* TOP OVERLAYS */}
+        {state.auctionLogoUrl && (
+            <div className="absolute top-6 left-6 w-24 h-24 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50 border border-gray-200">
+                <img src={state.auctionLogoUrl} className="max-w-full max-h-full object-contain" />
+            </div>
+        )}
+
+        {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
+            <div className="absolute top-6 right-6 w-40 h-24 bg-white rounded-xl shadow-lg p-2 flex items-center justify-center z-50 border border-gray-200">
+                 <img 
+                    src={state.sponsors[currentSponsorIndex]?.imageUrl} 
+                    className="max-w-full max-h-full object-contain"
+                />
+            </div>
+        )}
+
         {/* MAIN CARD CONTAINER */}
-        <div className="flex-1 flex gap-6 max-h-[75vh]">
+        <div className="flex-1 flex gap-6 max-h-[75vh] mt-24">
             
             {/* LEFT: PLAYER IMAGE CARD */}
             <div className="w-[35%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
@@ -188,7 +254,7 @@ const ProjectorScreen: React.FC = () => {
         </div>
 
         {/* BOTTOM SECTION: LOGS & PURSES */}
-        <div className="mt-6 flex gap-6 h-[20vh]">
+        <div className="mt-6 flex gap-6 h-[20vh] relative z-20 bg-gray-100">
             
             {/* LATEST AUCTION UPDATE LOG */}
             <div className="w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 p-6 flex flex-col justify-center relative overflow-hidden">
@@ -213,6 +279,27 @@ const ProjectorScreen: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {/* Scrolling Marquee (Bottom) */}
+        {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
+            <div className="fixed bottom-0 left-0 w-full bg-black text-white py-3 overflow-hidden whitespace-nowrap z-50">
+                <div className="inline-block animate-marquee pl-[100%]">
+                    {state.sponsors.map(s => s.name).join('  •  ')}  •  {state.sponsors.map(s => s.name).join('  •  ')}
+                </div>
+                <style>{`
+                    @keyframes marquee {
+                        0% { transform: translateX(0%); }
+                        100% { transform: translateX(-100%); }
+                    }
+                    .animate-marquee {
+                        animation: marquee 30s linear infinite;
+                        display: inline-block;
+                        white-space: nowrap;
+                        padding-left: 100%; 
+                    }
+                `}</style>
+            </div>
+        )}
     </div>
   );
 };
