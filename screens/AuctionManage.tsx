@@ -1,9 +1,8 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor } from 'lucide-react';
+import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig } from '../types';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 const AuctionManage: React.FC = () => {
@@ -12,13 +11,15 @@ const AuctionManage: React.FC = () => {
   const [auction, setAuction] = useState<AuctionSetup | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'categories' | 'registration' | 'registrations' | 'pool'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'categories' | 'registration' | 'registrations' | 'pool' | 'sponsors'>('teams');
 
   // Data States
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<AuctionCategory[]>([]);
   const [registrations, setRegistrations] = useState<RegisteredPlayer[]>([]);
   const [poolPlayers, setPoolPlayers] = useState<Player[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [sponsorConfig, setSponsorConfig] = useState<SponsorConfig>({ showOnOBS: true, showOnProjector: true, loopInterval: 5 });
 
   // Registration Config State
   const [regConfig, setRegConfig] = useState<RegistrationConfig>({
@@ -53,6 +54,9 @@ const AuctionManage: React.FC = () => {
   // Auction Edit Modal
   const [showEditAuctionModal, setShowEditAuctionModal] = useState(false);
 
+  // Sponsor Modal
+  const [showSponsorModal, setShowSponsorModal] = useState(false);
+
   // Real-time Listener for Auction Details
   useEffect(() => {
     if (!id) return;
@@ -68,6 +72,8 @@ const AuctionManage: React.FC = () => {
                     customFields: data.registrationConfig.customFields || []
                 });
             }
+            if (data.sponsors) setSponsors(data.sponsors);
+            if (data.sponsorConfig) setSponsorConfig(data.sponsorConfig);
             setErrorMsg(null);
         } else {
             console.error("Auction not found");
@@ -385,8 +391,75 @@ const AuctionManage: React.FC = () => {
       }));
   };
 
+  // --- SPONSOR LOGIC ---
+  const handleSaveSponsorConfig = async () => {
+      if (!id) return;
+      try {
+          await db.collection('auctions').doc(id).update({
+              sponsorConfig: sponsorConfig
+          });
+          alert("Loop timer updated!");
+      } catch(e) {
+          console.error(e);
+      }
+  };
+
+  const deleteSponsor = async (sponsorId: string) => {
+      if (!id) return;
+      if (!window.confirm("Remove this sponsor?")) return;
+      const updatedSponsors = sponsors.filter(s => s.id !== sponsorId);
+      await db.collection('auctions').doc(id).update({ sponsors: updatedSponsors });
+  };
+
   // --- MODALS ---
   
+  const AddSponsorModal = () => {
+      const [name, setName] = useState('');
+      const [image, setImage] = useState('');
+      const [uploading, setUploading] = useState(false);
+      const ref = useRef<HTMLInputElement>(null);
+
+      const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (file) {
+              if (file.size > 800 * 1024) return alert("Max 800KB");
+              const reader = new FileReader();
+              reader.onloadend = () => setImage(reader.result as string);
+              reader.readAsDataURL(file);
+          }
+      }
+
+      const save = async () => {
+          if (!id) return;
+          if (!name || !image) return alert("Name and Image required");
+          setUploading(true);
+          const newSponsor: Sponsor = { id: Date.now().toString(), name, imageUrl: image };
+          const updated = [...sponsors, newSponsor];
+          await db.collection('auctions').doc(id).update({ sponsors: updated });
+          setUploading(false);
+          setShowSponsorModal(false);
+      }
+
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                <h3 className="font-bold text-lg mb-4">Add Sponsor</h3>
+                <div className="space-y-4">
+                    <input type="text" placeholder="Sponsor Name" className="w-full border p-2 rounded" value={name} onChange={e => setName(e.target.value)} />
+                    <div onClick={() => ref.current?.click()} className="border border-dashed p-4 text-center cursor-pointer hover:bg-gray-50 flex flex-col items-center">
+                         <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile}/>
+                         {image ? <img src={image} className="h-20 object-contain"/> : <span className="text-sm text-gray-500">Upload Image</span>}
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button onClick={() => setShowSponsorModal(false)} className="px-3 py-1 border rounded">Cancel</button>
+                        <button onClick={save} disabled={uploading} className="px-3 py-1 bg-green-600 text-white rounded">{uploading ? 'Saving...' : 'Add'}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      );
+  }
+
   const EditAuctionDetailsModal = () => {
       const [title, setTitle] = useState(auction?.title || '');
       const [logo, setLogo] = useState(auction?.logoUrl || '');
@@ -818,6 +891,7 @@ const AuctionManage: React.FC = () => {
                 <button onClick={() => setActiveTab('registration')} className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'registration' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Registration Form</button>
                 <button onClick={() => setActiveTab('registrations')} className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'registrations' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Registrations ({registrations.length})</button>
                 <button onClick={() => setActiveTab('pool')} className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'pool' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Player Pool ({poolPlayers.length})</button>
+                <button onClick={() => setActiveTab('sponsors')} className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'sponsors' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Sponsors</button>
             </div>
         </div>
 
@@ -881,143 +955,262 @@ const AuctionManage: React.FC = () => {
             {/* REGISTRATION CONFIG TAB */}
             {activeTab === 'registration' && (
                 <div className="max-w-4xl mx-auto">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                        <div><h2 className="text-lg font-bold text-gray-800">Player Registration Form</h2><p className="text-sm text-gray-500">Configure the public registration page for players.</p></div>
-                        <div className="flex gap-3"><button onClick={copyRegLink} className="bg-white border text-gray-700 px-3 py-2 rounded flex items-center text-sm hover:bg-gray-50"><LinkIcon className="w-4 h-4 mr-2" /> Copy Link</button><button onClick={handleSaveRegConfig} disabled={isSavingConfig} className="bg-green-600 text-white px-4 py-2 rounded flex items-center text-sm hover:bg-green-700"><Save className="w-4 h-4 mr-2" /> {isSavingConfig ? 'Saving...' : 'Save Configuration'}</button></div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Registration Settings</h2>
+                        <button onClick={handleSaveRegConfig} disabled={isSavingConfig} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2 shadow">{isSavingConfig ? 'Saving...' : <><Save className="w-4 h-4"/> Save Config</>}</button>
                     </div>
-                    <div className="space-y-6">
-                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                            <h3 className="text-md font-bold text-gray-800 mb-4 border-b pb-2">General Settings</h3>
-                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg mb-6">
-                                 <div><h4 className="font-bold text-gray-800">Registration Status</h4><p className="text-xs text-gray-500">If disabled, players cannot access the form.</p></div>
-                                 <button onClick={() => setRegConfig({...regConfig, isEnabled: !regConfig.isEnabled})} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${regConfig.isEnabled ? 'bg-green-600' : 'bg-gray-300'}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${regConfig.isEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
-                             </div>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Registration Fee (₹)</label><input type="number" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: parseInt(e.target.value)})} className="w-full border p-2 rounded outline-none focus:ring-2 focus:ring-green-500"/></div>
-                                 <div><label className="block text-sm font-medium text-gray-700 mb-1">UPI Name</label><input type="text" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-2 focus:ring-green-500"/></div>
-                                 <div><label className="block text-sm font-medium text-gray-700 mb-1">UPI Number</label><input type="text" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-2 focus:ring-green-500"/></div>
-                                 <div>
-                                     <label className="block text-sm font-medium text-gray-700 mb-1">QR Code</label>
-                                     <div onClick={() => qrInputRef.current?.click()} className="border border-dashed p-3 text-center cursor-pointer h-[42px] flex items-center justify-center text-sm"><input ref={qrInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'qr')} />{regConfig.qrCodeUrl ? <span className="text-green-600 flex items-center"><CheckCircle className="w-3 h-3 mr-1"/> Uploaded</span> : <span className="flex items-center"><QrCode className="w-3 h-3 mr-1"/> Upload QR</span>}</div>
-                                 </div>
-                             </div>
-                             <div className="mt-6"><label className="block text-sm font-medium text-gray-700 mb-1">Terms</label><textarea rows={5} value={regConfig.terms} onChange={e => setRegConfig({...regConfig, terms: e.target.value})} className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-green-500"/></div>
-                         </div>
-                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                             <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="text-md font-bold text-gray-800">Form Fields</h3><button onClick={addField} className="text-green-600 text-sm font-bold flex items-center hover:bg-green-50 px-3 py-1 rounded"><Plus className="w-4 h-4 mr-1"/> Add Field</button></div>
-                             <div className="space-y-4">
-                                 {regConfig.customFields.map((field, index) => (
-                                     <div key={field.id} className="border border-gray-200 rounded-lg p-4 bg-white relative">
-                                         <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2"><div className="text-xs font-bold text-gray-400 uppercase">Field {index + 1}</div><button onClick={() => removeField(field.id)} className="text-red-500 p-1"><Trash2 className="w-4 h-4" /></button></div>
-                                         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                                             <div className="md:col-span-6"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Label</label><input type="text" value={field.label} onChange={(e) => updateField(field.id, { label: e.target.value })} className="w-full border p-1.5 rounded text-sm"/></div>
-                                             <div className="md:col-span-4"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Type</label><select value={field.type} onChange={(e) => updateField(field.id, { type: e.target.value as any })} className="w-full border p-1.5 rounded text-sm"><option value="text">Short Answer</option><option value="number">Number</option><option value="select">Dropdown</option><option value="date">Date</option><option value="file">File Upload</option></select></div>
-                                             <div className="md:col-span-2 pt-4"><label className="flex items-center"><input type="checkbox" className="mr-2" checked={field.required} onChange={(e) => updateField(field.id, { required: e.target.checked })} /><span className="text-xs font-bold text-gray-600">Required</span></label></div>
-                                         </div>
-                                         {field.type === 'select' && (<div className="mt-4 bg-gray-50 p-3 rounded border"><p className="text-xs text-gray-500 font-bold mb-2 uppercase">Options</p><div className="space-y-2">{field.options?.map((opt, idx) => (<div key={idx} className="flex items-center gap-2"><input type="text" value={opt} onChange={(e) => updateOption(field.id, idx, e.target.value)} className="flex-1 border p-1 rounded text-sm"/><button onClick={() => removeOption(field.id, idx)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4"/></button></div>))}<button onClick={() => addOptionToField(field.id)} className="text-blue-600 text-xs font-bold mt-2">Add Option</button></div></div>)}
-                                     </div>
-                                 ))}
-                             </div>
-                         </div>
+                    {/* Toggle Enable */}
+                    <div className="bg-white p-4 rounded shadow mb-6 border-l-4 border-blue-500 flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-gray-800">Enable Public Registration</h3>
+                            <p className="text-sm text-gray-500">Allow players to register via public link</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button onClick={copyRegLink} className="text-blue-600 hover:underline text-sm font-bold flex items-center"><LinkIcon className="w-4 h-4 mr-1"/> Copy Link</button>
+                            <button onClick={() => setRegConfig({...regConfig, isEnabled: !regConfig.isEnabled})} className={`w-12 h-6 rounded-full transition-colors relative ${regConfig.isEnabled ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${regConfig.isEnabled ? 'translate-x-6' : ''}`} />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded shadow">
+                            <h3 className="font-bold mb-4 flex items-center text-gray-800"><DollarSign className="w-4 h-4 mr-2"/> Payment & UPI</h3>
+                            <div className="space-y-4">
+                                <div><label className="block text-xs font-bold text-gray-500 uppercase">Reg Fee</label><input type="number" className="w-full border p-2 rounded" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: parseInt(e.target.value)})}/></div>
+                                <div><label className="block text-xs font-bold text-gray-500 uppercase">UPI ID</label><input type="text" className="w-full border p-2 rounded" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})}/></div>
+                                <div><label className="block text-xs font-bold text-gray-500 uppercase">UPI Name</label><input type="text" className="w-full border p-2 rounded" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})}/></div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">QR Code</label>
+                                    <div onClick={() => qrInputRef.current?.click()} className="border border-dashed p-3 text-center cursor-pointer hover:bg-gray-50">
+                                        <input ref={qrInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'qr')}/>
+                                        {regConfig.qrCodeUrl ? <img src={regConfig.qrCodeUrl} className="h-24 mx-auto object-contain"/> : <span className="text-xs text-gray-400">Upload QR</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded shadow">
+                            <h3 className="font-bold mb-4 flex items-center text-gray-800"><FileText className="w-4 h-4 mr-2"/> Content & Banner</h3>
+                            <div className="space-y-4">
+                                <div><label className="block text-xs font-bold text-gray-500 uppercase">Terms & Conditions</label><textarea className="w-full border p-2 rounded h-32 text-sm" value={regConfig.terms} onChange={e => setRegConfig({...regConfig, terms: e.target.value})}/></div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Banner Image</label>
+                                    <div onClick={() => bannerInputRef.current?.click()} className="border border-dashed p-3 text-center cursor-pointer hover:bg-gray-50">
+                                        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'banner')}/>
+                                        {regConfig.bannerUrl ? <img src={regConfig.bannerUrl} className="h-24 mx-auto object-contain"/> : <span className="text-xs text-gray-400">Upload Banner</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Custom Fields Builder */}
+                    <div className="bg-white p-6 rounded shadow mt-6">
+                        <div className="flex justify-between mb-4 border-b pb-2">
+                            <h3 className="font-bold flex items-center text-gray-800"><List className="w-4 h-4 mr-2"/> Custom Form Fields</h3>
+                            <button onClick={addField} className="text-sm text-green-600 font-bold hover:underline">+ Add Question</button>
+                        </div>
+                        {regConfig.customFields.length > 0 ? (
+                            <div className="space-y-4">
+                                {regConfig.customFields.map((field) => (
+                                    <div key={field.id} className="bg-gray-50 p-4 rounded border flex flex-col gap-3">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <input type="text" placeholder="Question Label" className="border p-2 rounded bg-white text-sm" value={field.label} onChange={e => updateField(field.id, { label: e.target.value })} />
+                                                <div className="flex gap-2">
+                                                    <select className="border p-2 rounded bg-white text-sm" value={field.type} onChange={e => updateField(field.id, { type: e.target.value as any })}>
+                                                        <option value="text">Text Input</option>
+                                                        <option value="number">Number</option>
+                                                        <option value="select">Dropdown</option>
+                                                        <option value="date">Date</option>
+                                                        <option value="file">File Upload</option>
+                                                    </select>
+                                                    <label className="flex items-center text-xs gap-1 cursor-pointer">
+                                                        <input type="checkbox" checked={field.required} onChange={e => updateField(field.id, { required: e.target.checked })} /> Required
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => removeField(field.id)} className="text-red-500 hover:text-red-700 ml-2"><Trash2 className="w-4 h-4"/></button>
+                                        </div>
+                                        {field.type === 'select' && (
+                                            <div className="pl-4 border-l-2 border-gray-300">
+                                                <p className="text-xs text-gray-500 font-bold mb-2">Options</p>
+                                                <div className="flex flex-wrap gap-2 mb-2">
+                                                    {field.options?.map((opt, idx) => (
+                                                        <div key={idx} className="flex items-center bg-white border rounded px-2 py-1 text-sm">
+                                                            <input type="text" value={opt} onChange={e => updateOption(field.id, idx, e.target.value)} className="outline-none w-24 bg-transparent"/>
+                                                            <button onClick={() => removeOption(field.id, idx)} className="text-red-400 hover:text-red-600 ml-1"><X className="w-3 h-3"/></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <button onClick={() => addOptionToField(field.id)} className="text-xs text-blue-500 hover:underline">+ Add Option</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-gray-400 italic text-center py-4">No custom fields added.</p>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* REGISTRATIONS TAB */}
+            {/* REGISTRATIONS LIST TAB */}
             {activeTab === 'registrations' && (
-                 <div>
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-lg font-bold text-gray-800">Pending Registrations</h2>
-                        <div className="text-sm text-gray-500">Review and approve players here.</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase">
-                                <tr><th className="px-6 py-3">Player</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Status</th><th className="px-6 py-3 text-right">Actions</th></tr>
+                <div>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">Player Registrations</h2>
+                    <div className="bg-white rounded shadow overflow-hidden border border-gray-200">
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50 border-b">
+                                <tr>
+                                    <th className="p-3 text-xs font-bold text-gray-500 uppercase">Player</th>
+                                    <th className="p-3 text-xs font-bold text-gray-500 uppercase">Type</th>
+                                    <th className="p-3 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    <th className="p-3 text-xs font-bold text-gray-500 uppercase">Submitted</th>
+                                    <th className="p-3 text-xs font-bold text-gray-500 uppercase">Action</th>
+                                </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {registrations.map(reg => (
-                                    <tr key={reg.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4"><div className="flex items-center gap-3"><img src={reg.profilePic} className="w-8 h-8 rounded-full bg-gray-200" />{reg.fullName}</div></td>
-                                        <td className="px-6 py-4 text-sm">{reg.playerType}</td>
-                                        <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${reg.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{reg.status}</span></td>
-                                        <td className="px-6 py-4 text-right"><button onClick={() => setSelectedRegistration(reg)} className="text-blue-600 hover:underline text-sm font-medium">View</button></td>
-                                    </tr>
-                                ))}
-                                {registrations.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-400">No registrations found.</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                 </div>
-            )}
-
-            {/* NEW POOL TAB */}
-            {activeTab === 'pool' && (
-                 <div>
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-800">Player Pool</h2>
-                            <p className="text-sm text-gray-500">These are the approved players who will appear in the Live Auction.</p>
-                        </div>
-                        <div className="flex gap-2">
-                            {poolPlayers.length > 0 && (
-                                <button 
-                                    onClick={() => setShowBulkPriceModal(true)}
-                                    className="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 font-bold py-2 px-4 rounded text-sm flex items-center transition-colors"
-                                >
-                                    <DollarSign className="w-4 h-4 mr-2"/>
-                                    Bulk Set Price
-                                </button>
-                            )}
-                            {poolPlayers.length > 0 && (
-                                <button 
-                                    onClick={handleClearPool}
-                                    disabled={isDeleting}
-                                    className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold py-2 px-4 rounded text-sm flex items-center transition-colors"
-                                >
-                                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Trash2 className="w-4 h-4 mr-2"/>}
-                                    Clear Pool
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase">
-                                <tr><th className="px-6 py-3">Player</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Base Price</th><th className="px-6 py-3 text-right">Actions</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {poolPlayers.map(p => (
-                                    <tr key={p.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4"><div className="flex items-center gap-3"><img src={p.photoUrl} className="w-8 h-8 rounded-full bg-gray-200" />{p.name}</div></td>
-                                        <td className="px-6 py-4 text-sm">{p.category}</td>
-                                        <td className="px-6 py-4 text-sm font-mono font-bold">{p.basePrice}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button onClick={() => { setEditingPlayer(p); setShowPlayerModal(true); }} className="text-gray-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50 transition-colors" title="Edit Player">
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={() => handleDeletePoolPlayer(p.id.toString())} className="text-gray-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="Delete from Auction">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                            <tbody>
+                                {registrations.length > 0 ? registrations.map(reg => (
+                                    <tr key={reg.id} className="border-b hover:bg-gray-50 last:border-0">
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-3">
+                                                {reg.profilePic && <img src={reg.profilePic} className="w-8 h-8 rounded-full object-cover border"/>}
+                                                <span className="font-bold text-gray-800 text-sm">{reg.fullName}</span>
                                             </div>
                                         </td>
+                                        <td className="p-3 text-sm text-gray-600">{reg.playerType}</td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${reg.status === 'APPROVED' ? 'bg-green-100 text-green-700' : reg.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                {reg.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-sm text-gray-500">{new Date(reg.submittedAt).toLocaleDateString()}</td>
+                                        <td className="p-3">
+                                            <button onClick={() => setSelectedRegistration(reg)} className="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-bold border border-blue-200">View</button>
+                                        </td>
                                     </tr>
-                                ))}
-                                {poolPlayers.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-400">Pool is empty. Approve players from Registrations tab.</td></tr>}
+                                )) : (
+                                    <tr><td colSpan={5} className="p-8 text-center text-gray-400">No registrations found.</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
-                 </div>
+                </div>
             )}
+
+            {/* POOL TAB */}
+            {activeTab === 'pool' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Player Pool ({poolPlayers.length})</h2>
+                        <div className="flex gap-2">
+                             <button onClick={() => setShowBulkPriceModal(true)} className="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-bold flex items-center"><DollarSign className="w-4 h-4 mr-1"/> Bulk Price</button>
+                             <button onClick={handleClearPool} className="px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-bold flex items-center"><Trash2 className="w-4 h-4 mr-1"/> Clear All</button>
+                        </div>
+                    </div>
+                    
+                    {/* Simplified List for performance */}
+                    <div className="bg-white rounded shadow overflow-hidden border border-gray-200">
+                        <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-left">
+                                <thead className="bg-gray-50 border-b sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-3 text-xs font-bold text-gray-500 uppercase">Player</th>
+                                        <th className="p-3 text-xs font-bold text-gray-500 uppercase">Category</th>
+                                        <th className="p-3 text-xs font-bold text-gray-500 uppercase">Base Price</th>
+                                        <th className="p-3 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                        <th className="p-3 text-right text-xs font-bold text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {poolPlayers.length > 0 ? poolPlayers.map(player => (
+                                        <tr key={player.id} className="border-b hover:bg-gray-50 last:border-0">
+                                            <td className="p-3">
+                                                <div className="flex items-center gap-3">
+                                                    {player.photoUrl ? <img src={player.photoUrl} className="w-8 h-8 rounded-full object-cover border"/> : <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-xs">{player.name.charAt(0)}</div>}
+                                                    <span className="font-bold text-gray-800 text-sm">{player.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-sm text-gray-600">{player.category}</td>
+                                            <td className="p-3 text-sm font-mono font-bold text-green-600">{player.basePrice}</td>
+                                            <td className="p-3 text-xs">
+                                                {player.status === 'SOLD' ? <span className="text-green-600 font-bold">SOLD</span> : player.status === 'UNSOLD' ? <span className="text-red-500 font-bold">UNSOLD</span> : <span className="text-gray-400">OPEN</span>}
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <button onClick={() => { setEditingPlayer(player); setShowPlayerModal(true); }} className="text-blue-500 hover:bg-blue-50 p-1 rounded mr-1"><Edit className="w-4 h-4"/></button>
+                                                <button onClick={() => handleDeletePoolPlayer(player.id.toString())} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 className="w-4 h-4"/></button>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan={5} className="p-8 text-center text-gray-400">Pool is empty. Approve registrations to add players.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SPONSORS TAB */}
+            {activeTab === 'sponsors' && (
+                <div>
+                     <div className="flex justify-between items-center mb-6">
+                        <div>
+                             <h2 className="text-lg font-bold text-gray-800">Sponsors & Partners</h2>
+                             <p className="text-sm text-gray-500">Manage sponsor logos for OBS and Projector screens.</p>
+                        </div>
+                        <button onClick={() => setShowSponsorModal(true)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow flex items-center"><Plus className="w-4 h-4 mr-2" /> Add Sponsor</button>
+                     </div>
+                     
+                     <div className="bg-white p-4 rounded shadow mb-6 border border-gray-200">
+                         <h3 className="font-bold text-gray-800 mb-3 flex items-center"><Settings className="w-4 h-4 mr-2"/> Display Configuration</h3>
+                         <div className="flex flex-wrap gap-4 items-center text-sm">
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" checked={sponsorConfig.showOnOBS} onChange={e => setSponsorConfig({...sponsorConfig, showOnOBS: e.target.checked})} />
+                                 Show on OBS Overlay
+                             </label>
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" checked={sponsorConfig.showOnProjector} onChange={e => setSponsorConfig({...sponsorConfig, showOnProjector: e.target.checked})} />
+                                 Show on Projector
+                             </label>
+                             <div className="flex items-center gap-2">
+                                 <span>Loop Interval (sec):</span>
+                                 <input type="number" className="border p-1 rounded w-16" value={sponsorConfig.loopInterval} onChange={e => setSponsorConfig({...sponsorConfig, loopInterval: parseInt(e.target.value)})} />
+                             </div>
+                             <button onClick={handleSaveSponsorConfig} className="ml-auto bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1 rounded font-bold text-xs hover:bg-blue-100">Save Config</button>
+                         </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                         {sponsors.map(sponsor => (
+                             <div key={sponsor.id} className="bg-white border rounded-lg p-3 relative group hover:shadow-md transition-shadow">
+                                 <div className="aspect-square flex items-center justify-center bg-gray-50 rounded mb-2 overflow-hidden">
+                                     <img src={sponsor.imageUrl} className="max-w-full max-h-full object-contain" />
+                                 </div>
+                                 <p className="text-center font-bold text-sm truncate">{sponsor.name}</p>
+                                 <button onClick={() => deleteSponsor(sponsor.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"><X className="w-3 h-3"/></button>
+                             </div>
+                         ))}
+                         {sponsors.length === 0 && (
+                             <div className="col-span-full py-8 text-center text-gray-400 italic bg-gray-50 border border-dashed rounded">No sponsors added yet.</div>
+                         )}
+                     </div>
+                </div>
+            )}
+
         </main>
 
+        {/* MODAL PORTAL */}
         {showTeamModal && <CreateTeamModal />}
         {showCategoryModal && <CreateCategoryModal />}
-        {selectedRegistration && <RegistrationDetailsModal />}
-        {showPlayerModal && <EditPlayerModal />}
+        {showPlayerModal && editingPlayer && <EditPlayerModal />}
         {showBulkPriceModal && <BulkPriceModal />}
+        {selectedRegistration && <RegistrationDetailsModal />}
         {showEditAuctionModal && <EditAuctionDetailsModal />}
+        {showSponsorModal && <AddSponsorModal />}
+
     </div>
   );
 };

@@ -87,6 +87,18 @@ export interface AuctionCategory {
     slabs: BidIncrementSlab[];
 }
 
+export interface Sponsor {
+    id: string;
+    name: string;
+    imageUrl: string;
+}
+
+export interface SponsorConfig {
+    showOnOBS: boolean;
+    showOnProjector: boolean;
+    loopInterval: number; // seconds
+}
+
 export interface AuctionState {
   players: Player[];
   teams: Team[];
@@ -102,6 +114,9 @@ export interface AuctionState {
   auctionLog: AuctionLog[];
   biddingEnabled: boolean; // Global toggle for team bidding
   playerSelectionMode: 'MANUAL' | 'AUTO';
+  auctionLogoUrl?: string;
+  sponsors: Sponsor[];
+  sponsorConfig: SponsorConfig;
 }
 
 export enum UserRole {
@@ -158,6 +173,8 @@ export interface AuctionSetup {
     logoUrl?: string;
     bannerUrl?: string;
     playerSelectionMode?: 'MANUAL' | 'AUTO';
+    sponsors?: Sponsor[];
+    sponsorConfig?: SponsorConfig;
 }
 
 export interface AuctionContextType {

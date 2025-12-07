@@ -21,6 +21,9 @@ const initialState: AuctionState = {
   auctionLog: [],
   biddingEnabled: true, // Default enabled
   playerSelectionMode: 'MANUAL',
+  sponsors: [],
+  sponsorConfig: { showOnOBS: true, showOnProjector: true, loopInterval: 5 },
+  auctionLogoUrl: ''
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -111,7 +114,10 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     highestBidder,
                     bidIncrement: data.bidIncrement || 10,
                     biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true,
-                    playerSelectionMode: data.playerSelectionMode || 'MANUAL'
+                    playerSelectionMode: data.playerSelectionMode || 'MANUAL',
+                    auctionLogoUrl: data.logoUrl || '',
+                    sponsors: data.sponsors || [],
+                    sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 }
                 };
             });
         } else {
