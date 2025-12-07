@@ -645,6 +645,36 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  const resetUnsoldPlayers = async () => {
+      if (!activeAuctionId) return;
+      try {
+          const auctionRef = db.collection('auctions').doc(activeAuctionId);
+          const snapshot = await auctionRef.collection('players').where('status', '==', 'UNSOLD').get();
+          
+          if (snapshot.empty) {
+              alert("No unsold players found to reset.");
+              return;
+          }
+
+          const batch = db.batch();
+          snapshot.docs.forEach(doc => {
+              batch.update(doc.ref, { status: firebase.firestore.FieldValue.delete() });
+          });
+          
+          await batch.commit();
+
+          await auctionRef.collection('log').add({
+              message: `ADMIN ACTION: ${snapshot.size} Unsold Players returned to pool.`,
+              timestamp: Date.now(),
+              type: 'SYSTEM'
+          });
+          alert(`${snapshot.size} Unsold players have been moved back to the available pool.`);
+      } catch (e: any) {
+          console.error("Error resetting unsold:", e);
+          alert("Failed: " + e.message);
+      }
+  };
+
   const handleLogout = () => {
       auth.signOut();
       setUserProfile(null);
@@ -669,6 +699,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         endAuction,
         resetAuction,
         resetCurrentPlayer,
+        resetUnsoldPlayers,
         toggleBidding,
         toggleSelectionMode,
         updateTheme,

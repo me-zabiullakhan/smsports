@@ -196,6 +196,7 @@ export interface AuctionContextType {
     endAuction: () => Promise<void>;
     resetAuction: () => Promise<void>;
     resetCurrentPlayer: () => Promise<void>;
+    resetUnsoldPlayers: () => Promise<void>;
     toggleBidding: () => Promise<void>; // New toggle function
     toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
     updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
