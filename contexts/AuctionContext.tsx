@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor } from '../types';
+import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor, ProjectorLayout, OBSLayout } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
@@ -24,7 +24,9 @@ const initialState: AuctionState = {
   sponsors: [],
   sponsorConfig: { showOnOBS: true, showOnProjector: true, loopInterval: 5 },
   auctionLogoUrl: '',
-  tournamentName: ''
+  tournamentName: '',
+  projectorLayout: 'STANDARD',
+  obsLayout: 'STANDARD'
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -119,7 +121,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     auctionLogoUrl: data.logoUrl || '',
                     tournamentName: data.title || '',
                     // Sponsors populated by subcollection listener below
-                    sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 }
+                    sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 },
+                    projectorLayout: data.projectorLayout || 'STANDARD',
+                    obsLayout: data.obsLayout || 'STANDARD'
                 };
             });
         } else {
@@ -261,6 +265,16 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           });
       } catch(e: any) {
           console.error("Toggle Selection Mode Error", e);
+      }
+  };
+
+  const updateTheme = async (type: 'PROJECTOR' | 'OBS', layout: string) => {
+      if (!activeAuctionId) return;
+      try {
+          const updateData = type === 'PROJECTOR' ? { projectorLayout: layout } : { obsLayout: layout };
+          await db.collection('auctions').doc(activeAuctionId).update(updateData);
+      } catch(e: any) {
+          console.error("Update Theme Error", e);
       }
   };
 
@@ -657,6 +671,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         resetCurrentPlayer,
         toggleBidding,
         toggleSelectionMode,
+        updateTheme,
         logout: handleLogout,
         error,
         joinAuction,

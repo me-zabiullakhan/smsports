@@ -99,6 +99,9 @@ export interface SponsorConfig {
     loopInterval: number; // seconds
 }
 
+export type ProjectorLayout = 'STANDARD' | 'IPL' | 'MODERN';
+export type OBSLayout = 'STANDARD' | 'MINIMAL' | 'VERTICAL';
+
 export interface AuctionState {
   players: Player[];
   teams: Team[];
@@ -118,6 +121,8 @@ export interface AuctionState {
   tournamentName?: string;
   sponsors: Sponsor[];
   sponsorConfig: SponsorConfig;
+  projectorLayout: ProjectorLayout;
+  obsLayout: OBSLayout;
 }
 
 export enum UserRole {
@@ -176,6 +181,8 @@ export interface AuctionSetup {
     playerSelectionMode?: 'MANUAL' | 'AUTO';
     sponsors?: Sponsor[];
     sponsorConfig?: SponsorConfig;
+    projectorLayout?: ProjectorLayout;
+    obsLayout?: OBSLayout;
 }
 
 export interface AuctionContextType {
@@ -191,6 +198,7 @@ export interface AuctionContextType {
     resetCurrentPlayer: () => Promise<void>;
     toggleBidding: () => Promise<void>; // New toggle function
     toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
+    updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
     logout: () => void;
     error: string | null;
     joinAuction: (id: string) => void;
