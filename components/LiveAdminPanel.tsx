@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
@@ -65,16 +65,22 @@ const LiveAdminPanel: React.FC = () => {
       setIsProcessing(false);
   }
   
-  const copyOBSLink = () => {
+  const copyOBSLink = (type: 'transparent' | 'green') => {
       if (!activeAuctionId) return;
       if (window.location.protocol === 'blob:') {
           alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary and local.\n\nAction Required:\n1. Deploy this app (e.g. Firebase Hosting).\n2. Open the deployed website.\n3. Copy the link from there.");
           return;
       }
       const baseUrl = window.location.href.split('#')[0];
-      const url = `${baseUrl}#/obs-overlay/${activeAuctionId}`;
+      const route = type === 'green' ? 'obs-green' : 'obs-overlay';
+      const url = `${baseUrl}#/${route}/${activeAuctionId}`;
       navigator.clipboard.writeText(url);
-      alert("🎥 OBS Overlay URL Copied!\n\n1. Open OBS Studio\n2. Add Source > Browser\n3. Paste this URL\n4. Set Width: 1920, Height: 1080");
+      
+      if (type === 'green') {
+          alert("🟩 GREEN SCREEN URL Copied!\n\nUse Chroma Key filter in OBS to remove the green background.");
+      } else {
+          alert("🎥 TRANSPARENT OBS URL Copied!\n\nUse this in OBS Browser Source. It has a transparent background.");
+      }
   };
   
   const handleSellClick = () => {
@@ -213,11 +219,19 @@ const LiveAdminPanel: React.FC = () => {
               <h2 className="text-xl font-bold text-highlight uppercase tracking-wider">Auctioneer</h2>
               <div className="flex items-center bg-primary/50 rounded-lg p-1">
                   <button 
-                    onClick={copyOBSLink}
+                    onClick={() => copyOBSLink('transparent')}
                     className="p-1.5 rounded hover:bg-white/10 text-highlight transition-colors"
-                    title="Copy OBS Overlay Link"
+                    title="Copy OBS Transparent Link"
                   >
                       <Cast className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-gray-600 mx-1"></div>
+                  <button 
+                    onClick={() => copyOBSLink('green')}
+                    className="p-1.5 rounded hover:bg-white/10 text-green-400 transition-colors"
+                    title="Copy OBS Green Screen Link"
+                  >
+                      <Monitor className="w-4 h-4" />
                   </button>
                   <div className="w-px h-4 bg-gray-600 mx-1"></div>
                   <button

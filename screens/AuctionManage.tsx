@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 const AuctionManage: React.FC = () => {
@@ -321,20 +321,24 @@ const AuctionManage: React.FC = () => {
       alert("Registration Link Copied!");
   };
 
-  const copyOBSLink = () => {
+  const copyOBSLink = (type: 'transparent' | 'green') => {
       if (!id) return;
       
-      // CHECK FOR PREVIEW ENVIRONMENT
       if (window.location.protocol === 'blob:') {
           alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
           return;
       }
 
-      // Use current href base to support subdirectories/index.html paths
       const baseUrl = window.location.href.split('#')[0];
-      const url = `${baseUrl}#/obs-overlay/${id}`;
+      const route = type === 'green' ? 'obs-green' : 'obs-overlay';
+      const url = `${baseUrl}#/${route}/${id}`;
       navigator.clipboard.writeText(url);
-      alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
+      
+      if (type === 'green') {
+          alert("🟩 GREEN SCREEN URL Copied!\n\nUse Chroma Key filter in OBS to remove the green background.");
+      } else {
+          alert("🎥 TRANSPARENT OBS URL Copied!\n\nUse this in OBS Browser Source.");
+      }
   }
 
   // --- FORM BUILDER LOGIC ---
@@ -786,14 +790,22 @@ const AuctionManage: React.FC = () => {
                         <p className="text-xs text-gray-400">{auction?.sport} • {auction?.date}</p>
                     </div>
                 </div>
-                <div>
+                <div className="flex gap-2">
                     <button 
-                        onClick={copyOBSLink}
+                        onClick={() => copyOBSLink('transparent')}
                         className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 font-bold py-1.5 px-3 rounded text-sm flex items-center transition-colors"
-                        title="Copy OBS Overlay Link"
+                        title="Copy Transparent Overlay Link"
                     >
                         <Cast className="w-4 h-4 mr-2" />
-                        Overlay Link
+                        Overlay
+                    </button>
+                    <button 
+                        onClick={() => copyOBSLink('green')}
+                        className="bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 font-bold py-1.5 px-3 rounded text-sm flex items-center transition-colors"
+                        title="Copy Green Screen Overlay Link"
+                    >
+                        <Monitor className="w-4 h-4 mr-2" />
+                        Chroma
                     </button>
                 </div>
             </div>

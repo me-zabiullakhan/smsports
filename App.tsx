@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './screens/Dashboard';
 import AuthScreen from './screens/AuthScreen';
 import OBSOverlay from './screens/OBSOverlay';
+import OBSGreen from './screens/OBSGreen';
 import LandingPage from './screens/LandingPage';
 import AdminDashboard from './screens/AdminDashboard';
 import CreateAuction from './screens/CreateAuction';
@@ -80,8 +81,11 @@ const AppContent: React.FC = () => {
             isAdmin ? <AuctionManage /> : <Navigate to="/auth" replace />
         } />
 
-        {/* Utility Route: OBS Overlay */}
+        {/* Utility Route: OBS Overlay (Transparent) */}
         <Route path="/obs-overlay/:auctionId" element={<OBSOverlay />} />
+
+        {/* Utility Route: OBS Overlay (Green Screen) */}
+        <Route path="/obs-green/:auctionId" element={<OBSGreen />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

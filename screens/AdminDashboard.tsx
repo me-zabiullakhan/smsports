@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup } from '../types';
 
@@ -85,7 +85,7 @@ const AdminDashboard: React.FC = () => {
       setupListener();
   };
 
-  const copyOBSLink = (auctionId: string) => {
+  const copyOBSLink = (auctionId: string, type: 'transparent' | 'green') => {
       // CHECK FOR PREVIEW ENVIRONMENT
       if (window.location.protocol === 'blob:') {
           alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
@@ -94,9 +94,15 @@ const AdminDashboard: React.FC = () => {
 
       // Use current href base to support subdirectories/index.html paths
       const baseUrl = window.location.href.split('#')[0];
-      const url = `${baseUrl}#/obs-overlay/${auctionId}`;
+      const route = type === 'green' ? 'obs-green' : 'obs-overlay';
+      const url = `${baseUrl}#/${route}/${auctionId}`;
       navigator.clipboard.writeText(url);
-      alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
+      
+      if (type === 'green') {
+          alert("🟩 GREEN SCREEN URL Copied!\n\nPaste into OBS and apply Chroma Key filter.");
+      } else {
+          alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
+      }
   };
 
   const handleDeleteAuction = async (auctionId: string, title: string) => {
@@ -237,13 +243,26 @@ const AdminDashboard: React.FC = () => {
                                         >
                                             Live
                                         </button>
-                                        <button 
-                                            onClick={() => copyOBSLink(auction.id!)}
-                                            className="text-purple-600 hover:bg-purple-50 px-2 py-1 rounded text-sm font-medium transition-colors"
-                                            title="Copy OBS Overlay Link"
-                                        >
-                                            <Cast className="w-4 h-4" />
-                                        </button>
+                                        
+                                        {/* OBS Buttons */}
+                                        <div className="flex bg-gray-100 rounded p-1">
+                                            <button 
+                                                onClick={() => copyOBSLink(auction.id!, 'transparent')}
+                                                className="text-purple-600 hover:bg-purple-50 px-2 py-1 rounded transition-colors"
+                                                title="Copy Transparent Overlay"
+                                            >
+                                                <Cast className="w-4 h-4" />
+                                            </button>
+                                            <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                                            <button 
+                                                onClick={() => copyOBSLink(auction.id!, 'green')}
+                                                className="text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                                                title="Copy Green Screen Overlay"
+                                            >
+                                                <Monitor className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
                                         <div className="w-px h-4 bg-gray-200 mx-1"></div>
                                         <button 
                                             onClick={() => handleDeleteAuction(auction.id!, auction.title)}
