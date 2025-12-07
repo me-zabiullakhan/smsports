@@ -148,7 +148,7 @@ const LandingPage: React.FC = () => {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link to="/auth" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl">
-              <Play className="w-5 h-5 mr-2 fill-current" /> Admin/Team Login
+              <Play className="w-5 h-5 mr-2 fill-current" /> Create Auction
             </Link>
           </div>
         </div>
