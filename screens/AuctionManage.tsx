@@ -3,12 +3,16 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, ProjectorLayout, OBSLayout } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer, PenTool } from 'lucide-react';
 import firebase from 'firebase/compat/app';
+import { useAuction } from '../hooks/useAuction';
 
 const AuctionManage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // We use useAuction here primarily for the correctPlayerSale function which contains complex transaction logic
+  const { correctPlayerSale } = useAuction();
+  
   const [auction, setAuction] = useState<AuctionSetup | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -57,6 +61,9 @@ const AuctionManage: React.FC = () => {
 
   // Sponsor Modal
   const [showSponsorModal, setShowSponsorModal] = useState(false);
+  
+  // Edit Sale Modal
+  const [editingSalePlayer, setEditingSalePlayer] = useState<Player | null>(null);
 
   // Real-time Listener for Auction Details
   useEffect(() => {
@@ -436,6 +443,78 @@ const AuctionManage: React.FC = () => {
 
   // --- MODALS ---
   
+  const EditSaleModal = () => {
+      if (!editingSalePlayer) return null;
+      
+      const [newTeamId, setNewTeamId] = useState('');
+      const [newPrice, setNewPrice] = useState(editingSalePlayer.soldPrice || 0);
+      const [isSaving, setIsSaving] = useState(false);
+
+      useEffect(() => {
+          // Pre-select current team
+          const currentTeam = teams.find(t => t.name === editingSalePlayer.soldTo);
+          if (currentTeam) setNewTeamId(String(currentTeam.id));
+      }, [editingSalePlayer]);
+
+      const handleSave = async () => {
+          if (!newTeamId && !window.confirm("No team selected. This will mark the player as UNSOLD. Continue?")) return;
+          setIsSaving(true);
+          try {
+              await correctPlayerSale(String(editingSalePlayer.id), newTeamId || null, newPrice);
+              alert("Sale Updated Successfully!");
+              setEditingSalePlayer(null);
+          } catch (e: any) {
+              alert("Update Failed: " + e.message);
+          } finally {
+              setIsSaving(false);
+          }
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">Edit Sale: {editingSalePlayer.name}</h3>
+                    <button onClick={() => setEditingSalePlayer(null)}><X className="text-gray-400" /></button>
+                </div>
+                
+                <div className="space-y-4">
+                    <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                        <p className="font-bold">Current Status:</p>
+                        <p>Sold to: <b>{editingSalePlayer.soldTo || 'Unknown'}</b></p>
+                        <p>Price: <b>{editingSalePlayer.soldPrice}</b></p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">New Team (Reassign)</label>
+                        <select className="w-full border p-2 rounded" value={newTeamId} onChange={e => setNewTeamId(e.target.value)}>
+                            <option value="">-- Unsell / Reset --</option>
+                            {teams.map(t => (
+                                <option key={t.id} value={t.id}>{t.name} (Budget: {t.budget})</option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-400 mt-1">Select empty to mark as Unsold.</p>
+                    </div>
+
+                    {newTeamId && (
+                         <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Sold Price</label>
+                            <input type="number" className="w-full border p-2 rounded" value={newPrice} onChange={e => setNewPrice(Number(e.target.value))} />
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-6 flex justify-end gap-2">
+                    <button onClick={() => setEditingSalePlayer(null)} className="px-4 py-2 border rounded">Cancel</button>
+                    <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-bold flex items-center">
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : 'Update Sale'}
+                    </button>
+                </div>
+            </div>
+          </div>
+      );
+  };
+
   const AddSponsorModal = () => {
       const [name, setName] = useState('');
       const [image, setImage] = useState('');
@@ -1223,11 +1302,31 @@ const AuctionManage: React.FC = () => {
                                             <td className="p-3 text-sm text-gray-600">{player.category}</td>
                                             <td className="p-3 text-sm font-mono font-bold text-green-600">{player.basePrice}</td>
                                             <td className="p-3 text-xs">
-                                                {player.status === 'SOLD' ? <span className="text-green-600 font-bold">SOLD</span> : player.status === 'UNSOLD' ? <span className="text-red-500 font-bold">UNSOLD</span> : <span className="text-gray-400">OPEN</span>}
+                                                {player.status === 'SOLD' ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-green-600 font-bold">SOLD</span>
+                                                        <span className="text-[10px] text-gray-400">to {player.soldTo}</span>
+                                                    </div>
+                                                ) : player.status === 'UNSOLD' ? (
+                                                    <span className="text-red-500 font-bold">UNSOLD</span>
+                                                ) : (
+                                                    <span className="text-gray-400">OPEN</span>
+                                                )}
                                             </td>
                                             <td className="p-3 text-right">
-                                                <button onClick={() => { setEditingPlayer(player); setShowPlayerModal(true); }} className="text-blue-500 hover:bg-blue-50 p-1 rounded mr-1"><Edit className="w-4 h-4"/></button>
-                                                <button onClick={() => handleDeletePoolPlayer(player.id.toString())} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 className="w-4 h-4"/></button>
+                                                <div className="flex justify-end gap-1">
+                                                    {player.status === 'SOLD' && (
+                                                        <button 
+                                                            onClick={() => setEditingSalePlayer(player)}
+                                                            className="text-orange-500 hover:bg-orange-50 p-1.5 rounded mr-1 border border-orange-200"
+                                                            title="Edit Sale / Reassign"
+                                                        >
+                                                            <PenTool className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => { setEditingPlayer(player); setShowPlayerModal(true); }} className="text-blue-500 hover:bg-blue-50 p-1 rounded mr-1"><Edit className="w-4 h-4"/></button>
+                                                    <button onClick={() => handleDeletePoolPlayer(player.id.toString())} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 className="w-4 h-4"/></button>
+                                                </div>
                                             </td>
                                         </tr>
                                     )) : (
@@ -1297,6 +1396,7 @@ const AuctionManage: React.FC = () => {
         {selectedRegistration && <RegistrationDetailsModal />}
         {showEditAuctionModal && <EditAuctionDetailsModal />}
         {showSponsorModal && <AddSponsorModal />}
+        {editingSalePlayer && <EditSaleModal />}
 
     </div>
   );

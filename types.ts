@@ -192,6 +192,7 @@ export interface AuctionContextType {
     placeBid: (teamId: number | string, amount: number) => Promise<void>;
     sellPlayer: (teamId?: string | number, customPrice?: number) => Promise<void>;
     passPlayer: () => Promise<void>;
+    correctPlayerSale: (playerId: string, newTeamId: string | null, newPrice: number) => Promise<void>;
     startAuction: (specificPlayerId?: string | number) => Promise<boolean>;
     endAuction: () => Promise<void>;
     resetAuction: () => Promise<void>;

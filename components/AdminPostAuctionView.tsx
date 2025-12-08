@@ -2,14 +2,15 @@
 import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Team, UserRole } from '../types';
-import { Download, Trophy, Users, Wallet, ArrowLeft, Eye, X } from 'lucide-react';
+import { Download, Trophy, Users, Wallet, ArrowLeft, Eye, X, RefreshCw, AlertOctagon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import TeamPostAuctionView from './TeamPostAuctionView';
 
 const AdminPostAuctionView: React.FC = () => {
-    const { state, userProfile } = useAuction();
+    const { state, userProfile, resetAuction } = useAuction();
     const navigate = useNavigate();
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+    const [isResetting, setIsResetting] = useState(false);
 
     const isAdmin = userProfile?.role === UserRole.ADMIN;
 
@@ -53,6 +54,19 @@ const AdminPostAuctionView: React.FC = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const handleFullReset = async () => {
+        if (!window.confirm("DANGER: Are you sure you want to RESET the entire auction? This will wipe all sales, reset budgets, and clear history. This cannot be undone.")) return;
+        setIsResetting(true);
+        try {
+            await resetAuction();
+            // Context will update state to NotStarted, which Dashboard will react to.
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsResetting(false);
+        }
     };
 
     return (
@@ -125,7 +139,7 @@ const AdminPostAuctionView: React.FC = () => {
                 <Users className="w-5 h-5 mr-2 text-blue-600"/> Team Performance
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {state.teams.map(team => {
                     const teamSpent = team.players.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
                     return (
@@ -167,6 +181,29 @@ const AdminPostAuctionView: React.FC = () => {
                     );
                 })}
             </div>
+
+            {/* DANGER ZONE - ADMIN ONLY */}
+            {isAdmin && (
+                <div className="mt-12 border-t-2 border-red-100 pt-8">
+                    <h3 className="text-red-700 font-bold uppercase tracking-wider text-sm mb-4 flex items-center">
+                        <AlertOctagon className="w-4 h-4 mr-2" /> Danger Zone
+                    </h3>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h4 className="font-bold text-red-800">Reset Entire Auction</h4>
+                            <p className="text-sm text-red-600">This will wipe all sales data, reset team budgets, and set the auction status to 'Not Started'. This cannot be undone.</p>
+                        </div>
+                        <button 
+                            onClick={handleFullReset}
+                            disabled={isResetting}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow transition-colors flex items-center whitespace-nowrap"
+                        >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
+                            {isResetting ? 'Resetting...' : 'Reset Auction'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

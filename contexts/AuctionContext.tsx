@@ -347,6 +347,111 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
   };
 
+  // CORRECT MISTAKE / REASSIGN PLAYER
+  const correctPlayerSale = async (playerId: string, newTeamId: string | null, newPrice: number) => {
+      if (!activeAuctionId) return;
+      const auctionRef = db.collection('auctions').doc(activeAuctionId);
+
+      try {
+          await db.runTransaction(async (transaction) => {
+              // 1. Get Player Data
+              const playerRef = auctionRef.collection('players').doc(playerId);
+              const playerSnap = await transaction.get(playerRef);
+              if (!playerSnap.exists) throw "Player not found";
+              const playerData = playerSnap.data() as Player;
+
+              // 2. Identify Old Team (Refund logic)
+              if (playerData.status === 'SOLD' && playerData.soldTo) {
+                  // We need to find the team doc ID by name, as soldTo stores Name.
+                  // Since we are inside a transaction, we can't do a query efficiently without knowing ID.
+                  // However, for correction, we rely on the state loaded in client or strict ID passed.
+                  // Ideally player should store soldToTeamId.
+                  // Fallback: We look up the team ID from the `state.teams` using name, BUT
+                  // to be safe in transaction, we need to read all teams or query. 
+                  // Querying in transaction is tricky if not supported.
+                  // Workaround: We query for the team ID based on name OUTSIDE transaction or assume we can find it.
+                  
+                  // BETTER: Use the `teams` from state to find the ID corresponding to `playerData.soldTo`
+                  const oldTeamObj = state.teams.find(t => t.name === playerData.soldTo);
+                  
+                  if (oldTeamObj) {
+                      const oldTeamRef = auctionRef.collection('teams').doc(String(oldTeamObj.id));
+                      const oldTeamSnap = await transaction.get(oldTeamRef);
+                      if (oldTeamSnap.exists) {
+                          const oldTeamData = oldTeamSnap.data() as Team;
+                          const refundAmount = Number(playerData.soldPrice || 0);
+                          const updatedBudget = Number(oldTeamData.budget) + refundAmount;
+                          
+                          // Remove player from array
+                          const updatedPlayers = (oldTeamData.players || []).filter(p => String(p.id) !== String(playerId));
+                          
+                          transaction.update(oldTeamRef, {
+                              budget: updatedBudget,
+                              players: updatedPlayers
+                          });
+                      }
+                  }
+              }
+
+              // 3. Process New Sale (if newTeamId is provided)
+              if (newTeamId) {
+                  const newTeamRef = auctionRef.collection('teams').doc(newTeamId);
+                  const newTeamSnap = await transaction.get(newTeamRef);
+                  if (!newTeamSnap.exists) throw "New Team not found";
+                  const newTeamData = newTeamSnap.data() as Team;
+
+                  if (Number(newTeamData.budget) < newPrice) {
+                      throw `Team ${newTeamData.name} has insufficient budget (${newTeamData.budget}) for correction price ${newPrice}`;
+                  }
+
+                  const newBudget = Number(newTeamData.budget) - Number(newPrice);
+                  
+                  // Add player summary to new team
+                  const playerSummary = {
+                      id: String(playerData.id),
+                      name: String(playerData.name),
+                      category: String(playerData.category),
+                      soldPrice: Number(newPrice)
+                  };
+
+                  const currentPlayers = newTeamData.players || [];
+                  // Ensure no duplicates
+                  const filteredPlayers = currentPlayers.filter(p => String(p.id) !== String(playerId));
+                  
+                  transaction.update(newTeamRef, {
+                      budget: newBudget,
+                      players: [...filteredPlayers, playerSummary]
+                  });
+
+                  // Update Player Doc
+                  transaction.update(playerRef, {
+                      status: 'SOLD',
+                      soldPrice: Number(newPrice),
+                      soldTo: newTeamData.name
+                  });
+              } else {
+                  // If newTeamId is null, we are just "Unselling" / resetting the player to available
+                  transaction.update(playerRef, {
+                      status: firebase.firestore.FieldValue.delete(),
+                      soldPrice: firebase.firestore.FieldValue.delete(),
+                      soldTo: firebase.firestore.FieldValue.delete()
+                  });
+              }
+
+              // Log
+              const logRef = auctionRef.collection('log').doc();
+              transaction.set(logRef, {
+                  message: `ADMIN CORRECTION: ${playerData.name} ${newTeamId ? 'reassigned' : 'unsold'}.`,
+                  timestamp: Date.now(),
+                  type: 'SYSTEM'
+              });
+          });
+      } catch (e: any) {
+          console.error("Correction Error:", e);
+          throw e; // Propagate to UI
+      }
+  };
+
   const sellPlayer = async (customTeamId?: string | number, customPrice?: number) => {
       if (!activeAuctionId) {
           alert("Error: No active auction ID. Try refreshing.");
@@ -703,6 +808,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         placeBid,
         sellPlayer,
         passPlayer,
+        correctPlayerSale,
         startAuction,
         endAuction,
         resetAuction,
