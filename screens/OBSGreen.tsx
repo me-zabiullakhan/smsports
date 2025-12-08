@@ -2,14 +2,14 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
-import { Globe, User, TrendingUp, Wallet } from 'lucide-react';
+import { Globe, User, TrendingUp, Wallet, Trophy, Star } from 'lucide-react';
 import { Team, Player, AuctionStatus } from '../types';
 
 interface DisplayState {
     player: Player | null;
     bid: number;
     bidder: Team | null;
-    status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD';
+    status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED';
 }
 
 const Marquee = React.memo(({ content, show }: { content: string[], show: boolean }) => {
@@ -112,6 +112,12 @@ const ProjectorScreen: React.FC = () => {
       const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams, auctionLog } = state;
       const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
 
+      // Check for Finished State
+      if (status === AuctionStatus.Finished) {
+          setDisplay({ player: null, bid: 0, bidder: null, status: 'FINISHED' });
+          return;
+      }
+
       // Update Ticker Log
       if (auctionLog.length > 0) {
           const relevantLog = auctionLog.find(l => l.type === 'SOLD' || l.type === 'UNSOLD');
@@ -121,7 +127,7 @@ const ProjectorScreen: React.FC = () => {
       if (currentPlayer) {
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
           
-          let derivedStatus: 'LIVE' | 'SOLD' | 'UNSOLD' = 'LIVE';
+          let derivedStatus: 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED' = 'LIVE';
           if (status === AuctionStatus.Sold || currentPlayer.status === 'SOLD') derivedStatus = 'SOLD';
           else if (status === AuctionStatus.Unsold || currentPlayer.status === 'UNSOLD') derivedStatus = 'UNSOLD';
 
@@ -139,7 +145,7 @@ const ProjectorScreen: React.FC = () => {
           });
       } else {
           // Keep display for a moment after reset or transition
-          if (display.status !== 'WAITING') {
+          if (display.status !== 'WAITING' && display.status !== 'FINISHED') {
               timeoutRef.current = setTimeout(() => {
                   setDisplay({ player: null, bid: 0, bidder: null, status: 'WAITING' });
               }, 2000); 
@@ -172,6 +178,133 @@ const ProjectorScreen: React.FC = () => {
   const layout = state.projectorLayout || 'STANDARD';
 
   // --- LAYOUT RENDERERS ---
+
+  const RenderFinished = () => {
+    const [slideIndex, setSlideIndex] = useState(0);
+
+    const soldPlayers = useMemo(() => {
+        return state.teams.flatMap(t => t.players).sort((a, b) => (Number(b.soldPrice) || 0) - (Number(a.soldPrice) || 0));
+    }, [state.teams]);
+
+    const mostExpensive = soldPlayers[0];
+    const totalTurnover = soldPlayers.reduce((acc, p) => acc + (Number(p.soldPrice) || 0), 0);
+    
+    // 0: Summary, 1: Most Expensive, 2: Top 5 List
+    const totalSlides = mostExpensive ? 3 : 1;
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setSlideIndex(prev => (prev + 1) % totalSlides);
+        }, 8000); // Cycle every 8 seconds
+        return () => clearInterval(timer);
+    }, [totalSlides]);
+
+    return (
+        <div className="h-screen w-full bg-slate-900 text-white flex flex-col items-center justify-between p-8 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black font-sans">
+             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+             
+             {/* Header */}
+             <div className="z-10 text-center mt-6 animate-slide-up">
+                 <h1 className="text-5xl lg:text-7xl font-black text-yellow-400 tracking-widest uppercase drop-shadow-[0_0_25px_rgba(250,204,21,0.6)]">
+                     AUCTION COMPLETED
+                 </h1>
+                 <div className="h-2 w-48 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto mt-6 rounded-full"></div>
+             </div>
+
+             {/* Content Carousel */}
+             <div className="flex-1 flex items-center justify-center w-full max-w-7xl z-10 px-4">
+                 {slideIndex === 0 && (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 w-full animate-fade-in">
+                         <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 text-center flex flex-col justify-center items-center shadow-2xl transform hover:scale-105 transition-transform duration-500">
+                             <div className="bg-green-500/20 p-6 rounded-full mb-6 ring-4 ring-green-500/20">
+                                <TrendingUp className="w-16 h-16 text-green-400" />
+                             </div>
+                             <h2 className="text-2xl lg:text-3xl text-gray-400 uppercase font-bold tracking-widest mb-4">Total Turnover</h2>
+                             <p className="text-6xl lg:text-8xl font-black text-white tabular-nums tracking-tighter">{totalTurnover.toLocaleString()}</p>
+                         </div>
+                         <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 text-center flex flex-col justify-center items-center shadow-2xl transform hover:scale-105 transition-transform duration-500">
+                             <div className="bg-blue-500/20 p-6 rounded-full mb-6 ring-4 ring-blue-500/20">
+                                <User className="w-16 h-16 text-blue-400" />
+                             </div>
+                             <h2 className="text-2xl lg:text-3xl text-gray-400 uppercase font-bold tracking-widest mb-4">Players Sold</h2>
+                             <p className="text-6xl lg:text-8xl font-black text-white tabular-nums tracking-tighter">{soldPlayers.length}</p>
+                         </div>
+                     </div>
+                 )}
+
+                 {slideIndex === 1 && mostExpensive && (
+                     <div className="flex flex-col md:flex-row items-center gap-12 w-full animate-slide-up">
+                         <div className="w-full md:w-1/2 flex justify-center">
+                              <div className="relative w-72 h-72 lg:w-[30rem] lg:h-[30rem] rounded-full border-8 border-yellow-500 shadow-[0_0_80px_rgba(234,179,8,0.5)] overflow-hidden bg-gray-800 ring-8 ring-yellow-500/30">
+                                  <img src={mostExpensive.photoUrl} className="w-full h-full object-cover" />
+                                  <div className="absolute bottom-0 w-full bg-gradient-to-t from-black to-transparent pt-20 pb-6 text-center">
+                                      <p className="text-yellow-400 font-bold uppercase tracking-widest text-lg lg:text-xl text-shadow">Most Expensive Player</p>
+                                  </div>
+                              </div>
+                         </div>
+                         <div className="w-full md:w-1/2 text-center md:text-left">
+                              <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500 rounded-full mb-4">
+                                  <Trophy className="w-6 h-6 text-yellow-400"/>
+                                  <span className="text-yellow-400 font-bold uppercase tracking-wider text-sm">Record Breaker</span>
+                              </div>
+                              <h1 className="text-5xl lg:text-8xl font-black text-white leading-tight mb-6 drop-shadow-xl">{mostExpensive.name}</h1>
+                              
+                              <div className="flex flex-col gap-2 mb-8">
+                                  <span className="text-gray-400 uppercase text-lg font-bold tracking-widest">Sold Price</span>
+                                  <span className="text-6xl lg:text-8xl font-black text-green-400 tabular-nums drop-shadow-lg">{mostExpensive.soldPrice?.toLocaleString()}</span>
+                              </div>
+                              
+                              <div className="flex items-center justify-center md:justify-start gap-4 bg-white/10 p-4 rounded-xl border border-white/10 backdrop-blur-md w-fit mx-auto md:mx-0">
+                                  <span className="text-xl text-gray-300 font-bold uppercase">Sold To:</span>
+                                  <span className="text-2xl lg:text-4xl font-black text-white">
+                                      {mostExpensive.soldTo}
+                                  </span>
+                              </div>
+                         </div>
+                     </div>
+                 )}
+
+                 {slideIndex === 2 && (
+                     <div className="w-full max-w-5xl animate-fade-in bg-white/5 rounded-3xl p-8 border border-white/10 backdrop-blur-md shadow-2xl">
+                         <h2 className="text-3xl font-bold text-white mb-8 flex items-center gap-4 border-b border-white/10 pb-6">
+                             <div className="bg-yellow-500 p-2 rounded-lg text-black">
+                                 <Star className="w-6 h-6 fill-current" />
+                             </div>
+                             TOP 5 BUYS
+                         </h2>
+                         <div className="space-y-4">
+                             {soldPlayers.slice(0, 5).map((p, idx) => (
+                                 <div key={p.id} className="flex items-center justify-between bg-white/5 p-4 lg:p-5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors group">
+                                     <div className="flex items-center gap-6">
+                                         <div className={`w-12 h-12 flex items-center justify-center rounded-xl font-black text-2xl ${idx === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/50' : idx === 1 ? 'bg-gray-300 text-black' : idx === 2 ? 'bg-orange-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                                             #{idx + 1}
+                                         </div>
+                                         <img src={p.photoUrl} className="w-16 h-16 rounded-full object-cover border-2 border-white/20 group-hover:border-white transition-colors" />
+                                         <div>
+                                             <h3 className="text-2xl lg:text-3xl font-bold text-white leading-none mb-1">{p.name}</h3>
+                                             <p className="text-sm text-gray-400 uppercase tracking-wider font-bold">{p.category}</p>
+                                         </div>
+                                     </div>
+                                     <div className="text-right">
+                                         <p className="text-3xl lg:text-4xl font-black text-green-400 tabular-nums">{p.soldPrice?.toLocaleString()}</p>
+                                         <p className="text-xs text-gray-500 uppercase font-bold tracking-widest">{p.soldTo}</p>
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 )}
+             </div>
+
+             {/* Footer */}
+             <div className="z-10 mb-8 text-center animate-pulse">
+                 <p className="text-xl lg:text-3xl text-gray-500 uppercase tracking-[0.6em] font-light">
+                     Thank You For Watching
+                 </p>
+             </div>
+        </div>
+    );
+  };
 
   const RenderWaiting = () => (
       <div className={`h-screen w-full flex flex-col items-center justify-center p-10 relative overflow-hidden ${state.projectorLayout === 'IPL' ? 'bg-slate-900' : 'bg-gray-100'}`}>
@@ -386,10 +519,11 @@ const ProjectorScreen: React.FC = () => {
 
   return (
       <>
-          {!display.player && <RenderWaiting />}
-          {display.player && layout === 'STANDARD' && <RenderStandard />}
-          {display.player && layout === 'IPL' && <RenderIPL />}
-          {display.player && layout === 'MODERN' && <RenderModern />}
+          {display.status === 'FINISHED' && <RenderFinished />}
+          {display.status !== 'FINISHED' && !display.player && <RenderWaiting />}
+          {display.status !== 'FINISHED' && display.player && layout === 'STANDARD' && <RenderStandard />}
+          {display.status !== 'FINISHED' && display.player && layout === 'IPL' && <RenderIPL />}
+          {display.status !== 'FINISHED' && display.player && layout === 'MODERN' && <RenderModern />}
           <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
       </>
   );
