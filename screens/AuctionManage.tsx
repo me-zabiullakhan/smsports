@@ -395,12 +395,13 @@ const AuctionManage: React.FC = () => {
           }
 
           let successCount = 0;
+          let failCount = 0;
           let batch = db.batch();
           let batchCount = 0;
           const BATCH_LIMIT = 450; // Safety margin below 500
 
           for (const row of jsonData as any[]) {
-               // Flexible Key Matching
+               // Flexible Key Matching to handle Name/Category mandatory fields
                const name = row['Name'] || row['name'] || row['Player Name'] || row['Player'];
                const category = row['Category'] || row['category'] || row['Role'] || row['Type'] || row['Player Type'];
                const basePrice = row['Base Price'] || row['Price'] || row['BasePrice'] || auction?.basePrice || 0;
@@ -429,6 +430,9 @@ const AuctionManage: React.FC = () => {
                        batch = db.batch();
                        batchCount = 0;
                    }
+               } else {
+                   failCount++;
+                   console.warn("Skipping row missing mandatory fields (Name, Category):", row);
                }
           }
           
@@ -436,7 +440,11 @@ const AuctionManage: React.FC = () => {
               await batch.commit();
           }
 
-          alert(`Successfully imported ${successCount} players!`);
+          if (failCount > 0) {
+              alert(`Imported ${successCount} players.\nSkipped ${failCount} rows due to missing 'Name' or 'Category'.`);
+          } else {
+              alert(`Successfully imported all ${successCount} players!`);
+          }
 
       } catch (err: any) {
           console.error("Excel Import Error:", err);

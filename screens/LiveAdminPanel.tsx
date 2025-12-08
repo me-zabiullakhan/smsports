@@ -7,7 +7,7 @@ import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
   const { teams, players, biddingEnabled, playerSelectionMode } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -19,8 +19,6 @@ const LiveAdminPanel: React.FC = () => {
 
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
-  const [playerSearchTerm, setPlayerSearchTerm] = useState('');
-  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false);
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
@@ -57,7 +55,6 @@ const LiveAdminPanel: React.FC = () => {
       } else {
           // Clear manual selection
           setManualPlayerId('');
-          setPlayerSearchTerm('');
       }
       setIsProcessing(false);
   }
@@ -126,16 +123,6 @@ const LiveAdminPanel: React.FC = () => {
           setIsProcessing(false);
       }
   }
-
-  // Filter Players for Manual Selection
-  const filteredManualPlayers = useMemo(() => {
-      const available = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
-      if (!playerSearchTerm) return available;
-      return available.filter(p => 
-          p.name.toLowerCase().includes(playerSearchTerm.toLowerCase()) || 
-          p.category.toLowerCase().includes(playerSearchTerm.toLowerCase())
-      );
-  }, [players, playerSearchTerm]);
 
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
 
@@ -279,73 +266,28 @@ const LiveAdminPanel: React.FC = () => {
           return (
               <div className="space-y-3 bg-primary/30 p-3 rounded-lg border border-gray-600">
                   <div>
-                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Search & Select Next Player</label>
-                      
-                      {/* Search Dropdown */}
+                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
                       <div className="relative">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input 
-                                type="text"
-                                placeholder="Search by name or category..."
-                                className="w-full bg-primary border border-gray-600 rounded p-2 pl-9 text-sm text-white outline-none focus:border-highlight"
-                                value={playerSearchTerm}
-                                onChange={(e) => {
-                                    setPlayerSearchTerm(e.target.value);
-                                    setShowPlayerDropdown(true);
-                                }}
-                                onFocus={() => setShowPlayerDropdown(true)}
-                            />
-                            {manualPlayerId && (
-                                <button 
-                                    onClick={() => {
-                                        setManualPlayerId('');
-                                        setPlayerSearchTerm('');
-                                    }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
-                          </div>
-
-                          {/* Dropdown List */}
-                          {showPlayerDropdown && (
-                              <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-20 custom-scrollbar">
-                                  {filteredManualPlayers.length > 0 ? filteredManualPlayers.map(p => (
-                                      <div 
-                                        key={p.id}
-                                        onClick={() => {
-                                            setManualPlayerId(String(p.id));
-                                            setPlayerSearchTerm(p.name);
-                                            setShowPlayerDropdown(false);
-                                        }}
-                                        className="p-2 hover:bg-gray-700 cursor-pointer flex justify-between items-center text-sm border-b border-gray-700 last:border-0"
-                                      >
-                                          <div className="flex items-center gap-2">
-                                              {p.photoUrl ? (
-                                                  <img src={p.photoUrl} className="w-6 h-6 rounded-full object-cover"/>
-                                              ) : (
-                                                  <User className="w-6 h-6 bg-gray-600 p-1 rounded-full"/>
-                                              )}
-                                              <span className="text-white font-medium">{p.name}</span>
-                                          </div>
-                                          <div className="text-xs text-gray-400">
-                                              {p.category} • {p.basePrice}
-                                          </div>
-                                      </div>
-                                  )) : (
-                                      <div className="p-3 text-xs text-gray-500 text-center">No matching players found</div>
-                                  )}
-                              </div>
-                          )}
+                          <select
+                                className="w-full bg-primary border border-gray-600 rounded p-2 pl-2 text-sm text-white outline-none focus:border-highlight appearance-none"
+                                value={manualPlayerId}
+                                onChange={(e) => setManualPlayerId(e.target.value)}
+                          >
+                                <option value="">-- Choose Player to Auction --</option>
+                                {players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} ({p.category}) - Base: {p.basePrice}
+                                    </option>
+                                ))}
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       </div>
 
                       {/* Selected Preview */}
                       {selectedPlayerObj && (
                           <div className="mt-2 p-2 bg-highlight/10 border border-highlight/30 rounded flex items-center gap-2 text-sm text-highlight">
                               <Check className="w-4 h-4" />
-                              <span>Selected: <b>{selectedPlayerObj.name}</b></span>
+                              <span>Ready: <b>{selectedPlayerObj.name}</b></span>
                           </div>
                       )}
                   </div>
@@ -360,7 +302,7 @@ const LiveAdminPanel: React.FC = () => {
                     }
                   >
                       {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
-                      Start Bidding for Selected
+                      Start Bidding
                   </button>
               </div>
           );
@@ -384,10 +326,7 @@ const LiveAdminPanel: React.FC = () => {
   }
 
   return (
-    <div 
-        className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative"
-        onClick={() => setShowPlayerDropdown(false)} // Close dropdown on outside click
-    >
+    <div className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative">
       
       <div className="flex justify-between items-center mb-4 border-b border-accent pb-2">
           <div className="flex flex-col gap-2 w-full">
@@ -415,13 +354,25 @@ const LiveAdminPanel: React.FC = () => {
                     >
                         <Monitor className="w-4 h-4" />
                     </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleBidding(); }}
-                        className={`p-1.5 rounded transition-colors ${biddingEnabled ? 'text-green-400 hover:bg-green-900/30' : 'text-red-400 hover:bg-red-900/30'}`}
-                        title={biddingEnabled ? "Disable Bidding for Teams" : "Enable Bidding for Teams"}
-                    >
-                        {biddingEnabled ? <Unlock className="w-4 h-4"/> : <Lock className="w-4 h-4"/>}
-                    </button>
+                    
+                    {/* Bidding Dropdown */}
+                    <div className="relative ml-1">
+                        <select
+                            value={biddingEnabled ? 'ON' : 'OFF'}
+                            onChange={(e) => {
+                                // Only toggle if value actually changes to avoid redundant calls
+                                const newVal = e.target.value === 'ON';
+                                if (newVal !== biddingEnabled) toggleBidding();
+                            }}
+                            className={`appearance-none pl-6 pr-6 py-1 rounded text-xs font-bold border outline-none cursor-pointer ${biddingEnabled ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}
+                        >
+                            <option value="ON">BIDDING ON</option>
+                            <option value="OFF">BIDDING PAUSED</option>
+                        </select>
+                        <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            {biddingEnabled ? <Unlock className="w-3 h-3 text-green-400"/> : <Lock className="w-3 h-3 text-red-400"/>}
+                        </div>
+                    </div>
                   </div>
 
                   <div className="w-px h-6 bg-gray-600 mx-1"></div>
@@ -476,7 +427,7 @@ const LiveAdminPanel: React.FC = () => {
           </div>
       </div>
 
-      <div className="mb-6 space-y-3" onClick={e => e.stopPropagation()}>
+      <div className="mb-6 space-y-3">
          {getControlButtons()}
          
          {!isSellingMode && (
