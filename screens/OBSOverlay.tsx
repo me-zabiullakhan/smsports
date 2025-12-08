@@ -10,7 +10,7 @@ interface OverlayState {
     player: Player | null;
     bid: number;
     bidder: Team | null;
-    status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD';
+    status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED';
 }
 
 const OBSOverlay: React.FC = () => {
@@ -60,10 +60,15 @@ const OBSOverlay: React.FC = () => {
       const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams } = state;
       const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
 
+      if (status === AuctionStatus.Finished) {
+           setDisplay({ player: null, bid: 0, bidder: null, status: 'FINISHED' });
+           return;
+      }
+
       if (currentPlayer) {
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
           
-          let derivedStatus: 'LIVE' | 'SOLD' | 'UNSOLD' = 'LIVE';
+          let derivedStatus: 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED' = 'LIVE';
           if (status === AuctionStatus.Sold || currentPlayer.status === 'SOLD') derivedStatus = 'SOLD';
           else if (status === AuctionStatus.Unsold || currentPlayer.status === 'UNSOLD') derivedStatus = 'UNSOLD';
 
@@ -83,7 +88,7 @@ const OBSOverlay: React.FC = () => {
           });
       } else {
           // No player
-          if (display.status !== 'WAITING') {
+          if (display.status !== 'WAITING' && display.status !== 'FINISHED') {
               timeoutRef.current = setTimeout(() => {
                   setDisplay({ player: null, bid: 0, bidder: null, status: 'WAITING' });
               }, 2000); 
@@ -114,6 +119,18 @@ const OBSOverlay: React.FC = () => {
           </div>
       )
   );
+
+  if (display.status === 'FINISHED') {
+      return (
+          <div className="min-h-screen w-full flex flex-col items-center justify-center relative">
+              <SponsorLogo />
+              <div className="bg-green-900/90 text-white px-16 py-8 rounded-3xl border-4 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.5)] animate-bounce-in text-center">
+                  <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-green-400 mb-2">AUCTION</h1>
+                  <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-white">COMPLETED</h1>
+              </div>
+          </div>
+      );
+  }
 
   // Waiting State
   if (display.status === 'WAITING' || !display.player) {
@@ -301,4 +318,3 @@ const OBSOverlay: React.FC = () => {
 };
 
 export default OBSOverlay;
-        

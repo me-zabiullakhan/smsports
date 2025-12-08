@@ -575,7 +575,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const endAuction = async () => {
       if (!activeAuctionId) return;
-      await db.collection('auctions').doc(activeAuctionId).update({ status: AuctionStatus.Finished });
+      await db.collection('auctions').doc(activeAuctionId).update({ 
+          status: AuctionStatus.Finished,
+          currentPlayerId: null, // Clear current player to show finished screen
+          currentBid: null,
+          highestBidderId: null
+      });
       await db.collection('auctions').doc(activeAuctionId).collection('log').add({
           message: "Auction Manually Completed by Admin.",
           timestamp: Date.now(),

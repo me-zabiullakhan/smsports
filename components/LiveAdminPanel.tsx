@@ -145,14 +145,14 @@ const LiveAdminPanel: React.FC = () => {
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
       const unsoldCount = players.filter(p => p.status === 'UNSOLD').length;
 
-      // Finish Auction Option - Show when no players left
+      // FINISH AUCTION OPTION (When no players left)
       if (availablePlayersCount === 0 && state.status !== AuctionStatus.NotStarted && !isRoundActive) {
           return (
-             <div className="space-y-4 animate-fade-in">
+             <div className="space-y-4 animate-fade-in mt-4">
                  {unsoldCount > 0 && (
-                     <div className="bg-blue-900/30 border border-blue-500/50 p-4 rounded-xl text-center shadow-inner">
-                        <h3 className="text-white font-bold text-lg mb-2">Unsold Players Available</h3>
-                        <p className="text-gray-300 text-xs mb-4">There are {unsoldCount} unsold players. Do you want to bring them back into the bidding pool?</p>
+                     <div className="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 border border-blue-500/50 p-4 rounded-xl text-center shadow-lg backdrop-blur-sm">
+                        <h3 className="text-white font-bold text-lg mb-2">Unsold Players Round</h3>
+                        <p className="text-blue-100 text-xs mb-4">There are <span className="font-bold text-white text-sm">{unsoldCount}</span> unsold players available. Do you want to bring them back into the bidding pool?</p>
                         <button 
                             onClick={async () => {
                                 if(window.confirm(`Bring back ${unsoldCount} unsold players to the pool?`)) {
@@ -162,7 +162,7 @@ const LiveAdminPanel: React.FC = () => {
                                 }
                             }}
                             disabled={isProcessing}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg shadow-lg transition-all active:scale-95 flex items-center justify-center border border-blue-400"
                         >
                             {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                             BRING BACK UNSOLD ({unsoldCount})
@@ -170,10 +170,10 @@ const LiveAdminPanel: React.FC = () => {
                      </div>
                  )}
                  
-                 <div className="bg-green-900/30 border border-green-500/50 p-6 rounded-xl text-center shadow-inner">
-                    <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-3 drop-shadow-lg" />
-                    <h3 className="text-white font-bold text-xl mb-2">Auction Completed!</h3>
-                    <p className="text-gray-300 text-sm mb-6">All players have been auctioned. You can now finalize the event.</p>
+                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 p-6 rounded-xl text-center shadow-xl">
+                    <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4 drop-shadow-lg" />
+                    <h3 className="text-white font-bold text-2xl mb-2">Auction Completed!</h3>
+                    <p className="text-gray-400 text-sm mb-6">All players have been auctioned. You can now finalize the event to generate team stats and dashboards.</p>
                     <button 
                         onClick={async () => {
                             if(window.confirm("Are you sure you want to finish the auction? This will enable the summary view for all users.")) {
@@ -183,9 +183,9 @@ const LiveAdminPanel: React.FC = () => {
                             }
                         }}
                         disabled={isProcessing}
-                        className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide"
+                        className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide text-lg"
                     >
-                        {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : "GENERATE SUMMARY & FINISH"}
+                        {isProcessing ? <Loader2 className="mr-2 h-6 w-6 animate-spin"/> : "FINISH & ENABLE STATS DASHBOARD"}
                     </button>
                 </div>
             </div>
@@ -201,32 +201,21 @@ const LiveAdminPanel: React.FC = () => {
                           <Check className="w-4 h-4 text-green-500" /> Confirm Sale
                       </div>
                       
-                      {/* Inline Team Selection Grid */}
+                      {/* Inline Form */}
                       <div>
-                          <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Winning Team</label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto custom-scrollbar bg-primary/40 p-2 rounded border border-gray-600">
+                          <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Sold To Team</label>
+                          <div className="relative">
+                            <select 
+                                value={selectedTeamId} 
+                                onChange={(e) => setSelectedTeamId(e.target.value)}
+                                className="w-full bg-primary border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-green-500 appearance-none"
+                            >
+                                <option value="">-- Select Team --</option>
                                 {teams.map(t => (
-                                    <button 
-                                        key={t.id} 
-                                        onClick={() => setSelectedTeamId(String(t.id))}
-                                        className={`
-                                            flex flex-col items-center justify-center p-2 rounded-lg border transition-all relative
-                                            ${selectedTeamId === String(t.id) 
-                                                ? 'bg-green-600/20 border-green-500 ring-1 ring-green-500' 
-                                                : 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-500'}
-                                        `}
-                                    >
-                                        {selectedTeamId === String(t.id) && <div className="absolute top-1 right-1"><Check className="w-3 h-3 text-green-400"/></div>}
-                                        
-                                        {t.logoUrl ? (
-                                            <img src={t.logoUrl} alt={t.name} className="w-8 h-8 object-contain mb-1 rounded bg-white/10 p-0.5" />
-                                        ) : (
-                                            <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-xs font-bold mb-1">{t.name.charAt(0)}</div>
-                                        )}
-                                        <span className="text-[10px] font-bold text-white text-center leading-tight line-clamp-2">{t.name}</span>
-                                        <span className="text-[9px] text-gray-400 mt-0.5">{t.budget}</span>
-                                    </button>
+                                    <option key={t.id} value={t.id}>{t.name} ({t.budget})</option>
                                 ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                           </div>
                       </div>
                       
@@ -291,9 +280,9 @@ const LiveAdminPanel: React.FC = () => {
                   <div>
                       <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Search & Select Next Player</label>
                       
-                      {/* Search Dropdown - Inline */}
+                      {/* Search Dropdown */}
                       <div className="relative">
-                          <div className="relative mb-2">
+                          <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input 
                                 type="text"
@@ -319,9 +308,9 @@ const LiveAdminPanel: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Inline List of Players */}
+                          {/* Dropdown List */}
                           {showPlayerDropdown && (
-                              <div className="mt-1 max-h-48 overflow-y-auto bg-gray-800 border border-gray-600 rounded-lg custom-scrollbar">
+                              <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-20 custom-scrollbar">
                                   {filteredManualPlayers.length > 0 ? filteredManualPlayers.map(p => (
                                       <div 
                                         key={p.id}
@@ -352,7 +341,7 @@ const LiveAdminPanel: React.FC = () => {
                       </div>
 
                       {/* Selected Preview */}
-                      {selectedPlayerObj && !showPlayerDropdown && (
+                      {selectedPlayerObj && (
                           <div className="mt-2 p-2 bg-highlight/10 border border-highlight/30 rounded flex items-center gap-2 text-sm text-highlight">
                               <Check className="w-4 h-4" />
                               <span>Selected: <b>{selectedPlayerObj.name}</b></span>
@@ -436,35 +425,31 @@ const LiveAdminPanel: React.FC = () => {
 
                   <div className="w-px h-6 bg-gray-600 mx-1"></div>
 
-                  {/* Inline Layout Selectors */}
-                  <div className="flex flex-1 gap-2 flex-col sm:flex-row">
-                      <div className="flex-1 flex flex-col">
-                          <label className="text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
-                          <div className="flex bg-gray-800 rounded p-0.5 gap-0.5">
-                              {['STANDARD', 'IPL', 'MODERN'].map(l => (
-                                  <button
-                                      key={l}
-                                      onClick={() => updateTheme('PROJECTOR', l)}
-                                      className={`flex-1 text-[9px] font-bold py-1 rounded transition-colors ${state.projectorLayout === l ? 'bg-highlight text-primary' : 'text-gray-400 hover:bg-gray-700'}`}
-                                  >
-                                      {l.substring(0, 3)}
-                                  </button>
-                              ))}
-                          </div>
+                  {/* Theme Selectors with Clearer Labels */}
+                  <div className="flex flex-1 gap-2">
+                      <div className="flex-1">
+                          <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
+                          <select 
+                            value={state.projectorLayout || 'STANDARD'} 
+                            onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
+                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                          >
+                              <option value="STANDARD">Standard</option>
+                              <option value="IPL">Gold/Blue</option>
+                              <option value="MODERN">Modern</option>
+                          </select>
                       </div>
-                      <div className="flex-1 flex flex-col">
-                          <label className="text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
-                          <div className="flex bg-gray-800 rounded p-0.5 gap-0.5">
-                              {['STANDARD', 'MINIMAL', 'VERTICAL'].map(l => (
-                                  <button
-                                      key={l}
-                                      onClick={() => updateTheme('OBS', l)}
-                                      className={`flex-1 text-[9px] font-bold py-1 rounded transition-colors ${state.obsLayout === l ? 'bg-highlight text-primary' : 'text-gray-400 hover:bg-gray-700'}`}
-                                  >
-                                      {l.substring(0, 3)}
-                                  </button>
-                              ))}
-                          </div>
+                      <div className="flex-1">
+                          <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
+                          <select 
+                            value={state.obsLayout || 'STANDARD'} 
+                            onChange={(e) => updateTheme('OBS', e.target.value)}
+                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                          >
+                              <option value="STANDARD">Standard</option>
+                              <option value="MINIMAL">Minimal</option>
+                              <option value="VERTICAL">Vertical</option>
+                          </select>
                       </div>
                   </div>
               </div>
