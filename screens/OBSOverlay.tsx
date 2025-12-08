@@ -144,7 +144,7 @@ const OBSOverlay: React.FC = () => {
                  {/* Name Panel */}
                  <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-l-lg border-l-8 border-cyan-400 shadow-2xl transform skew-x-[-12deg] origin-bottom-right flex items-center justify-end">
                      <div className="transform skew-x-[12deg] text-right truncate w-full">
-                        <h1 className="text-3xl md:text-5xl font-black uppercase tracking-wider truncate drop-shadow-md leading-tight">
+                        <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight">
                             {player?.name}
                         </h1>
                      </div>
@@ -190,8 +190,8 @@ const OBSOverlay: React.FC = () => {
             <div className="flex-1 flex flex-col items-start ml-2 relative min-w-0">
                  {/* Team Name Panel */}
                  <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px]">
-                     <div className="transform skew-x-[-12deg] w-full pl-4 pr-28">
-                        <h2 className="text-3xl md:text-5xl font-black uppercase tracking-wider truncate drop-shadow-md leading-tight text-left">
+                     <div className="transform skew-x-[-12deg] w-full pl-4 pr-32">
+                        <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight text-left">
                             {bidder ? bidder.name : "NO BIDS YET"}
                         </h2>
                      </div>
@@ -301,3 +301,4 @@ const OBSOverlay: React.FC = () => {
 };
 
 export default OBSOverlay;
+        
