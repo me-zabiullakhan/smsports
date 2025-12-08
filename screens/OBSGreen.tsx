@@ -16,7 +16,7 @@ const Marquee = React.memo(({ content, show }: { content: string[], show: boolea
     if (!show || content.length === 0) return null;
     return (
           <div className="fixed bottom-0 left-0 w-full bg-black text-white py-2 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight">
-              <div className="flex animate-marquee w-max">
+              <div className="flex animate-marquee w-max will-change-transform">
                   <div className="flex shrink-0 items-center">
                     {content.map((text, i) => (
                         <span key={i} className="mx-8 font-bold text-2xl tracking-wide flex items-center uppercase">
@@ -39,7 +39,7 @@ const Marquee = React.memo(({ content, show }: { content: string[], show: boolea
                       100% { transform: translateX(-50%); }
                   }
                   .animate-marquee {
-                      animation: marquee 30s linear infinite;
+                      animation: marquee 40s linear infinite;
                   }
               `}</style>
           </div>
@@ -80,7 +80,7 @@ const ProjectorScreen: React.FC = () => {
        if (tName) items.push(tName);
        
        if (state.sponsors.length > 0) {
-           items.push("SPONSORS:"); // Explicit label as requested
+           items.push("SPONSORS:"); // Explicit label added
            state.sponsors.forEach(s => {
                items.push(s.name.toUpperCase());
            });
@@ -168,25 +168,21 @@ const ProjectorScreen: React.FC = () => {
       )
   );
 
-  // WAITING STATE
-  if (!display.player) {
-      return (
-          <div className={`h-screen w-full flex flex-col items-center justify-center p-10 relative overflow-hidden ${state.projectorLayout === 'IPL' ? 'bg-slate-900' : 'bg-gray-100'}`}>
-              <TournamentLogo />
-              <SponsorLoop />
-              <div className={`p-12 rounded-3xl shadow-xl text-center border ${state.projectorLayout === 'IPL' ? 'bg-slate-800 border-yellow-500/30' : 'bg-white border-gray-200'}`}>
-                  <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>WAITING FOR AUCTION</h1>
-                  <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>The next player will appear shortly...</p>
-              </div>
-              <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
-          </div>
-      );
-  }
-
   const { player, bid, bidder, status } = display;
   const layout = state.projectorLayout || 'STANDARD';
 
   // --- LAYOUT RENDERERS ---
+
+  const RenderWaiting = () => (
+      <div className={`h-screen w-full flex flex-col items-center justify-center p-10 relative overflow-hidden ${state.projectorLayout === 'IPL' ? 'bg-slate-900' : 'bg-gray-100'}`}>
+          <TournamentLogo />
+          <SponsorLoop />
+          <div className={`p-12 rounded-3xl shadow-xl text-center border ${state.projectorLayout === 'IPL' ? 'bg-slate-800 border-yellow-500/30' : 'bg-white border-gray-200'}`}>
+              <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>WAITING FOR AUCTION</h1>
+              <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>The next player will appear shortly...</p>
+          </div>
+      </div>
+  );
 
   const RenderStandard = () => (
     <div className="h-screen w-full bg-gray-100 p-4 pb-16 flex flex-col font-sans overflow-hidden relative">
@@ -194,7 +190,7 @@ const ProjectorScreen: React.FC = () => {
         <SponsorLoop />
         
         {/* Main Content Area - Increased Top Margin to prevent overlap */}
-        <div className="flex-1 flex gap-4 mt-32 min-h-0 relative z-10">
+        <div className="flex-1 flex gap-4 mt-40 min-h-0 relative z-10">
             {/* Player Image */}
             <div className="w-[30%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                 <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
@@ -390,9 +386,10 @@ const ProjectorScreen: React.FC = () => {
 
   return (
       <>
-          {layout === 'STANDARD' && <RenderStandard />}
-          {layout === 'IPL' && <RenderIPL />}
-          {layout === 'MODERN' && <RenderModern />}
+          {!display.player && <RenderWaiting />}
+          {display.player && layout === 'STANDARD' && <RenderStandard />}
+          {display.player && layout === 'IPL' && <RenderIPL />}
+          {display.player && layout === 'MODERN' && <RenderModern />}
           <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
       </>
   );
