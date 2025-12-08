@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
@@ -68,7 +67,6 @@ const OBSOverlay: React.FC = () => {
           else if (status === AuctionStatus.Unsold || currentPlayer.status === 'UNSOLD') derivedStatus = 'UNSOLD';
 
           // Determine Bidder for Sold Status
-          // If status is SOLD, highestBidder might be null in context, so we check player.soldTo and find the team
           let resolvedBidder = highestBidder;
           
           if (derivedStatus === 'SOLD' && !resolvedBidder && currentPlayer.soldTo) {
@@ -134,50 +132,79 @@ const OBSOverlay: React.FC = () => {
   // --- LAYOUTS ---
 
   const RenderStandard = () => (
-    <div className="min-h-screen w-full overflow-hidden relative font-sans">
+    <div className="min-h-screen w-full relative font-sans overflow-hidden">
         <SponsorLogo />
-        <div className="absolute bottom-10 left-4 right-4 md:left-10 md:right-10 h-32 bg-slate-900/95 rounded-2xl border border-slate-700 shadow-2xl flex items-center overflow-visible animate-slide-up max-w-[95vw] mx-auto">
-            <div className="relative w-[28%] md:w-[25%] h-full shrink-0">
-                <div className="absolute bottom-4 left-4 w-48 md:w-56 h-56 md:h-64 z-20 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-500 border-4 border-white bg-gray-800 rounded-xl overflow-hidden">
-                    <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
-                    {status === 'SOLD' && <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px]"><div className="bg-green-600 text-white font-black text-2xl md:text-3xl px-4 py-2 border-4 border-white -rotate-12 shadow-xl animate-bounce-in uppercase tracking-wider">SOLD</div></div>}
-                    {status === 'UNSOLD' && <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px]"><div className="bg-red-600 text-white font-black text-2xl md:text-3xl px-4 py-2 border-4 border-white -rotate-12 shadow-xl animate-bounce-in uppercase tracking-wider">UNSOLD</div></div>}
+        
+        {/* Main Lower Third Container */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl flex items-end justify-center gap-2 md:gap-4 animate-slide-up">
+            
+            {/* Left: Player Info */}
+            <div className="flex-1 flex flex-col items-end mb-2 min-w-0">
+                {/* Name Bar */}
+                <div className="w-full max-w-md bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-900 text-white py-2 md:py-3 px-6 md:px-8 rounded-t-xl border-t-2 border-l-2 border-cyan-500 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex justify-center relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent"></div>
+                    <h1 className="text-xl md:text-3xl font-black uppercase tracking-wider truncate relative z-10 drop-shadow-md">{player?.name}</h1>
                 </div>
-                <div className="absolute bottom-4 left-56 md:left-64 z-10 w-[150%] pointer-events-none">
-                    <div className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-4 py-1 rounded-t-lg w-fit min-w-[150px]">
-                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider flex items-center truncate"><User className="w-3 h-3 mr-1"/> {player?.category}</span>
+                {/* Role Bar */}
+                <div className="w-full max-w-md bg-cyan-400 text-blue-900 py-1 md:py-1.5 px-6 md:px-8 rounded-b-xl border-b-2 border-l-2 border-white shadow-lg flex justify-center relative">
+                    <span className="font-extrabold text-sm md:text-lg uppercase tracking-[0.2em]">{player?.category}</span>
+                </div>
+            </div>
+
+            {/* Center: Photo & Bid */}
+            <div className="shrink-0 flex flex-col items-center relative z-20 -mb-2 md:-mb-4">
+                 {/* Circle Container */}
+                 <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-[6px] border-white bg-gradient-to-b from-slate-200 to-slate-400 shadow-[0_0_30px_rgba(0,0,0,0.6)] overflow-hidden relative">
+                      <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
+                      
+                      {/* Status Overlays */}
+                      {status === 'SOLD' && (
+                          <div className="absolute inset-0 bg-green-600/90 flex items-center justify-center">
+                              <span className="text-white font-black text-xl md:text-3xl -rotate-12 border-4 border-white px-2 py-1 uppercase tracking-wider">SOLD</span>
+                          </div>
+                      )}
+                      {status === 'UNSOLD' && (
+                          <div className="absolute inset-0 bg-red-600/90 flex items-center justify-center">
+                              <span className="text-white font-black text-xl md:text-3xl -rotate-12 border-4 border-white px-2 py-1 uppercase tracking-wider">UNSOLD</span>
+                          </div>
+                      )}
+                 </div>
+                 
+                 {/* Bid Pill */}
+                 <div className="flex items-stretch -mt-4 md:-mt-6 transform scale-110 shadow-2xl relative z-30">
+                     <div className="bg-white text-blue-900 px-2 md:px-4 py-1 md:py-2 rounded-l-lg border-y-2 border-l-2 border-gray-300 flex items-center">
+                         <span className="text-[10px] md:text-xs font-black uppercase tracking-tight">CURRENT BID</span>
+                     </div>
+                     <div className="bg-cyan-400 text-blue-900 px-3 md:px-6 py-1 md:py-2 rounded-r-lg border-y-2 border-r-2 border-white flex items-center min-w-[80px] md:min-w-[100px] justify-center">
+                         <span className="text-xl md:text-3xl font-black tabular-nums leading-none">{bid.toLocaleString()}</span>
+                     </div>
+                 </div>
+            </div>
+
+            {/* Right: Team Info */}
+            <div className="flex-1 flex flex-col items-start mb-2 relative min-w-0">
+                {/* Team Logo Floater */}
+                <div className="absolute -top-12 md:-top-20 right-0 md:left-4 md:right-auto w-12 h-12 md:w-20 md:h-20 bg-white rounded-xl shadow-lg border-4 border-cyan-400 p-1 z-30 transform -rotate-6">
+                    {bidder?.logoUrl ? <img src={bidder.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-lg md:text-3xl">?</div>}
+                </div>
+
+                {/* Team Name Bar */}
+                <div className="w-full max-w-md bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-900 text-white py-2 md:py-3 px-6 md:px-8 rounded-t-xl border-t-2 border-r-2 border-cyan-500 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex justify-center md:pl-16 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent"></div>
+                    <h2 className="text-xl md:text-3xl font-black uppercase tracking-wider truncate relative z-10 drop-shadow-md">{bidder ? bidder.name : "NO BIDS YET"}</h2>
+                </div>
+
+                {/* Balance Bar */}
+                <div className="w-full max-w-md flex rounded-b-xl shadow-lg overflow-hidden border-b-2 border-r-2 border-white">
+                    <div className="bg-white text-blue-900 py-1 md:py-1.5 px-4 flex-1 text-right">
+                         <span className="font-bold text-xs md:text-base uppercase tracking-tight">Balance</span>
                     </div>
-                    <div className="bg-white text-slate-900 px-4 md:px-6 py-2 rounded-b-lg rounded-tr-lg shadow-lg w-fit max-w-full">
-                        <h1 className="text-2xl md:text-3xl font-black uppercase leading-none truncate">{player?.name}</h1>
-                        <p className="text-[10px] md:text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center mt-1 truncate">{player?.nationality}</p>
+                    <div className="bg-cyan-400 text-blue-900 py-1 md:py-1.5 px-4 w-24 md:w-36 text-center">
+                         <span className="font-extrabold text-sm md:text-xl">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
                     </div>
                 </div>
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center z-10 px-2 border-l border-r border-slate-700/50 h-3/4 my-auto min-w-0">
-                <p className="text-cyan-400 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] mb-1 whitespace-nowrap">Current Bid</p>
-                <div className="flex items-baseline justify-center w-full">
-                    <span className="text-5xl md:text-6xl font-black text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] truncate">{bid.toLocaleString()}</span>
-                </div>
-            </div>
-            <div className="w-[35%] md:w-[33%] h-full flex items-center px-4 md:px-6 justify-end relative overflow-hidden shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-l from-blue-900/50 to-transparent opacity-50"></div>
-                {bidder ? (
-                    <div className="flex items-center gap-3 md:gap-6 z-10 text-right animate-fade-in w-full justify-end">
-                        <div className="min-w-0 flex-1 flex flex-col items-end">
-                            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 whitespace-nowrap">{status === 'SOLD' ? 'SOLD TO' : 'WINNING BIDDER'}</p>
-                            <h2 className="text-xl md:text-2xl font-black text-white uppercase leading-none mb-1 text-shadow w-full truncate">{bidder.name}</h2>
-                            <p className="text-[10px] md:text-sm font-bold text-green-400 bg-green-900/30 px-2 py-0.5 rounded inline-block border border-green-500/30 whitespace-nowrap">BAL: {bidder.budget.toLocaleString()}</p>
-                        </div>
-                        <div className="w-14 h-14 md:w-20 md:h-20 bg-white p-1 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.1)] shrink-0 border-4 border-slate-800">
-                            {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-full h-full object-contain rounded-full" /> : <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-800 font-black text-lg md:text-2xl rounded-full">{bidder.name.charAt(0)}</div>}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-4 z-10 opacity-50 justify-end w-full">
-                         <Gavel className="w-8 h-8 text-slate-600" />
-                    </div>
-                )}
-            </div>
+
         </div>
     </div>
   );
@@ -186,12 +213,12 @@ const OBSOverlay: React.FC = () => {
       <div className="min-h-screen w-full relative">
           <SponsorLogo />
           <div className="absolute bottom-8 left-0 right-0 flex justify-center">
-              <div className="bg-black/90 backdrop-blur-md rounded-full px-6 py-2 flex items-center gap-6 border border-white/20 shadow-xl">
+              <div className="bg-gradient-to-r from-indigo-900 to-blue-900 backdrop-blur-md rounded-full px-6 py-2 flex items-center gap-6 border-2 border-cyan-500 shadow-xl">
                   <div className="flex items-center gap-3">
                       <img src={player?.photoUrl} className="w-12 h-12 rounded-full border-2 border-white object-cover" />
                       <div>
                           <h1 className="text-white font-bold text-lg leading-none">{player?.name}</h1>
-                          <span className="text-xs text-gray-400 uppercase">{player?.category}</span>
+                          <span className="text-xs text-cyan-400 uppercase font-bold">{player?.category}</span>
                       </div>
                   </div>
                   <div className="w-px h-8 bg-white/20"></div>
@@ -203,13 +230,13 @@ const OBSOverlay: React.FC = () => {
                       <>
                           <div className="w-px h-8 bg-white/20"></div>
                           <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-400 uppercase font-bold">Leading:</span>
+                              {bidder.logoUrl && <img src={bidder.logoUrl} className="w-8 h-8 object-contain bg-white rounded-full p-0.5" />}
                               <span className="text-white font-bold">{bidder.name}</span>
                           </div>
                       </>
                   )}
                   {status !== 'LIVE' && status !== 'WAITING' && (
-                      <div className={`px-3 py-1 rounded font-bold text-xs ${status === 'SOLD' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                      <div className={`px-3 py-1 rounded-full font-bold text-xs ${status === 'SOLD' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
                           {status}
                       </div>
                   )}
@@ -220,23 +247,23 @@ const OBSOverlay: React.FC = () => {
 
   const RenderVertical = () => (
       <div className="min-h-screen w-full relative">
-          <div className="absolute top-0 right-0 h-full w-[300px] bg-slate-900/95 border-l-4 border-yellow-500 flex flex-col p-6 shadow-2xl">
-               <div className="bg-white/10 rounded-lg p-2 mb-4 flex justify-center">
-                    <img src={player?.photoUrl} className="w-32 h-32 rounded-full object-cover border-4 border-white shadow" />
+          <div className="absolute top-0 right-0 h-full w-[300px] bg-gradient-to-b from-indigo-900 to-slate-900 border-l-4 border-cyan-500 flex flex-col p-6 shadow-2xl">
+               <div className="bg-white/10 rounded-full p-2 mb-4 flex justify-center mx-auto w-36 h-36 border-4 border-cyan-500 relative">
+                    <img src={player?.photoUrl} className="w-full h-full rounded-full object-cover" />
                </div>
-               <h1 className="text-white text-2xl font-black text-center mb-1">{player?.name}</h1>
-               <p className="text-yellow-400 text-center text-sm font-bold uppercase mb-6">{player?.category}</p>
+               <h1 className="text-white text-2xl font-black text-center mb-1 leading-tight">{player?.name}</h1>
+               <p className="text-cyan-400 text-center text-sm font-bold uppercase mb-6 tracking-widest">{player?.category}</p>
                
-               <div className="bg-black/40 p-4 rounded-lg text-center mb-6">
-                   <p className="text-gray-400 text-xs uppercase mb-1">Current Bid</p>
+               <div className="bg-white/10 p-4 rounded-xl text-center mb-6 border border-white/20">
+                   <p className="text-gray-300 text-xs uppercase mb-1 font-bold">Current Bid</p>
                    <p className="text-4xl font-black text-white">{bid.toLocaleString()}</p>
                </div>
 
                {bidder ? (
-                   <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                       <p className="text-xs text-gray-400 uppercase mb-2">Highest Bidder</p>
+                   <div className="bg-indigo-800 p-4 rounded-xl border border-indigo-600">
+                       <p className="text-xs text-gray-300 uppercase mb-2 font-bold">Highest Bidder</p>
                        <div className="flex items-center gap-3">
-                            {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-10 h-10 rounded-full"/> : <div className="w-10 h-10 bg-gray-600 rounded-full"/>}
+                            {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-10 h-10 rounded-full bg-white p-0.5"/> : <div className="w-10 h-10 bg-gray-600 rounded-full"/>}
                             <p className="font-bold text-white leading-tight">{bidder.name}</p>
                        </div>
                    </div>
@@ -245,8 +272,8 @@ const OBSOverlay: React.FC = () => {
                )}
 
                <div className="mt-auto">
-                   {status === 'SOLD' && <div className="bg-green-600 text-white text-center py-2 font-black text-xl rounded uppercase animate-pulse">SOLD</div>}
-                   {status === 'UNSOLD' && <div className="bg-red-600 text-white text-center py-2 font-black text-xl rounded uppercase">UNSOLD</div>}
+                   {status === 'SOLD' && <div className="bg-green-600 text-white text-center py-2 font-black text-xl rounded uppercase animate-pulse shadow-lg">SOLD</div>}
+                   {status === 'UNSOLD' && <div className="bg-red-600 text-white text-center py-2 font-black text-xl rounded uppercase shadow-lg">UNSOLD</div>}
                </div>
           </div>
       </div>
