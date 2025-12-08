@@ -263,49 +263,44 @@ const LiveAdminPanel: React.FC = () => {
 
       // 2. NEXT PLAYER SELECTION (Based on Mode)
       if (playerSelectionMode === 'MANUAL') {
-          return (
-              <div className="space-y-3 bg-primary/30 p-3 rounded-lg border border-gray-600">
-                  <div>
-                      <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
-                      <div className="relative">
-                          <select
-                                className="w-full bg-primary border border-gray-600 rounded p-2 pl-2 text-sm text-white outline-none focus:border-highlight appearance-none"
-                                value={manualPlayerId}
-                                onChange={(e) => setManualPlayerId(e.target.value)}
-                          >
-                                <option value="">-- Choose Player to Auction --</option>
-                                {players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} ({p.category}) - Base: {p.basePrice}
-                                    </option>
-                                ))}
-                          </select>
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      </div>
+           const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+           availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
 
-                      {/* Selected Preview */}
-                      {selectedPlayerObj && (
-                          <div className="mt-2 p-2 bg-highlight/10 border border-highlight/30 rounded flex items-center gap-2 text-sm text-highlight">
-                              <Check className="w-4 h-4" />
-                              <span>Ready: <b>{selectedPlayerObj.name}</b></span>
-                          </div>
-                      )}
-                  </div>
+           return (
+               <div className="space-y-3 bg-primary/20 p-3 rounded-lg border border-gray-600">
+                   <div>
+                       <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
+                       <div className="relative">
+                           <select 
+                               className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer"
+                               value={manualPlayerId}
+                               onChange={(e) => setManualPlayerId(e.target.value)}
+                           >
+                               <option value="">-- Choose Player to Auction --</option>
+                               {availablePlayers.map(p => (
+                                   <option key={p.id} value={p.id}>
+                                       {p.name} ({p.category}) - Base: {p.basePrice}
+                                   </option>
+                               ))}
+                           </select>
+                           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                       </div>
+                   </div>
 
-                  <button 
-                    onClick={() => handleStart(manualPlayerId)} 
-                    disabled={isStartDisabled || !manualPlayerId}
-                    className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 active:scale-95
-                        ${isStartDisabled || !manualPlayerId
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                            : 'bg-highlight hover:bg-teal-500 text-primary'}`
-                    }
-                  >
-                      {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
-                      Start Bidding
-                  </button>
-              </div>
-          );
+                   <button 
+                     onClick={() => handleStart(manualPlayerId)} 
+                     disabled={isStartDisabled || !manualPlayerId}
+                     className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg transition-colors duration-300 shadow-lg shadow-highlight/20 active:scale-95
+                         ${isStartDisabled || !manualPlayerId
+                             ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                             : 'bg-highlight hover:bg-teal-500 text-primary'}`
+                     }
+                   >
+                       {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
+                       Start Bidding
+                   </button>
+               </div>
+           );
       }
 
       // AUTO MODE

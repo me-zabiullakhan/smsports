@@ -402,6 +402,7 @@ const AuctionManage: React.FC = () => {
 
           for (const row of jsonData as any[]) {
                // Flexible Key Matching to handle Name/Category mandatory fields
+               // User specified "Name" and "Player Type" as mandatory
                const name = row['Name'] || row['name'] || row['Player Name'] || row['Player'];
                const category = row['Category'] || row['category'] || row['Role'] || row['Type'] || row['Player Type'];
                const basePrice = row['Base Price'] || row['Price'] || row['BasePrice'] || auction?.basePrice || 0;
@@ -1375,7 +1376,7 @@ const AuctionManage: React.FC = () => {
                              <div className="relative">
                                  <button 
                                     onClick={() => excelInputRef.current?.click()} 
-                                    className="px-3 py-2 bg-green-100 text-green-700 hover:bg-green-200 rounded text-sm font-bold flex items-center"
+                                    className="px-3 py-2 bg-green-100 text-green-700 hover:bg-green-200 rounded text-sm font-bold flex items-center shadow-sm"
                                     disabled={isImporting}
                                  >
                                      {isImporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <FileSpreadsheet className="w-4 h-4 mr-1"/>} 
@@ -1389,8 +1390,8 @@ const AuctionManage: React.FC = () => {
                                     onChange={handleExcelImport}
                                  />
                              </div>
-                             <button onClick={() => setShowBulkPriceModal(true)} className="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-bold flex items-center"><DollarSign className="w-4 h-4 mr-1"/> Bulk Price</button>
-                             <button onClick={handleClearPool} className="px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-bold flex items-center"><Trash2 className="w-4 h-4 mr-1"/> Clear All</button>
+                             <button onClick={() => setShowBulkPriceModal(true)} className="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-bold flex items-center shadow-sm"><DollarSign className="w-4 h-4 mr-1"/> Bulk Price</button>
+                             <button onClick={handleClearPool} className="px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-bold flex items-center shadow-sm"><Trash2 className="w-4 h-4 mr-1"/> Clear All</button>
                         </div>
                     </div>
                     
