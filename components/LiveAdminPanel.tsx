@@ -414,19 +414,28 @@ const LiveAdminPanel: React.FC = () => {
                     >
                         <Monitor className="w-4 h-4" />
                     </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleBidding(); }}
-                        className={`p-1.5 rounded transition-colors ${biddingEnabled ? 'text-green-400 hover:bg-green-900/30' : 'text-red-400 hover:bg-red-900/30'}`}
-                        title={biddingEnabled ? "Disable Bidding for Teams" : "Enable Bidding for Teams"}
-                    >
-                        {biddingEnabled ? <Unlock className="w-4 h-4"/> : <Lock className="w-4 h-4"/>}
-                    </button>
                   </div>
 
                   <div className="w-px h-6 bg-gray-600 mx-1"></div>
 
+                  {/* Bidding Control Toggle */}
+                  <button
+                        onClick={(e) => { e.stopPropagation(); toggleBidding(); }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wide transition-all border ${
+                            biddingEnabled 
+                            ? 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30' 
+                            : 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30'
+                        }`}
+                        title={biddingEnabled ? "Disable Bidding for Teams" : "Enable Bidding for Teams"}
+                    >
+                        {biddingEnabled ? <Unlock className="w-3 h-3"/> : <Lock className="w-3 h-3"/>}
+                        {biddingEnabled ? "BIDDING ON" : "BIDDING PAUSED"}
+                    </button>
+
+                  <div className="w-px h-6 bg-gray-600 mx-1"></div>
+
                   {/* Theme Selectors with Clearer Labels */}
-                  <div className="flex flex-1 gap-2">
+                  <div className="flex flex-1 gap-2 min-w-[180px]">
                       <div className="flex-1">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
                           <select 
