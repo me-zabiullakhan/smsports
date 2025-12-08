@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
@@ -135,73 +136,75 @@ const OBSOverlay: React.FC = () => {
     <div className="min-h-screen w-full relative font-sans overflow-hidden">
         <SponsorLogo />
         
-        {/* Main Lower Third Container */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl flex items-end justify-center gap-2 md:gap-4 animate-slide-up">
+        {/* Main Lower Third Container - Aligned Bottom Center */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl flex items-end justify-center animate-slide-up">
             
-            {/* Left: Player Info */}
-            <div className="flex-1 flex flex-col items-end mb-2 min-w-0">
+            {/* Left Wing: Player Info */}
+            <div className="flex-1 flex flex-col items-end mr-[-20px] relative z-10 mb-4 min-w-0">
                 {/* Name Bar */}
-                <div className="w-full max-w-md bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-900 text-white py-2 md:py-3 px-6 md:px-8 rounded-t-xl border-t-2 border-l-2 border-cyan-500 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex justify-center relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent"></div>
-                    <h1 className="text-xl md:text-3xl font-black uppercase tracking-wider truncate relative z-10 drop-shadow-md">{player?.name}</h1>
+                <div className="w-full max-w-lg bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-white py-3 px-8 rounded-l-full border-l-4 border-cyan-400 shadow-2xl skew-x-[-15deg] origin-bottom-right transform translate-x-6">
+                     <div className="skew-x-[15deg] text-right pr-6">
+                        <h1 className="text-2xl md:text-4xl font-black uppercase tracking-wider truncate drop-shadow-md bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+                            {player?.name}
+                        </h1>
+                     </div>
                 </div>
                 {/* Role Bar */}
-                <div className="w-full max-w-md bg-cyan-400 text-blue-900 py-1 md:py-1.5 px-6 md:px-8 rounded-b-xl border-b-2 border-l-2 border-white shadow-lg flex justify-center relative">
-                    <span className="font-extrabold text-sm md:text-lg uppercase tracking-[0.2em]">{player?.category}</span>
+                <div className="w-[70%] max-w-sm bg-cyan-500 text-black py-1.5 px-6 rounded-bl-xl shadow-lg skew-x-[-15deg] origin-top-right transform translate-x-3 mt-[-4px] border-b-2 border-white">
+                     <div className="skew-x-[15deg] text-right pr-4">
+                        <span className="font-extrabold text-lg md:text-xl uppercase tracking-widest">{player?.category}</span>
+                     </div>
                 </div>
             </div>
 
             {/* Center: Photo & Bid */}
-            <div className="shrink-0 flex flex-col items-center relative z-20 -mb-2 md:-mb-4">
-                 {/* Circle Container */}
-                 <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-[6px] border-white bg-gradient-to-b from-slate-200 to-slate-400 shadow-[0_0_30px_rgba(0,0,0,0.6)] overflow-hidden relative">
+            <div className="shrink-0 flex flex-col items-center relative z-20 mx-0">
+                 {/* Photo Circle */}
+                 <div className="w-40 h-40 md:w-56 md:h-56 rounded-full border-[6px] border-white bg-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.6)] overflow-hidden relative z-20">
                       <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
                       
-                      {/* Status Overlays */}
-                      {status === 'SOLD' && (
-                          <div className="absolute inset-0 bg-green-600/90 flex items-center justify-center">
-                              <span className="text-white font-black text-xl md:text-3xl -rotate-12 border-4 border-white px-2 py-1 uppercase tracking-wider">SOLD</span>
-                          </div>
-                      )}
-                      {status === 'UNSOLD' && (
-                          <div className="absolute inset-0 bg-red-600/90 flex items-center justify-center">
-                              <span className="text-white font-black text-xl md:text-3xl -rotate-12 border-4 border-white px-2 py-1 uppercase tracking-wider">UNSOLD</span>
+                      {/* Status Overlay */}
+                      {status !== 'LIVE' && status !== 'WAITING' && (
+                          <div className={`absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[2px]`}>
+                              <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl ${status === 'SOLD' ? 'text-green-500 border-green-500' : 'text-red-500 border-red-500'}`}>
+                                  {status}
+                              </span>
                           </div>
                       )}
                  </div>
                  
-                 {/* Bid Pill */}
-                 <div className="flex items-stretch -mt-4 md:-mt-6 transform scale-110 shadow-2xl relative z-30">
-                     <div className="bg-white text-blue-900 px-2 md:px-4 py-1 md:py-2 rounded-l-lg border-y-2 border-l-2 border-gray-300 flex items-center">
-                         <span className="text-[10px] md:text-xs font-black uppercase tracking-tight">CURRENT BID</span>
+                 {/* Bid Capsule */}
+                 <div className="bg-white rounded-full shadow-2xl flex items-center overflow-hidden border-4 border-white mt-[-30px] relative z-30 min-w-[260px] transform hover:scale-105 transition-transform">
+                     <div className="bg-white px-5 py-3 flex items-center border-r border-gray-200">
+                         <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase tracking-widest">CURRENT BID</span>
                      </div>
-                     <div className="bg-cyan-400 text-blue-900 px-3 md:px-6 py-1 md:py-2 rounded-r-lg border-y-2 border-r-2 border-white flex items-center min-w-[80px] md:min-w-[100px] justify-center">
-                         <span className="text-xl md:text-3xl font-black tabular-nums leading-none">{bid.toLocaleString()}</span>
+                     <div className="bg-cyan-500 px-6 py-2 flex-grow text-center">
+                         <span className="text-3xl md:text-4xl font-black text-black leading-none tabular-nums drop-shadow-sm">{bid.toLocaleString()}</span>
                      </div>
                  </div>
             </div>
 
-            {/* Right: Team Info */}
-            <div className="flex-1 flex flex-col items-start mb-2 relative min-w-0">
-                {/* Team Logo Floater */}
-                <div className="absolute -top-12 md:-top-20 right-0 md:left-4 md:right-auto w-12 h-12 md:w-20 md:h-20 bg-white rounded-xl shadow-lg border-4 border-cyan-400 p-1 z-30 transform -rotate-6">
-                    {bidder?.logoUrl ? <img src={bidder.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-lg md:text-3xl">?</div>}
+            {/* Right Wing: Team Info */}
+            <div className="flex-1 flex flex-col items-start ml-[-20px] relative z-10 mb-4 min-w-0">
+                {/* Team Logo (Floating) */}
+                <div className="absolute -top-24 right-10 w-24 h-24 bg-white rounded-full shadow-lg border-4 border-cyan-400 p-2 z-30 hidden md:block">
+                     {bidder?.logoUrl ? <img src={bidder.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center font-bold text-3xl text-gray-300">?</div>}
                 </div>
 
                 {/* Team Name Bar */}
-                <div className="w-full max-w-md bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-900 text-white py-2 md:py-3 px-6 md:px-8 rounded-t-xl border-t-2 border-r-2 border-cyan-500 shadow-[0_0_15px_rgba(0,0,0,0.5)] flex justify-center md:pl-16 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent"></div>
-                    <h2 className="text-xl md:text-3xl font-black uppercase tracking-wider truncate relative z-10 drop-shadow-md">{bidder ? bidder.name : "NO BIDS YET"}</h2>
+                <div className="w-full max-w-lg bg-gradient-to-l from-[#1e1b4b] to-[#312e81] text-white py-3 px-8 rounded-r-full border-r-4 border-cyan-400 shadow-2xl skew-x-[15deg] origin-bottom-left transform -translate-x-6 pl-12">
+                     <div className="skew-x-[-15deg] text-left pl-6">
+                        <h2 className="text-2xl md:text-4xl font-black uppercase tracking-wider truncate drop-shadow-md">
+                            {bidder ? bidder.name : "NO BIDS YET"}
+                        </h2>
+                     </div>
                 </div>
-
                 {/* Balance Bar */}
-                <div className="w-full max-w-md flex rounded-b-xl shadow-lg overflow-hidden border-b-2 border-r-2 border-white">
-                    <div className="bg-white text-blue-900 py-1 md:py-1.5 px-4 flex-1 text-right">
-                         <span className="font-bold text-xs md:text-base uppercase tracking-tight">Balance</span>
-                    </div>
-                    <div className="bg-cyan-400 text-blue-900 py-1 md:py-1.5 px-4 w-24 md:w-36 text-center">
-                         <span className="font-extrabold text-sm md:text-xl">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
-                    </div>
+                <div className="w-[80%] max-w-sm bg-white text-black py-1.5 px-6 rounded-br-xl shadow-lg skew-x-[15deg] origin-top-left transform -translate-x-3 mt-[-4px] border-b-2 border-cyan-500">
+                     <div className="skew-x-[-15deg] text-left pl-4 flex items-center gap-2">
+                        <span className="font-bold text-xs uppercase text-gray-500">Balance</span>
+                        <span className="font-extrabold text-lg md:text-xl text-indigo-900">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
+                     </div>
                 </div>
             </div>
 
