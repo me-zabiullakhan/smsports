@@ -3,9 +3,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, ProjectorLayout, OBSLayout } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer, PenTool } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer, PenTool, FileSpreadsheet } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
+import * as XLSX from 'xlsx';
 
 const AuctionManage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +53,8 @@ const AuctionManage: React.FC = () => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
   
   // Registration View Modal
   const [selectedRegistration, setSelectedRegistration] = useState<RegisteredPlayer | null>(null);
@@ -373,6 +376,76 @@ const AuctionManage: React.FC = () => {
           alert("🎥 TRANSPARENT OBS URL Copied!\n\nUse this in OBS Browser Source.");
       }
   }
+
+  // --- EXCEL IMPORT ---
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !id) return;
+
+      setIsImporting(true);
+      try {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          if (jsonData.length === 0) {
+              alert("Excel file appears empty.");
+              return;
+          }
+
+          let successCount = 0;
+          let batch = db.batch();
+          let batchCount = 0;
+          const BATCH_LIMIT = 450; // Safety margin below 500
+
+          for (const row of jsonData as any[]) {
+               // Flexible Key Matching
+               const name = row['Name'] || row['name'] || row['Player Name'] || row['Player'];
+               const category = row['Category'] || row['category'] || row['Role'] || row['Type'] || row['Player Type'];
+               const basePrice = row['Base Price'] || row['Price'] || row['BasePrice'] || auction?.basePrice || 0;
+               
+               if (name && category) {
+                   const newId = db.collection('dummy').doc().id;
+                   const playerRef = db.collection('auctions').doc(id).collection('players').doc(newId);
+                   
+                   batch.set(playerRef, {
+                       id: String(newId),
+                       name: String(name).trim(),
+                       category: String(category).trim(),
+                       basePrice: Number(basePrice),
+                       nationality: 'India',
+                       photoUrl: '', // Default empty, admin can upload later
+                       speciality: String(category).trim(),
+                       stats: { matches: 0, runs: 0, wickets: 0 },
+                       status: 'OPEN' // explicitly open
+                   });
+                   
+                   successCount++;
+                   batchCount++;
+
+                   if (batchCount >= BATCH_LIMIT) {
+                       await batch.commit();
+                       batch = db.batch();
+                       batchCount = 0;
+                   }
+               }
+          }
+          
+          if (batchCount > 0) {
+              await batch.commit();
+          }
+
+          alert(`Successfully imported ${successCount} players!`);
+
+      } catch (err: any) {
+          console.error("Excel Import Error:", err);
+          alert("Failed to import Excel: " + err.message);
+      } finally {
+          setIsImporting(false);
+          if (excelInputRef.current) excelInputRef.current.value = '';
+      }
+  };
 
   // --- FORM BUILDER LOGIC ---
   const addField = () => {
@@ -769,6 +842,8 @@ const AuctionManage: React.FC = () => {
   const EditPlayerModal = () => {
       const [form, setForm] = useState<Partial<Player>>({ ...editingPlayer });
       const [isSubmitting, setIsSubmitting] = useState(false);
+      const [photo, setPhoto] = useState(form.photoUrl || '');
+      const photoRef = useRef<HTMLInputElement>(null);
 
       const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
           const catName = e.target.value;
@@ -780,6 +855,16 @@ const AuctionManage: React.FC = () => {
           }));
       }
 
+      const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (file) {
+              if (file.size > 800 * 1024) return alert("Max 800KB");
+              const reader = new FileReader();
+              reader.onloadend = () => setPhoto(reader.result as string);
+              reader.readAsDataURL(file);
+          }
+      };
+
       const handleSave = async () => {
           if (!id || !form.id) return;
           setIsSubmitting(true);
@@ -787,7 +872,8 @@ const AuctionManage: React.FC = () => {
               await db.collection('auctions').doc(id).collection('players').doc(form.id.toString()).update({
                   name: form.name,
                   category: form.category,
-                  basePrice: Number(form.basePrice)
+                  basePrice: Number(form.basePrice),
+                  photoUrl: photo
               });
               alert("Player updated successfully!");
               setShowPlayerModal(false);
@@ -807,6 +893,12 @@ const AuctionManage: React.FC = () => {
                     <button onClick={() => { setShowPlayerModal(false); setEditingPlayer(null); }}><X className="text-gray-400" /></button>
                 </div>
                 <div className="space-y-3">
+                    <div onClick={() => photoRef.current?.click()} className="flex justify-center mb-2 cursor-pointer relative group">
+                        {photo ? <img src={photo} className="w-20 h-20 rounded-full object-cover border-2 border-gray-200" /> : <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500"><ImageIcon/></div>}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs opacity-0 group-hover:opacity-100 rounded-full transition-opacity">Change</div>
+                        <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange}/>
+                    </div>
+
                     <div><label className="text-xs text-gray-500 uppercase font-bold">Name</label><input type="text" className="w-full border p-2 rounded" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></div>
                     <div>
                         <label className="text-xs text-gray-500 uppercase font-bold">Category</label>
@@ -1272,6 +1364,23 @@ const AuctionManage: React.FC = () => {
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-lg font-bold text-gray-800">Player Pool ({poolPlayers.length})</h2>
                         <div className="flex gap-2">
+                             <div className="relative">
+                                 <button 
+                                    onClick={() => excelInputRef.current?.click()} 
+                                    className="px-3 py-2 bg-green-100 text-green-700 hover:bg-green-200 rounded text-sm font-bold flex items-center"
+                                    disabled={isImporting}
+                                 >
+                                     {isImporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <FileSpreadsheet className="w-4 h-4 mr-1"/>} 
+                                     Import Excel
+                                 </button>
+                                 <input 
+                                    type="file" 
+                                    ref={excelInputRef} 
+                                    accept=".xlsx, .xls, .csv" 
+                                    className="hidden" 
+                                    onChange={handleExcelImport}
+                                 />
+                             </div>
                              <button onClick={() => setShowBulkPriceModal(true)} className="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-bold flex items-center"><DollarSign className="w-4 h-4 mr-1"/> Bulk Price</button>
                              <button onClick={handleClearPool} className="px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-bold flex items-center"><Trash2 className="w-4 h-4 mr-1"/> Clear All</button>
                         </div>

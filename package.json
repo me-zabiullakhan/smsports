@@ -15,7 +15,8 @@
     "firebase": "^12.5.0",
     "@remix-run/router": "1.21.0",
     "react-router": "6.28.0",
-    "react-router-dom": "6.28.0"
+    "react-router-dom": "6.28.0",
+    "xlsx": "0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
