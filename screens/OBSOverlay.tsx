@@ -136,37 +136,37 @@ const OBSOverlay: React.FC = () => {
     <div className="min-h-screen w-full relative font-sans overflow-hidden">
         <SponsorLogo />
         
-        {/* Main Lower Third Container - Aligned Bottom Center */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl flex items-end justify-center animate-slide-up">
+        {/* Main Lower Third Container - Fit to Width */}
+        <div className="absolute bottom-10 w-full px-2 md:px-6 flex items-end justify-between gap-4 animate-slide-up">
             
-            {/* Left Wing: Player Info */}
-            <div className="flex-1 flex flex-col items-end mr-[-20px] relative z-10 mb-4 min-w-0">
-                {/* Name Bar */}
-                <div className="w-full max-w-lg bg-gradient-to-r from-[#1e1b4b] to-[#312e81] text-white py-3 px-8 rounded-l-full border-l-4 border-cyan-400 shadow-2xl skew-x-[-15deg] origin-bottom-right transform translate-x-6">
-                     <div className="skew-x-[15deg] text-right pr-6">
-                        <h1 className="text-2xl md:text-4xl font-black uppercase tracking-wider truncate drop-shadow-md bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+            {/* Left Side: Player Info */}
+            <div className="flex-1 flex flex-col items-end mr-2 min-w-0">
+                 {/* Name Panel */}
+                 <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-l-lg border-l-8 border-cyan-400 shadow-2xl transform skew-x-[-12deg] origin-bottom-right flex items-center justify-end">
+                     <div className="transform skew-x-[12deg] text-right truncate w-full">
+                        <h1 className="text-3xl md:text-5xl font-black uppercase tracking-wider truncate drop-shadow-md leading-tight">
                             {player?.name}
                         </h1>
                      </div>
-                </div>
-                {/* Role Bar */}
-                <div className="w-[70%] max-w-sm bg-cyan-500 text-black py-1.5 px-6 rounded-bl-xl shadow-lg skew-x-[-15deg] origin-top-right transform translate-x-3 mt-[-4px] border-b-2 border-white">
-                     <div className="skew-x-[15deg] text-right pr-4">
-                        <span className="font-extrabold text-lg md:text-xl uppercase tracking-widest">{player?.category}</span>
-                     </div>
-                </div>
+                 </div>
+                 {/* Category/Role Panel */}
+                 <div className="bg-cyan-500 text-black py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] mr-8 transform skew-x-[-12deg] border-b-2 border-white z-10">
+                      <div className="transform skew-x-[12deg] text-center font-extrabold text-xl uppercase tracking-widest">
+                          {player?.category}
+                      </div>
+                 </div>
             </div>
 
             {/* Center: Photo & Bid */}
-            <div className="shrink-0 flex flex-col items-center relative z-20 mx-0">
+            <div className="shrink-0 flex flex-col items-center relative z-20 -mb-4 mx-2">
                  {/* Photo Circle */}
-                 <div className="w-40 h-40 md:w-56 md:h-56 rounded-full border-[6px] border-white bg-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.6)] overflow-hidden relative z-20">
+                 <div className="w-56 h-56 rounded-full border-[6px] border-white bg-slate-200 shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 bg-gradient-to-b from-gray-100 to-gray-300">
                       <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
                       
                       {/* Status Overlay */}
                       {status !== 'LIVE' && status !== 'WAITING' && (
-                          <div className={`absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[2px]`}>
-                              <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl ${status === 'SOLD' ? 'text-green-500 border-green-500' : 'text-red-500 border-red-500'}`}>
+                          <div className={`absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]`}>
+                              <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl ${status === 'SOLD' ? 'text-green-400 border-green-400' : 'text-red-500 border-red-500'}`}>
                                   {status}
                               </span>
                           </div>
@@ -174,38 +174,47 @@ const OBSOverlay: React.FC = () => {
                  </div>
                  
                  {/* Bid Capsule */}
-                 <div className="bg-white rounded-full shadow-2xl flex items-center overflow-hidden border-4 border-white mt-[-30px] relative z-30 min-w-[260px] transform hover:scale-105 transition-transform">
-                     <div className="bg-white px-5 py-3 flex items-center border-r border-gray-200">
-                         <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase tracking-widest">CURRENT BID</span>
-                     </div>
-                     <div className="bg-cyan-500 px-6 py-2 flex-grow text-center">
-                         <span className="text-3xl md:text-4xl font-black text-black leading-none tabular-nums drop-shadow-sm">{bid.toLocaleString()}</span>
+                 <div className="relative z-30 -mt-12">
+                     <div className="flex items-stretch shadow-2xl rounded-full overflow-hidden border-4 border-white min-w-[280px] transform hover:scale-105 transition-transform">
+                         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-center border-r border-gray-700">
+                             <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">Current Bid</span>
+                         </div>
+                         <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-2 flex items-center justify-center flex-grow">
+                             <span className="text-5xl font-black text-white leading-none tabular-nums drop-shadow-sm">{bid.toLocaleString()}</span>
+                         </div>
                      </div>
                  </div>
             </div>
 
-            {/* Right Wing: Team Info */}
-            <div className="flex-1 flex flex-col items-start ml-[-20px] relative z-10 mb-4 min-w-0">
-                {/* Team Logo (Floating) */}
-                <div className="absolute -top-24 right-10 w-24 h-24 bg-white rounded-full shadow-lg border-4 border-cyan-400 p-2 z-30 hidden md:block">
-                     {bidder?.logoUrl ? <img src={bidder.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full flex items-center justify-center font-bold text-3xl text-gray-300">?</div>}
-                </div>
-
-                {/* Team Name Bar */}
-                <div className="w-full max-w-lg bg-gradient-to-l from-[#1e1b4b] to-[#312e81] text-white py-3 px-8 rounded-r-full border-r-4 border-cyan-400 shadow-2xl skew-x-[15deg] origin-bottom-left transform -translate-x-6 pl-12">
-                     <div className="skew-x-[-15deg] text-left pl-6">
-                        <h2 className="text-2xl md:text-4xl font-black uppercase tracking-wider truncate drop-shadow-md">
+            {/* Right Side: Team Info */}
+            <div className="flex-1 flex flex-col items-start ml-2 relative min-w-0">
+                 {/* Team Name Panel */}
+                 <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px]">
+                     <div className="transform skew-x-[-12deg] w-full pl-4 pr-28">
+                        <h2 className="text-3xl md:text-5xl font-black uppercase tracking-wider truncate drop-shadow-md leading-tight text-left">
                             {bidder ? bidder.name : "NO BIDS YET"}
                         </h2>
                      </div>
-                </div>
-                {/* Balance Bar */}
-                <div className="w-[80%] max-w-sm bg-white text-black py-1.5 px-6 rounded-br-xl shadow-lg skew-x-[15deg] origin-top-left transform -translate-x-3 mt-[-4px] border-b-2 border-cyan-500">
-                     <div className="skew-x-[-15deg] text-left pl-4 flex items-center gap-2">
-                        <span className="font-bold text-xs uppercase text-gray-500">Balance</span>
-                        <span className="font-extrabold text-lg md:text-xl text-indigo-900">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
-                     </div>
-                </div>
+                 </div>
+                 
+                 {/* Balance Panel */}
+                 <div className="bg-white text-indigo-900 py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] ml-8 transform skew-x-[12deg] border-b-2 border-cyan-500 z-10 min-w-[220px]">
+                      <div className="transform skew-x-[-12deg] flex items-center gap-3">
+                         <span className="font-bold text-sm uppercase text-gray-500">Balance:</span>
+                         <span className="font-extrabold text-2xl">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
+                      </div>
+                 </div>
+
+                 {/* Team Logo - Overlapping the bar on the right */}
+                 <div className="absolute bottom-6 right-8 z-30">
+                      <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-2 flex items-center justify-center transform hover:scale-105 transition-transform">
+                          {bidder?.logoUrl ? (
+                              <img src={bidder.logoUrl} className="max-w-full max-h-full object-contain" />
+                          ) : (
+                              <span className="text-4xl font-bold text-gray-300">?</span>
+                          )}
+                      </div>
+                 </div>
             </div>
 
         </div>
