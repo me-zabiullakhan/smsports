@@ -12,6 +12,40 @@ interface DisplayState {
     status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD';
 }
 
+const Marquee = React.memo(({ content, show }: { content: string[], show: boolean }) => {
+    if (!show || content.length === 0) return null;
+    return (
+          <div className="fixed bottom-0 left-0 w-full bg-black text-white py-2 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight">
+              <div className="flex animate-marquee w-max">
+                  <div className="flex shrink-0 items-center">
+                    {content.map((text, i) => (
+                        <span key={i} className="mx-8 font-bold text-2xl tracking-wide flex items-center uppercase">
+                            <span className="text-highlight mr-3 text-xl">★</span> {text}
+                        </span>
+                    ))}
+                  </div>
+                  {/* Duplicate for seamless loop */}
+                  <div className="flex shrink-0 items-center">
+                    {content.map((text, i) => (
+                        <span key={`dup-${i}`} className="mx-8 font-bold text-2xl tracking-wide flex items-center uppercase">
+                            <span className="text-highlight mr-3 text-xl">★</span> {text}
+                        </span>
+                    ))}
+                  </div>
+              </div>
+              <style>{`
+                  @keyframes marquee {
+                      0% { transform: translateX(0); }
+                      100% { transform: translateX(-50%); }
+                  }
+                  .animate-marquee {
+                      animation: marquee 30s linear infinite;
+                  }
+              `}</style>
+          </div>
+    );
+});
+
 const ProjectorScreen: React.FC = () => {
   const { state, joinAuction } = useAuction();
   const { auctionId } = useParams<{ auctionId: string }>();
@@ -44,9 +78,13 @@ const ProjectorScreen: React.FC = () => {
        const tName = state.tournamentName?.toUpperCase() || "TOURNAMENT";
        const items = ["WELCOME TO AUCTION"];
        if (tName) items.push(tName);
-       state.sponsors.forEach(s => {
-           items.push(s.name.toUpperCase());
-       });
+       
+       if (state.sponsors.length > 0) {
+           items.push("SPONSORS:"); // Explicit label as requested
+           state.sponsors.forEach(s => {
+               items.push(s.name.toUpperCase());
+           });
+       }
        return items;
   }, [state.sponsors, state.tournamentName]);
 
@@ -130,41 +168,6 @@ const ProjectorScreen: React.FC = () => {
       )
   );
 
-  const Marquee = () => {
-      if (!state.sponsorConfig?.showOnProjector || state.sponsors.length === 0) return null;
-
-      return (
-          <div className="fixed bottom-0 left-0 w-full bg-black text-white py-2 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight">
-              <div className="flex animate-marquee w-max">
-                  <div className="flex shrink-0 items-center">
-                    {marqueeContent.map((text, i) => (
-                        <span key={i} className="mx-8 font-bold text-2xl tracking-wide flex items-center uppercase">
-                            <span className="text-highlight mr-3 text-xl">★</span> {text}
-                        </span>
-                    ))}
-                  </div>
-                  {/* Duplicate for seamless loop */}
-                  <div className="flex shrink-0 items-center">
-                    {marqueeContent.map((text, i) => (
-                        <span key={`dup-${i}`} className="mx-8 font-bold text-2xl tracking-wide flex items-center uppercase">
-                            <span className="text-highlight mr-3 text-xl">★</span> {text}
-                        </span>
-                    ))}
-                  </div>
-              </div>
-              <style>{`
-                  @keyframes marquee {
-                      0% { transform: translateX(0); }
-                      100% { transform: translateX(-50%); }
-                  }
-                  .animate-marquee {
-                      animation: marquee 30s linear infinite;
-                  }
-              `}</style>
-          </div>
-      );
-  };
-
   // WAITING STATE
   if (!display.player) {
       return (
@@ -175,7 +178,7 @@ const ProjectorScreen: React.FC = () => {
                   <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>WAITING FOR AUCTION</h1>
                   <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>The next player will appear shortly...</p>
               </div>
-              <Marquee />
+              <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
           </div>
       );
   }
@@ -190,8 +193,8 @@ const ProjectorScreen: React.FC = () => {
         <TournamentLogo />
         <SponsorLoop />
         
-        {/* Main Content Area */}
-        <div className="flex-1 flex gap-4 mt-16 min-h-0">
+        {/* Main Content Area - Increased Top Margin to prevent overlap */}
+        <div className="flex-1 flex gap-4 mt-32 min-h-0 relative z-10">
             {/* Player Image */}
             <div className="w-[30%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                 <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
@@ -267,7 +270,7 @@ const ProjectorScreen: React.FC = () => {
         <SponsorLoop />
         
         {/* Main Content */}
-        <div className="flex-1 flex flex-col items-center justify-center relative z-10 w-full">
+        <div className="flex-1 flex flex-col items-center justify-center relative z-10 w-full mt-20">
             
             {/* Top Bar Stats */}
             <div className="w-full max-w-7xl flex justify-between items-center px-4 mb-4">
@@ -338,7 +341,7 @@ const ProjectorScreen: React.FC = () => {
           <TournamentLogo />
           <SponsorLoop />
           
-          <div className="flex-1 grid grid-cols-12 gap-8 my-auto min-h-0">
+          <div className="flex-1 grid grid-cols-12 gap-8 my-auto min-h-0 mt-20">
               {/* Left Panel: Player Info */}
               <div className="col-span-4 flex flex-col h-full">
                   <div className="flex-1 bg-zinc-900 rounded-xl overflow-hidden relative border border-zinc-800 group h-full">
@@ -390,7 +393,7 @@ const ProjectorScreen: React.FC = () => {
           {layout === 'STANDARD' && <RenderStandard />}
           {layout === 'IPL' && <RenderIPL />}
           {layout === 'MODERN' && <RenderModern />}
-          <Marquee />
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
       </>
   );
 };

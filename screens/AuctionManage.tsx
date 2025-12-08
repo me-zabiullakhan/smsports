@@ -494,6 +494,13 @@ const AuctionManage: React.FC = () => {
   const EditAuctionDetailsModal = () => {
       const [title, setTitle] = useState(auction?.title || '');
       const [logo, setLogo] = useState(auction?.logoUrl || '');
+      
+      // Extended fields
+      const [basePrice, setBasePrice] = useState(auction?.basePrice || 0);
+      const [bidIncrement, setBidIncrement] = useState(auction?.bidIncrement || 10);
+      const [purseValue, setPurseValue] = useState(auction?.purseValue || 10000);
+      const [playersPerTeam, setPlayersPerTeam] = useState(auction?.playersPerTeam || 15);
+
       const [isUpdating, setIsUpdating] = useState(false);
       const fileRef = useRef<HTMLInputElement>(null);
 
@@ -514,7 +521,11 @@ const AuctionManage: React.FC = () => {
           try {
               await db.collection('auctions').doc(id).update({
                   title: title,
-                  logoUrl: logo
+                  logoUrl: logo,
+                  basePrice: Number(basePrice),
+                  bidIncrement: Number(bidIncrement),
+                  purseValue: Number(purseValue),
+                  playersPerTeam: Number(playersPerTeam)
               });
               alert("Auction details updated successfully!");
               setShowEditAuctionModal(false);
@@ -527,8 +538,8 @@ const AuctionManage: React.FC = () => {
 
       return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-                <div className="flex justify-between items-center mb-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h3 className="text-lg font-bold text-gray-800">Edit Auction Details</h3>
                     <button onClick={() => setShowEditAuctionModal(false)}><X className="text-gray-400" /></button>
                 </div>
@@ -537,17 +548,37 @@ const AuctionManage: React.FC = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">Auction Title</label>
                         <input type="text" className="w-full border p-2 rounded outline-none" value={title} onChange={e => setTitle(e.target.value)} />
                     </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
+                            <input type="number" className="w-full border p-2 rounded outline-none" value={basePrice} onChange={e => setBasePrice(Number(e.target.value))} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Bid Increment</label>
+                            <input type="number" className="w-full border p-2 rounded outline-none" value={bidIncrement} onChange={e => setBidIncrement(Number(e.target.value))} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Default Budget</label>
+                            <input type="number" className="w-full border p-2 rounded outline-none" value={purseValue} onChange={e => setPurseValue(Number(e.target.value))} />
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Players / Team</label>
+                            <input type="number" className="w-full border p-2 rounded outline-none" value={playersPerTeam} onChange={e => setPlayersPerTeam(Number(e.target.value))} />
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
-                        <div onClick={() => fileRef.current?.click()} className="border border-dashed p-4 text-center cursor-pointer flex flex-col items-center justify-center min-h-[100px] hover:bg-gray-50">
+                        <div onClick={() => fileRef.current?.click()} className="border border-dashed p-4 text-center cursor-pointer flex flex-col items-center justify-center min-h-[100px] hover:bg-gray-50 rounded">
                             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
                             {logo ? <img src={logo} className="w-20 h-20 object-contain" /> : <><Upload className="w-6 h-6 text-gray-400"/><span className="text-xs text-gray-500 mt-2">Click to upload</span></>}
                         </div>
                     </div>
                 </div>
-                <div className="mt-6 flex justify-end gap-2">
-                    <button onClick={() => setShowEditAuctionModal(false)} className="px-3 py-1 border rounded">Cancel</button>
-                    <button onClick={handleUpdateDetails} disabled={isUpdating} className="px-3 py-1 bg-green-600 text-white rounded">{isUpdating ? 'Saving...' : 'Save Changes'}</button>
+                <div className="mt-6 flex justify-end gap-2 pt-2 border-t">
+                    <button onClick={() => setShowEditAuctionModal(false)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleUpdateDetails} disabled={isUpdating} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">{isUpdating ? 'Saving...' : 'Save Changes'}</button>
                 </div>
             </div>
         </div>
