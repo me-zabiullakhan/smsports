@@ -414,12 +414,7 @@ const LiveAdminPanel: React.FC = () => {
                     >
                         <Monitor className="w-4 h-4" />
                     </button>
-                  </div>
-
-                  <div className="w-px h-6 bg-gray-600 mx-1"></div>
-
-                  {/* Bidding Control Toggle */}
-                  <button
+                    <button
                         onClick={(e) => { e.stopPropagation(); toggleBidding(); }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wide transition-all border ${
                             biddingEnabled 
@@ -431,6 +426,7 @@ const LiveAdminPanel: React.FC = () => {
                         {biddingEnabled ? <Unlock className="w-3 h-3"/> : <Lock className="w-3 h-3"/>}
                         {biddingEnabled ? "BIDDING ON" : "BIDDING PAUSED"}
                     </button>
+                  </div>
 
                   <div className="w-px h-6 bg-gray-600 mx-1"></div>
 
