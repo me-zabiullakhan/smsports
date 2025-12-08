@@ -200,8 +200,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // --- HELPER: CALCULATE NEXT BID (Central Source of Truth) ---
   const calculateNextBid = () => {
-      const { currentPlayerIndex, unsoldPlayers, currentBid, categories, bidIncrement } = state;
-      const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+      const { currentPlayerId, players, currentBid, categories, bidIncrement } = state;
+      
+      // FIX: Use ID lookup to find player correctly from the full list
+      // This prevents stale index issues when players array updates or filtering happens
+      const currentPlayer = players.find(p => String(p.id) === String(currentPlayerId));
       
       // Safety Check: If no player loaded yet, return 0 (will be handled by UI)
       if (!currentPlayer) return 0;
@@ -676,7 +679,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           alert(`${snapshot.size} Unsold players have been moved back to the available pool.`);
       } catch (e: any) {
           console.error("Error resetting unsold:", e);
-          alert("Failed: " + e.message);
+          alert("Failed to delete unsold status: " + e.message);
       }
   };
 

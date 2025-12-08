@@ -283,17 +283,19 @@ const LiveAdminPanel: React.FC = () => {
                             {state.status === AuctionStatus.InProgress && state.currentPlayerId && (
                                  <button
                                      onClick={() => handleAdminBid(team)}
-                                     disabled={!canAfford || isLeading || !biddingEnabled}
+                                     disabled={!canAfford || isLeading || !biddingEnabled || nextBid <= 0}
                                      className={`ml-2 px-3 py-0 rounded text-[10px] font-bold uppercase transition-all min-w-[75px] h-8 flex items-center justify-center
                                         ${isLeading 
                                             ? 'bg-green-600 text-white cursor-default opacity-80' 
                                             : (!canAfford)
                                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                                : 'bg-highlight hover:bg-teal-400 text-primary hover:scale-105 active:scale-95 shadow-lg shadow-highlight/10'
+                                                : nextBid <= 0
+                                                    ? 'bg-gray-700 text-gray-400 cursor-wait'
+                                                    : 'bg-highlight hover:bg-teal-400 text-primary hover:scale-105 active:scale-95 shadow-lg shadow-highlight/10'
                                         }
                                      `}
                                  >
-                                     {isLeading ? 'Leading' : !canAfford ? 'No Funds' : `BID ${nextBid}`}
+                                     {isLeading ? 'Leading' : !canAfford ? 'No Funds' : (nextBid > 0 ? `BID ${nextBid}` : <Loader2 className="w-3 h-3 animate-spin"/>)}
                                  </button>
                             )}
                         </div>
