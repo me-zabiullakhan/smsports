@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, ProjectorLayout, OBSLayout } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer, PenTool, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, Layers, TrendingUp, FileText, QrCode, Link as LinkIcon, Save, Settings, AlignLeft, List, Calendar, Upload, Users, Eye, CheckCircle, XCircle, Key, Hash, Edit, Loader2, Database, DollarSign, Cast, Monitor, Megaphone, Timer, PenTool, FileSpreadsheet, UserPlus } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -53,6 +53,7 @@ const AuctionManage: React.FC = () => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+  const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   
@@ -525,6 +526,103 @@ const AuctionManage: React.FC = () => {
 
   // --- MODALS ---
   
+  const AddPlayerModal = () => {
+      const [name, setName] = useState('');
+      const [category, setCategory] = useState('');
+      const [basePrice, setBasePrice] = useState(auction?.basePrice || 0);
+      const [photo, setPhoto] = useState('');
+      const [submitting, setSubmitting] = useState(false);
+      const fileRef = useRef<HTMLInputElement>(null);
+
+      const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+          const catName = e.target.value;
+          setCategory(catName);
+          const found = categories.find(c => c.name === catName);
+          if (found) setBasePrice(found.basePrice);
+      };
+
+      const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (file) {
+              if (file.size > 800 * 1024) return alert("Max 800KB");
+              const reader = new FileReader();
+              reader.onloadend = () => setPhoto(reader.result as string);
+              reader.readAsDataURL(file);
+          }
+      };
+
+      const save = async () => {
+          if (!id) return;
+          if (!name || !category) return alert("Name and Category required");
+          
+          setSubmitting(true);
+          try {
+               const newId = db.collection('dummy').doc().id;
+               await db.collection('auctions').doc(id).collection('players').doc(newId).set({
+                   id: newId,
+                   name: name.trim(),
+                   category: category,
+                   basePrice: Number(basePrice),
+                   photoUrl: photo,
+                   nationality: 'India',
+                   speciality: category,
+                   stats: { matches: 0, runs: 0, wickets: 0 },
+                   status: 'OPEN'
+               });
+               alert("Player Added!");
+               setShowAddPlayerModal(false);
+          } catch(e: any) {
+              alert("Error: " + e.message);
+          } finally {
+              setSubmitting(false);
+          }
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold">Add New Player</h3>
+                      <button onClick={() => setShowAddPlayerModal(false)}><X className="text-gray-400" /></button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                      <div onClick={() => fileRef.current?.click()} className="flex justify-center mb-4 cursor-pointer relative group">
+                          {photo ? <img src={photo} className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"/> : <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border border-dashed border-gray-300"><ImageIcon className="w-8 h-8"/></div>}
+                          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile}/>
+                          <p className="text-xs text-center mt-1 text-blue-500 absolute -bottom-6 w-full">Upload Photo</p>
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name</label>
+                          <input type="text" className="w-full border p-2 rounded" value={name} onChange={e => setName(e.target.value)} placeholder="Player Name"/>
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                          <select className="w-full border p-2 rounded" value={category} onChange={handleCategoryChange}>
+                              <option value="">Select Category</option>
+                              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
+                          <input type="number" className="w-full border p-2 rounded" value={basePrice} onChange={e => setBasePrice(Number(e.target.value))}/>
+                      </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-2">
+                      <button onClick={() => setShowAddPlayerModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                      <button onClick={save} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded font-bold">
+                          {submitting ? 'Adding...' : 'Add Player'}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const EditSaleModal = () => {
       if (!editingSalePlayer) return null;
       
@@ -1390,6 +1488,9 @@ const AuctionManage: React.FC = () => {
                                     onChange={handleExcelImport}
                                  />
                              </div>
+                             <button onClick={() => setShowAddPlayerModal(true)} className="px-3 py-2 bg-green-600 text-white hover:bg-green-700 rounded text-sm font-bold flex items-center shadow-sm">
+                                 <UserPlus className="w-4 h-4 mr-1"/> Add Player
+                             </button>
                              <button onClick={() => setShowBulkPriceModal(true)} className="px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-bold flex items-center shadow-sm"><DollarSign className="w-4 h-4 mr-1"/> Bulk Price</button>
                              <button onClick={handleClearPool} className="px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-bold flex items-center shadow-sm"><Trash2 className="w-4 h-4 mr-1"/> Clear All</button>
                         </div>
@@ -1510,6 +1611,7 @@ const AuctionManage: React.FC = () => {
         {showTeamModal && <CreateTeamModal />}
         {showCategoryModal && <CreateCategoryModal />}
         {showPlayerModal && editingPlayer && <EditPlayerModal />}
+        {showAddPlayerModal && <AddPlayerModal />}
         {showBulkPriceModal && <BulkPriceModal />}
         {selectedRegistration && <RegistrationDetailsModal />}
         {showEditAuctionModal && <EditAuctionDetailsModal />}
