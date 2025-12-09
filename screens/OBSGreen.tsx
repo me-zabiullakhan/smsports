@@ -306,16 +306,22 @@ const ProjectorScreen: React.FC = () => {
     );
   };
 
-  const RenderWaiting = () => (
+  const RenderWaiting = () => {
+    const isStartingSoon = state.status === AuctionStatus.NotStarted;
+    const title = isStartingSoon ? "AUCTION STARTING SOON" : "WAITING FOR AUCTIONEER";
+    const subtitle = isStartingSoon ? "The event will begin shortly..." : "The next player will appear shortly...";
+
+    return (
       <div className={`h-screen w-full flex flex-col items-center justify-center p-10 relative overflow-hidden ${state.projectorLayout === 'IPL' ? 'bg-slate-900' : 'bg-gray-100'}`}>
           <TournamentLogo />
           <SponsorLoop />
           <div className={`p-12 rounded-3xl shadow-xl text-center border ${state.projectorLayout === 'IPL' ? 'bg-slate-800 border-yellow-500/30' : 'bg-white border-gray-200'}`}>
-              <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>WAITING FOR AUCTION</h1>
-              <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>The next player will appear shortly...</p>
+              <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>{title}</h1>
+              <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>{subtitle}</p>
           </div>
       </div>
-  );
+    );
+  };
 
   const RenderStandard = () => (
     <div className="h-screen w-full bg-gray-100 p-4 pb-16 flex flex-col font-sans overflow-hidden relative">

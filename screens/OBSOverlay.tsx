@@ -134,11 +134,14 @@ const OBSOverlay: React.FC = () => {
 
   // Waiting State
   if (display.status === 'WAITING' || !display.player) {
+      const isStartingSoon = state.status === AuctionStatus.NotStarted;
+      const waitingText = isStartingSoon ? "AUCTION STARTING SOON" : "WAITING FOR AUCTION";
+
       return (
           <div className="min-h-screen w-full flex flex-col items-center justify-end pb-20 relative">
               <SponsorLogo />
               <div className="bg-slate-900/90 text-white px-12 py-4 rounded-full border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse">
-                  <h1 className="text-2xl font-bold tracking-[0.5em] uppercase text-cyan-400">Waiting for Auction</h1>
+                  <h1 className="text-2xl font-bold tracking-[0.5em] uppercase text-cyan-400">{waitingText}</h1>
               </div>
           </div>
       );
