@@ -759,6 +759,7 @@ const AuctionManage: React.FC = () => {
       const [bidIncrement, setBidIncrement] = useState(auction?.bidIncrement || 10);
       const [purseValue, setPurseValue] = useState(auction?.purseValue || 10000);
       const [playersPerTeam, setPlayersPerTeam] = useState(auction?.playersPerTeam || 15);
+      const [totalTeams, setTotalTeams] = useState(auction?.totalTeams || 2);
 
       const [isUpdating, setIsUpdating] = useState(false);
       const fileRef = useRef<HTMLInputElement>(null);
@@ -784,7 +785,8 @@ const AuctionManage: React.FC = () => {
                   basePrice: Number(basePrice),
                   bidIncrement: Number(bidIncrement),
                   purseValue: Number(purseValue),
-                  playersPerTeam: Number(playersPerTeam)
+                  playersPerTeam: Number(playersPerTeam),
+                  totalTeams: Number(totalTeams)
               });
               alert("Auction details updated successfully!");
               setShowEditAuctionModal(false);
@@ -824,6 +826,10 @@ const AuctionManage: React.FC = () => {
                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Players / Team</label>
                             <input type="number" className="w-full border p-2 rounded outline-none" value={playersPerTeam} onChange={e => setPlayersPerTeam(Number(e.target.value))} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Total Teams</label>
+                            <input type="number" className="w-full border p-2 rounded outline-none" value={totalTeams} onChange={e => setTotalTeams(Number(e.target.value))} />
                         </div>
                     </div>
 
