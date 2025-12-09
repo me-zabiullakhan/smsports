@@ -114,6 +114,7 @@ export interface AuctionState {
   highestBidder: Team | null;
   timer: number;
   bidIncrement: number; // Global fallback increment
+  bidSlabs?: BidIncrementSlab[]; // Global fallback slabs
   auctionLog: AuctionLog[];
   biddingEnabled: boolean; // Global toggle for team bidding
   playerSelectionMode: 'MANUAL' | 'AUTO';
@@ -171,6 +172,7 @@ export interface AuctionSetup {
     purseValue: number;
     basePrice: number;
     bidIncrement: number;
+    slabs?: BidIncrementSlab[]; // Global slabs for auction
     playersPerTeam: number;
     status: 'DRAFT' | 'LIVE' | 'COMPLETED';
     createdAt: number;

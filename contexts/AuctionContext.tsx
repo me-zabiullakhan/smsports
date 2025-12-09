@@ -18,6 +18,7 @@ const initialState: AuctionState = {
   highestBidder: null,
   timer: BID_INTERVAL,
   bidIncrement: 10,
+  bidSlabs: [],
   auctionLog: [],
   biddingEnabled: true, // Default enabled
   playerSelectionMode: 'MANUAL',
@@ -116,6 +117,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     currentPlayerId: data.currentPlayerId,
                     highestBidder,
                     bidIncrement: data.bidIncrement || 10,
+                    bidSlabs: data.slabs || [],
                     biddingEnabled: data.biddingEnabled !== undefined ? data.biddingEnabled : true,
                     playerSelectionMode: data.playerSelectionMode || 'MANUAL',
                     auctionLogoUrl: data.logoUrl || '',
@@ -200,10 +202,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // --- HELPER: CALCULATE NEXT BID (Central Source of Truth) ---
   const calculateNextBid = () => {
-      const { currentPlayerId, players, currentBid, categories, bidIncrement } = state;
+      const { currentPlayerId, players, currentBid, categories, bidIncrement, bidSlabs } = state;
       
-      // FIX: Use ID lookup to find player correctly from the full list
-      // This prevents stale index issues when players array updates or filtering happens
       const currentPlayer = players.find(p => String(p.id) === String(currentPlayerId));
       
       // Safety Check: If no player loaded yet, return 0 (will be handled by UI)
@@ -213,14 +213,17 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       const currentPrice = Number(currentBid || 0);
 
       // 1. Initial Bid Scenario: If no bid yet, next bid is exactly Base Price
-      // IMPORTANT: Ensure basePrice is valid (>0)
       if (currentPrice === 0) {
           return basePrice > 0 ? basePrice : 0;
       }
 
-      // 2. Determine Increment: Check Slabs -> Category Default -> Global Default
-      let effectiveIncrement = Number(bidIncrement || 10);
+      // 2. Determine Increment logic
+      // Priority: Category Slabs > Category Fixed > Global Slabs > Global Fixed
       
+      let effectiveIncrement = Number(bidIncrement || 10);
+      let ruleFound = false;
+      
+      // CHECK CATEGORY RULES
       if (categories.length > 0) {
           const playerCat = categories.find(c => c.name === currentPlayer.category);
           if (playerCat) {
@@ -232,12 +235,26 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                   
                   if (activeSlab) {
                       effectiveIncrement = Number(activeSlab.increment);
-                  } else {
-                      if (playerCat.bidIncrement > 0) effectiveIncrement = Number(playerCat.bidIncrement);
+                      ruleFound = true;
                   }
-              } else if (playerCat.bidIncrement > 0) {
-                  effectiveIncrement = Number(playerCat.bidIncrement);
               }
+              
+              if (!ruleFound && playerCat.bidIncrement > 0) {
+                  effectiveIncrement = Number(playerCat.bidIncrement);
+                  ruleFound = true;
+              }
+          }
+      }
+
+      // CHECK GLOBAL SLABS (if no category rule applied)
+      if (!ruleFound && bidSlabs && bidSlabs.length > 0) {
+          const activeSlab = [...bidSlabs]
+              .sort((a, b) => b.from - a.from)
+              .find(s => currentPrice >= s.from);
+          
+          if (activeSlab) {
+              effectiveIncrement = Number(activeSlab.increment);
+              ruleFound = true; // Mark as found to prefer this over default
           }
       }
 
@@ -362,16 +379,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
               // 2. Identify Old Team (Refund logic)
               if (playerData.status === 'SOLD' && playerData.soldTo) {
-                  // We need to find the team doc ID by name, as soldTo stores Name.
-                  // Since we are inside a transaction, we can't do a query efficiently without knowing ID.
-                  // However, for correction, we rely on the state loaded in client or strict ID passed.
-                  // Ideally player should store soldToTeamId.
-                  // Fallback: We look up the team ID from the `state.teams` using name, BUT
-                  // to be safe in transaction, we need to read all teams or query. 
-                  // Querying in transaction is tricky if not supported.
-                  // Workaround: We query for the team ID based on name OUTSIDE transaction or assume we can find it.
-                  
-                  // BETTER: Use the `teams` from state to find the ID corresponding to `playerData.soldTo`
                   const oldTeamObj = state.teams.find(t => t.name === playerData.soldTo);
                   
                   if (oldTeamObj) {

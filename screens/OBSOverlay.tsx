@@ -181,7 +181,7 @@ const OBSOverlay: React.FC = () => {
                       <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
                       
                       {/* Status Overlay */}
-                      {status !== 'LIVE' && status !== 'WAITING' && (
+                      {status !== 'LIVE' && (
                           <div className={`absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]`}>
                               <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl ${status === 'SOLD' ? 'text-green-400 border-green-400' : 'text-red-500 border-red-500'}`}>
                                   {status}
@@ -264,7 +264,7 @@ const OBSOverlay: React.FC = () => {
                           </div>
                       </>
                   )}
-                  {status !== 'LIVE' && status !== 'WAITING' && (
+                  {status !== 'LIVE' && (
                       <div className={`px-3 py-1 rounded-full font-bold text-xs ${status === 'SOLD' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
                           {status}
                       </div>

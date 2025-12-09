@@ -1,9 +1,9 @@
 
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Upload, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Calendar, Upload, CheckCircle, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { db } from '../firebase';
-import { AuctionSetup } from '../types';
+import { AuctionSetup, BidIncrementSlab } from '../types';
 import { useAuction } from '../hooks/useAuction';
 
 const CreateAuction: React.FC = () => {
@@ -25,6 +25,10 @@ const CreateAuction: React.FC = () => {
       bidIncrement: 10,
       playersPerTeam: 15
   });
+
+  // Global Slabs State
+  const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]);
+  const [newSlab, setNewSlab] = useState<{from: string, increment: string}>({from: '', increment: ''});
 
   // File State (Mocking upload for UI feedback)
   const [logoName, setLogoName] = useState<string>("");
@@ -53,6 +57,19 @@ const CreateAuction: React.FC = () => {
       }
   }
 
+  const addSlab = () => {
+      const fromVal = Number(newSlab.from);
+      const incVal = Number(newSlab.increment);
+      if (fromVal >= 0 && incVal > 0) {
+          setSlabs(prev => [...prev, { from: fromVal, increment: incVal }]);
+          setNewSlab({ from: '', increment: '' });
+      }
+  };
+
+  const removeSlab = (index: number) => {
+      setSlabs(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setErrorMsg(null);
@@ -77,6 +94,7 @@ const CreateAuction: React.FC = () => {
               basePrice: Number(formData.basePrice),
               bidIncrement: Number(formData.bidIncrement),
               playersPerTeam: Number(formData.playersPerTeam),
+              slabs: slabs, // Include slabs
               status: 'DRAFT',
               createdAt: Date.now(),
               createdBy: uid
@@ -327,17 +345,56 @@ const CreateAuction: React.FC = () => {
                     />
                 </div>
 
-                {/* Bid Increment */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bid increament points <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" 
-                        name="bidIncrement" 
-                        required
-                        value={formData.bidIncrement}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
+                {/* Bid Increment & Slabs */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bid Rules</label>
+                    
+                    <div className="mb-4">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Default Bid Increment <span className="text-red-500">*</span></label>
+                        <input 
+                            type="number" 
+                            name="bidIncrement" 
+                            required
+                            value={formData.bidIncrement}
+                            onChange={handleChange}
+                            className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2">Global Bid Slabs (Optional)</label>
+                        <div className="bg-white p-3 rounded border border-gray-300">
+                             {slabs.map((slab, idx) => (
+                                 <div key={idx} className="flex justify-between items-center text-sm mb-2 bg-gray-50 p-2 rounded">
+                                     <span>From <b>{slab.from}</b>: Increase by <b>+{slab.increment}</b></span>
+                                     <button type="button" onClick={() => removeSlab(idx)} className="text-red-500 hover:text-red-700">
+                                         <Trash2 className="w-4 h-4"/>
+                                     </button>
+                                 </div>
+                             ))}
+                             
+                             <div className="grid grid-cols-2 gap-2 mt-2">
+                                 <input 
+                                    type="number" 
+                                    placeholder="Price >=" 
+                                    className="border p-2 rounded text-sm" 
+                                    value={newSlab.from} 
+                                    onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
+                                 />
+                                 <input 
+                                    type="number" 
+                                    placeholder="+ Increment" 
+                                    className="border p-2 rounded text-sm" 
+                                    value={newSlab.increment} 
+                                    onChange={e => setNewSlab({...newSlab, increment: e.target.value})} 
+                                 />
+                             </div>
+                             <button type="button" onClick={addSlab} className="mt-2 w-full py-2 bg-green-50 border border-green-200 text-green-700 text-sm font-bold rounded hover:bg-green-100 flex items-center justify-center">
+                                 <Plus className="w-3 h-3 mr-1"/> Add Slab Rule
+                             </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">E.g. If current bid is 500, and you have a slab "From 500: +50", next bid will be 550.</p>
+                    </div>
                 </div>
 
                  {/* Total Players per team */}
