@@ -102,6 +102,13 @@ export interface SponsorConfig {
 export type ProjectorLayout = 'STANDARD' | 'IPL' | 'MODERN';
 export type OBSLayout = 'STANDARD' | 'MINIMAL' | 'VERTICAL';
 
+export type AdminViewType = 'SQUAD' | 'PURSES' | 'UNSOLD' | 'SOLD' | 'TOP_BUY' | 'TOP_5' | 'NONE';
+
+export interface AdminViewOverride {
+    type: AdminViewType;
+    data?: any; // e.g. { teamId: '...' }
+}
+
 export interface AuctionState {
   players: Player[];
   teams: Team[];
@@ -124,9 +131,11 @@ export interface AuctionState {
   sponsorConfig: SponsorConfig;
   projectorLayout: ProjectorLayout;
   obsLayout: OBSLayout;
+  adminViewOverride: AdminViewOverride | null;
 }
 
 export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   TEAM_OWNER = 'TEAM_OWNER',
   VIEWER = 'VIEWER'
@@ -203,6 +212,7 @@ export interface AuctionContextType {
     toggleBidding: () => Promise<void>; // New toggle function
     toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
     updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
+    setAdminView: (view: AdminViewOverride | null) => Promise<void>;
     logout: () => void;
     error: string | null;
     joinAuction: (id: string) => void;

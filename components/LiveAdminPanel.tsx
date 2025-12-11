@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, ChevronUp, Shuffle, Search, User, Palette, Trophy, Gavel, Settings } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, ChevronUp, Shuffle, Search, User, Palette, Trophy, Gavel, Settings, List, TrendingUp, Users, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
-  const { teams, players, biddingEnabled, playerSelectionMode } = state;
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, setAdminView } = useAuction();
+  const { teams, players, biddingEnabled, playerSelectionMode, adminViewOverride } = state;
   const navigate = useNavigate();
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +20,9 @@ const LiveAdminPanel: React.FC = () => {
   
   // Settings Drawer State
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Media Control State
+  const [squadViewTeamId, setSquadViewTeamId] = useState('');
 
   // Derived State
   const availablePlayersCount = useMemo(() => players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length, [players]);
@@ -118,6 +121,11 @@ const LiveAdminPanel: React.FC = () => {
       const route = type === 'green' ? 'obs-green' : 'obs-overlay';
       navigator.clipboard.writeText(`${baseUrl}#/${route}/${activeAuctionId}`);
       alert("Link copied to clipboard!");
+  };
+
+  // --- Broadcast Control Handlers ---
+  const handleViewChange = async (type: string, data?: any) => {
+      await setAdminView({ type: type as any, data });
   };
 
   const renderMainControls = () => {
@@ -311,7 +319,54 @@ const LiveAdminPanel: React.FC = () => {
             </button>
             
             {showSettings && (
-                <div className="p-3 grid gap-3 animate-slide-up border-t border-gray-700 bg-gray-900/50">
+                <div className="p-3 grid gap-3 animate-slide-up border-t border-gray-700 bg-gray-900/50 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    
+                    {/* BROADCAST VIEWS - NEW SECTION */}
+                    <div className="bg-black/40 p-2 rounded border border-gray-600">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] text-highlight font-bold uppercase flex items-center"><Monitor className="w-3 h-3 mr-1"/> Broadcast Views</span>
+                            {adminViewOverride && (
+                                <button onClick={() => handleViewChange('NONE')} className="text-[9px] bg-red-600 text-white px-2 py-0.5 rounded font-bold hover:bg-red-500 flex items-center">
+                                    <EyeOff className="w-3 h-3 mr-1"/> Stop Override
+                                </button>
+                            )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            <button onClick={() => handleViewChange('PURSES')} className={`p-2 rounded text-[10px] font-bold border ${adminViewOverride?.type === 'PURSES' ? 'bg-green-600 border-green-400 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}>
+                                All Purses
+                            </button>
+                            <button onClick={() => handleViewChange('TOP_5')} className={`p-2 rounded text-[10px] font-bold border ${adminViewOverride?.type === 'TOP_5' ? 'bg-green-600 border-green-400 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}>
+                                Top 5 Buys
+                            </button>
+                            <button onClick={() => handleViewChange('UNSOLD')} className={`p-2 rounded text-[10px] font-bold border ${adminViewOverride?.type === 'UNSOLD' ? 'bg-green-600 border-green-400 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}>
+                                Unsold List
+                            </button>
+                            <button onClick={() => handleViewChange('SOLD')} className={`p-2 rounded text-[10px] font-bold border ${adminViewOverride?.type === 'SOLD' ? 'bg-green-600 border-green-400 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}>
+                                Sold List
+                            </button>
+                        </div>
+
+                        {/* Squad View Selector */}
+                        <div className="flex gap-1">
+                            <select 
+                                className="flex-1 bg-gray-800 text-white text-[10px] p-1.5 rounded border border-gray-600 outline-none"
+                                value={squadViewTeamId}
+                                onChange={(e) => setSquadViewTeamId(e.target.value)}
+                            >
+                                <option value="">Select Team for Squad View</option>
+                                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                            <button 
+                                onClick={() => squadViewTeamId && handleViewChange('SQUAD', { teamId: squadViewTeamId })}
+                                disabled={!squadViewTeamId}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border ${adminViewOverride?.type === 'SQUAD' && adminViewOverride?.data?.teamId === squadViewTeamId ? 'bg-green-600 border-green-400 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 disabled:opacity-50'}`}
+                            >
+                                Show
+                            </button>
+                        </div>
+                    </div>
+
                     {/* 1. Selection Mode */}
                     <div className="flex justify-between items-center bg-gray-800 p-2 rounded border border-gray-700">
                          <span className="text-xs text-gray-400 font-bold uppercase">Player Selection</span>

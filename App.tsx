@@ -6,6 +6,7 @@ import OBSOverlay from './screens/OBSOverlay';
 import OBSGreen from './screens/OBSGreen';
 import LandingPage from './screens/LandingPage';
 import AdminDashboard from './screens/AdminDashboard';
+import SuperAdminDashboard from './screens/SuperAdminDashboard';
 import CreateAuction from './screens/CreateAuction';
 import AuctionManage from './screens/AuctionManage';
 import PlayerRegistration from './screens/PlayerRegistration';
@@ -41,11 +42,13 @@ const AppContent: React.FC = () => {
   }
 
   const isLoggedIn = !!user;
-  const isAdmin = userProfile?.role === UserRole.ADMIN;
+  const isSuperAdmin = userProfile?.role === UserRole.SUPER_ADMIN;
+  const isAdmin = userProfile?.role === UserRole.ADMIN || isSuperAdmin; // Super Admin has Admin privileges
   const isTeamOwner = userProfile?.role === UserRole.TEAM_OWNER;
 
   // Determine Redirect for Logged In User
   const getAuthRedirect = () => {
+      if (isSuperAdmin) return "/super-admin";
       if (isAdmin) return "/admin";
       // If team owner and we know their auction, send them there. Otherwise home.
       if (isTeamOwner && activeAuctionId) return `/auction/${activeAuctionId}`;
@@ -66,6 +69,11 @@ const AppContent: React.FC = () => {
         {/* Auth Route */}
         <Route path="/auth" element={
             isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <AuthScreen />
+        } />
+
+        {/* Super Admin Route */}
+        <Route path="/super-admin" element={
+            isSuperAdmin ? <SuperAdminDashboard /> : <Navigate to="/auth" replace />
         } />
 
         {/* Admin Routes */}

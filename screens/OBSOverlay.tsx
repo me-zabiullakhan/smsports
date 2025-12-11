@@ -120,6 +120,88 @@ const OBSOverlay: React.FC = () => {
       )
   );
 
+  // --- OVERRIDE RENDERER ---
+  if (state.adminViewOverride && state.adminViewOverride.type !== 'NONE') {
+      const { type, data } = state.adminViewOverride;
+
+      const OverlayCard = ({ children, title }: any) => (
+          <div className="min-h-screen w-full flex flex-col items-center justify-center relative p-8">
+              <SponsorLogo />
+              <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl border-2 border-white/20 shadow-2xl p-6 w-full max-w-4xl animate-slide-up">
+                  <div className="text-center mb-6 border-b border-white/10 pb-4">
+                      <h1 className="text-3xl font-black text-yellow-400 uppercase tracking-widest drop-shadow-md">{title}</h1>
+                  </div>
+                  {children}
+              </div>
+          </div>
+      );
+
+      if (type === 'SQUAD' && data?.teamId) {
+          const team = state.teams.find(t => String(t.id) === String(data.teamId));
+          if (team) {
+              return (
+                  <OverlayCard title={team.name}>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {team.players.map((p, i) => (
+                              <div key={i} className="bg-white/10 p-2 rounded flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">#{i+1}</div>
+                                  <div className="min-w-0">
+                                      <p className="text-white font-bold text-sm truncate">{p.name}</p>
+                                      <p className="text-gray-400 text-xs">{p.soldPrice}</p>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </OverlayCard>
+              );
+          }
+      }
+
+      if (type === 'TOP_5') {
+          const soldPlayers = state.teams.flatMap(t => t.players).sort((a, b) => (Number(b.soldPrice) || 0) - (Number(a.soldPrice) || 0)).slice(0, 5);
+          return (
+              <OverlayCard title="Top 5 Buys">
+                  <div className="space-y-3">
+                      {soldPlayers.map((p, i) => (
+                          <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded hover:bg-white/10 transition-colors">
+                              <div className="flex items-center gap-4">
+                                  <div className={`text-2xl font-black ${i===0?'text-yellow-400':i===1?'text-gray-300':i===2?'text-orange-400':'text-gray-600'}`}>#{i+1}</div>
+                                  <img src={p.photoUrl} className="w-10 h-10 rounded-full object-cover border border-white/20"/>
+                                  <div>
+                                      <p className="text-white font-bold text-lg">{p.name}</p>
+                                      <p className="text-gray-400 text-xs uppercase">{p.category}</p>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <p className="text-2xl font-black text-green-400">{p.soldPrice}</p>
+                                  <p className="text-gray-500 text-xs font-bold uppercase">{p.soldTo}</p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </OverlayCard>
+          );
+      }
+
+      if (type === 'PURSES') {
+          const sortedTeams = [...state.teams].sort((a,b) => b.budget - a.budget);
+          return (
+              <OverlayCard title="Remaining Purse">
+                  <div className="grid grid-cols-2 gap-4">
+                      {sortedTeams.map((team, i) => (
+                          <div key={team.id} className="flex justify-between items-center bg-white/10 p-3 rounded">
+                              <span className="text-white font-bold">{team.name}</span>
+                              <span className="text-green-400 font-mono font-bold text-xl">{team.budget}</span>
+                          </div>
+                      ))}
+                  </div>
+              </OverlayCard>
+          );
+      }
+  }
+
+  // ... (Existing Rendering Logic for Live/Finished/Waiting) ...
+
   if (display.status === 'FINISHED') {
       return (
           <div className="min-h-screen w-full flex flex-col items-center justify-center relative">

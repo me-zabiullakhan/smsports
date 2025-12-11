@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
-import { Globe, User, TrendingUp, Wallet, Trophy, Star } from 'lucide-react';
+import { Globe, User, TrendingUp, Wallet, Trophy, Star, AlertTriangle, Users } from 'lucide-react';
 import { Team, Player, AuctionStatus } from '../types';
 
 interface DisplayState {
@@ -173,6 +173,131 @@ const ProjectorScreen: React.FC = () => {
           </div>
       )
   );
+
+  // --- SPECIAL VIEWS RENDERER ---
+  if (state.adminViewOverride && state.adminViewOverride.type !== 'NONE') {
+      const { type, data } = state.adminViewOverride;
+
+      const RenderOverrideContainer = ({ children, title }: any) => (
+          <div className="h-screen w-full bg-slate-900 text-white flex flex-col p-8 relative overflow-hidden font-sans">
+              <TournamentLogo />
+              <SponsorLoop />
+              <div className="mt-24 mb-4 text-center z-10">
+                  <h1 className="text-4xl lg:text-6xl font-black uppercase tracking-widest text-yellow-400 drop-shadow-lg">{title}</h1>
+              </div>
+              <div className="flex-1 overflow-hidden z-10 w-full max-w-7xl mx-auto bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 p-8 shadow-2xl">
+                  {children}
+              </div>
+          </div>
+      );
+
+      if (type === 'SQUAD' && data?.teamId) {
+          const team = state.teams.find(t => String(t.id) === String(data.teamId));
+          if (team) {
+              return (
+                  <RenderOverrideContainer title={`Squad: ${team.name}`}>
+                      <div className="h-full flex flex-col">
+                          <div className="flex items-center gap-6 mb-6 pb-6 border-b border-white/10">
+                              {team.logoUrl ? <img src={team.logoUrl} className="w-24 h-24 rounded-full bg-white p-2 object-contain"/> : <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-4xl font-bold">{team.name.charAt(0)}</div>}
+                              <div>
+                                  <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xl">
+                                      <p className="text-gray-400">PLAYERS: <span className="text-white font-bold">{team.players.length}</span></p>
+                                      <p className="text-gray-400">PURSE: <span className="text-green-400 font-bold">{team.budget}</span></p>
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2 custom-scrollbar">
+                              {team.players.map((p, i) => (
+                                  <div key={i} className="bg-white/10 p-4 rounded-xl flex items-center gap-4">
+                                      <div className="w-8 h-8 rounded-full bg-yellow-500 text-black flex items-center justify-center font-bold text-sm">#{i+1}</div>
+                                      <div>
+                                          <p className="font-bold text-lg">{p.name}</p>
+                                          <p className="text-xs text-gray-400 uppercase">{p.category} • <span className="text-green-400">{p.soldPrice}</span></p>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </RenderOverrideContainer>
+              );
+          }
+      }
+
+      if (type === 'PURSES') {
+          const sortedTeams = [...state.teams].sort((a,b) => b.budget - a.budget);
+          return (
+              <RenderOverrideContainer title="Team Purse Standings">
+                  <div className="h-full overflow-y-auto p-2 custom-scrollbar">
+                      <div className="grid grid-cols-1 gap-4">
+                          {sortedTeams.map((team, i) => (
+                              <div key={team.id} className="flex items-center justify-between bg-white/10 p-4 rounded-xl border border-white/5 hover:bg-white/20 transition-colors">
+                                  <div className="flex items-center gap-4">
+                                      <span className="text-2xl font-bold text-gray-500 w-8">#{i+1}</span>
+                                      {team.logoUrl ? <img src={team.logoUrl} className="w-12 h-12 rounded-full bg-white p-1 object-contain"/> : <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold">{team.name.charAt(0)}</div>}
+                                      <div>
+                                          <h3 className="text-2xl font-bold">{team.name}</h3>
+                                          <p className="text-sm text-gray-400">{team.players.length} Players</p>
+                                      </div>
+                                  </div>
+                                  <div className="text-right">
+                                      <p className="text-4xl font-black text-green-400">{team.budget}</p>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              </RenderOverrideContainer>
+          );
+      }
+
+      if (type === 'TOP_5') {
+          const soldPlayers = state.teams.flatMap(t => t.players).sort((a, b) => (Number(b.soldPrice) || 0) - (Number(a.soldPrice) || 0)).slice(0, 5);
+          return (
+              <RenderOverrideContainer title="Top 5 Most Expensive">
+                  <div className="h-full flex flex-col justify-center gap-4">
+                      {soldPlayers.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between bg-gradient-to-r from-slate-800 to-slate-900 p-6 rounded-2xl border-l-8 border-yellow-500 shadow-xl transform hover:scale-[1.02] transition-transform">
+                              <div className="flex items-center gap-6">
+                                  <div className="text-5xl font-black text-yellow-500/20">#{i+1}</div>
+                                  <img src={p.photoUrl} className="w-20 h-20 rounded-full object-cover border-2 border-white/20" />
+                                  <div>
+                                      <h3 className="text-3xl font-black uppercase">{p.name}</h3>
+                                      <p className="text-gray-400 uppercase font-bold">{p.category}</p>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <p className="text-4xl font-black text-green-400">{p.soldPrice}</p>
+                                  <p className="text-sm text-gray-400 uppercase">Sold To: {p.soldTo}</p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </RenderOverrideContainer>
+          );
+      }
+
+      if (type === 'SOLD' || type === 'UNSOLD') {
+          const isSold = type === 'SOLD';
+          const list = isSold 
+                ? state.teams.flatMap(t => t.players).sort((a, b) => (b.soldPrice || 0) - (a.soldPrice || 0))
+                : state.unsoldPlayers.filter(p => p.status === 'UNSOLD');
+          
+          return (
+              <RenderOverrideContainer title={isSold ? "Sold Players List" : "Unsold Players List"}>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto h-full pr-2 custom-scrollbar">
+                      {list.map((p, i) => (
+                          <div key={i} className="bg-white/10 p-3 rounded-lg flex flex-col items-center text-center hover:bg-white/20">
+                              <img src={p.photoUrl} className="w-16 h-16 rounded-full object-cover mb-2 border border-white/20"/>
+                              <h4 className="font-bold text-sm truncate w-full">{p.name}</h4>
+                              <p className="text-xs text-gray-400 uppercase">{p.category}</p>
+                              {isSold && <p className="text-green-400 font-bold text-lg mt-1">{p.soldPrice}</p>}
+                          </div>
+                      ))}
+                  </div>
+              </RenderOverrideContainer>
+          );
+      }
+  }
 
   const { player, bid, bidder, status } = display;
   const layout = state.projectorLayout || 'STANDARD';

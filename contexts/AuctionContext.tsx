@@ -1,10 +1,11 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor, ProjectorLayout, OBSLayout } from '../types';
+import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor, ProjectorLayout, OBSLayout, AdminViewOverride } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
 const BID_INTERVAL = 30;
+const SUPER_ADMIN_EMAIL = "superadmin@smsports.com";
 
 const initialState: AuctionState = {
   players: [],
@@ -27,7 +28,8 @@ const initialState: AuctionState = {
   auctionLogoUrl: '',
   tournamentName: '',
   projectorLayout: 'STANDARD',
-  obsLayout: 'STANDARD'
+  obsLayout: 'STANDARD',
+  adminViewOverride: null
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -61,7 +63,15 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
              }
 
              if (user.email) {
-                 if (user.email.startsWith('team_')) {
+                 if (user.email === SUPER_ADMIN_EMAIL) {
+                     // SUPER ADMIN ROLE
+                     setUserProfile({
+                         uid: user.uid,
+                         email: user.email,
+                         name: "Super Owner",
+                         role: UserRole.SUPER_ADMIN
+                     });
+                 } else if (user.email.startsWith('team_')) {
                      try {
                          const idPart = user.email.split('@')[0].split('_')[1];
                          setUserProfile({
@@ -125,7 +135,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
                     // Sponsors populated by subcollection listener below
                     sponsorConfig: data.sponsorConfig || { showOnOBS: true, showOnProjector: true, loopInterval: 5 },
                     projectorLayout: data.projectorLayout || 'STANDARD',
-                    obsLayout: data.obsLayout || 'STANDARD'
+                    obsLayout: data.obsLayout || 'STANDARD',
+                    adminViewOverride: data.adminViewOverride || null
                 };
             });
         } else {
@@ -295,6 +306,17 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           await db.collection('auctions').doc(activeAuctionId).update(updateData);
       } catch(e: any) {
           console.error("Update Theme Error", e);
+      }
+  };
+
+  const setAdminView = async (view: AdminViewOverride | null) => {
+      if (!activeAuctionId) return;
+      try {
+          await db.collection('auctions').doc(activeAuctionId).update({
+              adminViewOverride: view
+          });
+      } catch (e: any) {
+          console.error("Set Admin View Error", e);
       }
   };
 
@@ -647,6 +669,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             currentBid: null,
             highestBidderId: null,
             timer: BID_INTERVAL,
+            adminViewOverride: null // Reset view
         });
 
         // 4. Reset Teams
@@ -694,7 +717,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           status: AuctionStatus.Finished,
           currentPlayerId: null, // Clear current player to show finished screen
           currentBid: null,
-          highestBidderId: null
+          highestBidderId: null,
+          adminViewOverride: null
       });
       await db.collection('auctions').doc(activeAuctionId).collection('log').add({
           message: "Auction Manually Completed by Admin.",
@@ -748,6 +772,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             currentBid: 0, 
             highestBidderId: null,
             timer: BID_INTERVAL,
+            adminViewOverride: null // Clear any manual view when starting new round
         });
         
         await auctionRef.collection('log').add({
@@ -824,6 +849,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         toggleBidding,
         toggleSelectionMode,
         updateTheme,
+        setAdminView,
         logout: handleLogout,
         error,
         joinAuction,
