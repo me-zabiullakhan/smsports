@@ -308,8 +308,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const placeBid = async (teamId: number | string, amount: number) => {
       if (!activeAuctionId) return;
       
-      // Strict check using new status
-      if (state.biddingStatus !== 'ON') {
+      const isAdmin = userProfile?.role === UserRole.ADMIN || userProfile?.role === UserRole.SUPER_ADMIN;
+
+      // STRICT EXCLUSIVE CHECK:
+      // If not Admin, enforce Bidding Status
+      if (!isAdmin && state.biddingStatus !== 'ON') {
           alert("Bidding is currently disabled by the Admin.");
           return;
       }
@@ -324,9 +327,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
             if (data?.status !== AuctionStatus.InProgress) throw "Auction not in progress";
             
-            // Server side check
-            if (data?.biddingStatus && data.biddingStatus !== 'ON') throw "Bidding is currently paused by Admin";
-            if (data?.biddingEnabled === false && !data.biddingStatus) throw "Bidding is currently paused by Admin";
+            // Server side check (Skip for Admin)
+            if (!isAdmin) {
+                if (data?.biddingStatus && data.biddingStatus !== 'ON') throw "Bidding is currently paused by Admin";
+                if (data?.biddingEnabled === false && !data.biddingStatus) throw "Bidding is currently paused by Admin";
+            }
             
             const currentPlayerId = data?.currentPlayerId;
             if (!currentPlayerId) throw "No active player";
@@ -362,7 +367,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
             const logRef = auctionRef.collection('log').doc();
             transaction.set(logRef, {
-                message: `${teamData.name} bids ${amount}`,
+                message: `${teamData.name} bids ${amount} ${isAdmin ? '(Admin)' : ''}`,
                 timestamp: Date.now(), 
                 type: 'BID'
             });
@@ -376,8 +381,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const correctPlayerSale = async (playerId: string, newTeamId: string | null, newPrice: number) => {
-      // ... (Rest of logic remains same, removed for brevity, assuming minimal context changes needed)
-      // This function logic was unchanged, keeping it as is in implementation
       if (!activeAuctionId) return;
       const auctionRef = db.collection('auctions').doc(activeAuctionId);
 

@@ -26,6 +26,7 @@ const BiddingPanel: React.FC = () => {
   const isActive = biddingStatus === 'ON';
 
   const handleBid = async () => {
+    // Strict Client-Side Check: Only allow if Active
     if (canAfford && !isLeading && isActive) {
       setIsBidding(true);
       try {
@@ -64,7 +65,7 @@ const BiddingPanel: React.FC = () => {
             ${isLeading 
                 ? 'bg-green-600 text-white cursor-default' 
                 : (!isActive)
-                    ? 'bg-red-900/50 border border-red-700 text-red-200 cursor-not-allowed'
+                    ? 'bg-red-900/50 border border-red-700 text-red-200 cursor-not-allowed opacity-75'
                     : (!canAfford || isLoadingBid)
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         : 'bg-highlight hover:bg-teal-400 text-primary hover:scale-105 shadow-[0_0_20px_rgba(56,178,172,0.4)]'
