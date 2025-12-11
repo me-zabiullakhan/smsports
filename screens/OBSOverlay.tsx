@@ -127,11 +127,14 @@ const OBSOverlay: React.FC = () => {
       const OverlayCard = ({ children, title }: any) => (
           <div className="min-h-screen w-full flex flex-col items-center justify-center relative p-8">
               <SponsorLogo />
-              <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl border-2 border-white/20 shadow-2xl p-6 w-full max-w-4xl animate-slide-up">
-                  <div className="text-center mb-6 border-b border-white/10 pb-4">
-                      <h1 className="text-3xl font-black text-yellow-400 uppercase tracking-widest drop-shadow-md">{title}</h1>
+              <div className="bg-gradient-to-br from-indigo-900/95 via-slate-900/95 to-black/95 backdrop-blur-xl rounded-2xl border-2 border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.15)] p-0 w-full max-w-4xl animate-slide-up overflow-hidden">
+                  <div className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 px-6 py-4 border-b border-cyan-500/30 flex items-center justify-center relative">
+                      <div className="absolute left-0 top-0 h-full w-2 bg-cyan-500"></div>
+                      <h1 className="text-3xl font-black text-cyan-400 uppercase tracking-widest drop-shadow-md text-center">{title}</h1>
                   </div>
-                  {children}
+                  <div className="p-6">
+                      {children}
+                  </div>
               </div>
           </div>
       );
@@ -143,11 +146,11 @@ const OBSOverlay: React.FC = () => {
                   <OverlayCard title={team.name}>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {team.players.map((p, i) => (
-                              <div key={i} className="bg-white/10 p-2 rounded flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">#{i+1}</div>
+                              <div key={i} className="bg-white/5 p-3 rounded flex items-center gap-3 border border-white/10 hover:border-cyan-500/50 transition-colors">
+                                  <div className="w-8 h-8 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold shadow-lg">#{i+1}</div>
                                   <div className="min-w-0">
                                       <p className="text-white font-bold text-sm truncate">{p.name}</p>
-                                      <p className="text-gray-400 text-xs">{p.soldPrice}</p>
+                                      <p className="text-cyan-300 text-xs font-mono">{p.soldPrice?.toLocaleString()}</p>
                                   </div>
                               </div>
                           ))}
@@ -163,18 +166,18 @@ const OBSOverlay: React.FC = () => {
               <OverlayCard title="Top 5 Buys">
                   <div className="space-y-3">
                       {soldPlayers.map((p, i) => (
-                          <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded hover:bg-white/10 transition-colors">
+                          <div key={i} className="flex justify-between items-center bg-gradient-to-r from-slate-800 to-slate-900 p-3 rounded border-l-4 border-cyan-500 hover:bg-slate-800 transition-colors shadow-lg">
                               <div className="flex items-center gap-4">
                                   <div className={`text-2xl font-black ${i===0?'text-yellow-400':i===1?'text-gray-300':i===2?'text-orange-400':'text-gray-600'}`}>#{i+1}</div>
-                                  <img src={p.photoUrl} className="w-10 h-10 rounded-full object-cover border border-white/20"/>
+                                  <img src={p.photoUrl} className="w-12 h-12 rounded-full object-cover border-2 border-white/10"/>
                                   <div>
-                                      <p className="text-white font-bold text-lg">{p.name}</p>
-                                      <p className="text-gray-400 text-xs uppercase">{p.category}</p>
+                                      <p className="text-white font-bold text-lg leading-none mb-1">{p.name}</p>
+                                      <p className="text-cyan-400 text-xs uppercase font-bold tracking-wider">{p.category}</p>
                                   </div>
                               </div>
                               <div className="text-right">
-                                  <p className="text-2xl font-black text-green-400">{p.soldPrice}</p>
-                                  <p className="text-gray-500 text-xs font-bold uppercase">{p.soldTo}</p>
+                                  <p className="text-2xl font-black text-green-400 tabular-nums drop-shadow-sm">{p.soldPrice?.toLocaleString()}</p>
+                                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">{p.soldTo}</p>
                               </div>
                           </div>
                       ))}
@@ -189,9 +192,13 @@ const OBSOverlay: React.FC = () => {
               <OverlayCard title="Remaining Purse">
                   <div className="grid grid-cols-2 gap-4">
                       {sortedTeams.map((team, i) => (
-                          <div key={team.id} className="flex justify-between items-center bg-white/10 p-3 rounded">
-                              <span className="text-white font-bold">{team.name}</span>
-                              <span className="text-green-400 font-mono font-bold text-xl">{team.budget}</span>
+                          <div key={team.id} className="flex justify-between items-center bg-white/5 p-3 rounded border border-white/10 relative overflow-hidden">
+                              <div className="absolute left-0 top-0 h-full w-1 bg-cyan-500"></div>
+                              <div className="flex items-center gap-3 pl-2">
+                                  {team.logoUrl ? <img src={team.logoUrl} className="w-8 h-8 object-contain bg-white rounded-full p-0.5"/> : <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center font-bold text-xs text-white">{team.name.charAt(0)}</div>}
+                                  <span className="text-white font-bold text-sm truncate max-w-[120px]">{team.name}</span>
+                              </div>
+                              <span className="text-green-400 font-mono font-black text-xl tabular-nums">{team.budget.toLocaleString()}</span>
                           </div>
                       ))}
                   </div>

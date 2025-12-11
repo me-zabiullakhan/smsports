@@ -179,13 +179,15 @@ const ProjectorScreen: React.FC = () => {
       const { type, data } = state.adminViewOverride;
 
       const RenderOverrideContainer = ({ children, title }: any) => (
-          <div className="h-screen w-full bg-slate-900 text-white flex flex-col p-8 relative overflow-hidden font-sans">
+          <div className="h-screen w-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1e293b] via-[#0f172a] to-black text-white flex flex-col p-8 relative overflow-hidden font-sans">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
               <TournamentLogo />
               <SponsorLoop />
-              <div className="mt-24 mb-4 text-center z-10">
-                  <h1 className="text-4xl lg:text-6xl font-black uppercase tracking-widest text-yellow-400 drop-shadow-lg">{title}</h1>
+              <div className="mt-20 mb-6 text-center z-10">
+                  <h1 className="text-5xl lg:text-7xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-xl filter">{title}</h1>
+                  <div className="h-1 w-64 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto mt-4 rounded-full"></div>
               </div>
-              <div className="flex-1 overflow-hidden z-10 w-full max-w-7xl mx-auto bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 p-8 shadow-2xl">
+              <div className="flex-1 overflow-hidden z-10 w-full max-w-7xl mx-auto bg-slate-900/50 backdrop-blur-xl rounded-3xl border border-white/10 p-8 shadow-2xl relative">
                   {children}
               </div>
           </div>
@@ -197,22 +199,35 @@ const ProjectorScreen: React.FC = () => {
               return (
                   <RenderOverrideContainer title={`Squad: ${team.name}`}>
                       <div className="h-full flex flex-col">
-                          <div className="flex items-center gap-6 mb-6 pb-6 border-b border-white/10">
-                              {team.logoUrl ? <img src={team.logoUrl} className="w-24 h-24 rounded-full bg-white p-2 object-contain"/> : <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-4xl font-bold">{team.name.charAt(0)}</div>}
+                          <div className="flex items-center gap-8 mb-6 pb-6 border-b border-white/10 bg-gradient-to-r from-blue-900/40 to-transparent p-6 rounded-2xl border border-blue-500/20">
+                              <div className="relative">
+                                  <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-30 rounded-full"></div>
+                                  {team.logoUrl ? <img src={team.logoUrl} className="w-32 h-32 rounded-full bg-white p-2 object-contain relative z-10 shadow-2xl"/> : <div className="w-32 h-32 rounded-full bg-blue-600 flex items-center justify-center text-5xl font-bold relative z-10 border-4 border-white/20">{team.name.charAt(0)}</div>}
+                              </div>
                               <div>
-                                  <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xl">
-                                      <p className="text-gray-400">PLAYERS: <span className="text-white font-bold">{team.players.length}</span></p>
-                                      <p className="text-gray-400">PURSE: <span className="text-green-400 font-bold">{team.budget}</span></p>
+                                  <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-xl">
+                                      <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                                          <p className="text-slate-400 text-sm uppercase font-bold tracking-wider mb-1">Total Players</p>
+                                          <span className="text-4xl font-black text-white">{team.players.length}</span>
+                                      </div>
+                                      <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                                          <p className="text-slate-400 text-sm uppercase font-bold tracking-wider mb-1">Remaining Purse</p>
+                                          <span className="text-4xl font-black text-green-400">{team.budget.toLocaleString()}</span>
+                                      </div>
                                   </div>
                               </div>
                           </div>
                           <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2 custom-scrollbar">
                               {team.players.map((p, i) => (
-                                  <div key={i} className="bg-white/10 p-4 rounded-xl flex items-center gap-4">
-                                      <div className="w-8 h-8 rounded-full bg-yellow-500 text-black flex items-center justify-center font-bold text-sm">#{i+1}</div>
-                                      <div>
-                                          <p className="font-bold text-lg">{p.name}</p>
-                                          <p className="text-xs text-gray-400 uppercase">{p.category} • <span className="text-green-400">{p.soldPrice}</span></p>
+                                  <div key={i} className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-xl flex items-center gap-4 border border-white/5 hover:border-blue-500/50 transition-all hover:scale-[1.02] shadow-lg">
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-500 to-yellow-300 text-black flex items-center justify-center font-black text-sm shadow-lg">#{i+1}</div>
+                                      <div className="min-w-0">
+                                          <p className="font-bold text-lg text-white truncate">{p.name}</p>
+                                          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                                              <span className="text-blue-400">{p.category}</span>
+                                              <span className="text-gray-600">•</span>
+                                              <span className="text-green-400">{p.soldPrice?.toLocaleString()}</span>
+                                          </div>
                                       </div>
                                   </div>
                               ))}
@@ -227,20 +242,21 @@ const ProjectorScreen: React.FC = () => {
           const sortedTeams = [...state.teams].sort((a,b) => b.budget - a.budget);
           return (
               <RenderOverrideContainer title="Team Purse Standings">
-                  <div className="h-full overflow-y-auto p-2 custom-scrollbar">
+                  <div className="h-full overflow-y-auto p-4 custom-scrollbar">
                       <div className="grid grid-cols-1 gap-4">
                           {sortedTeams.map((team, i) => (
-                              <div key={team.id} className="flex items-center justify-between bg-white/10 p-4 rounded-xl border border-white/5 hover:bg-white/20 transition-colors">
-                                  <div className="flex items-center gap-4">
-                                      <span className="text-2xl font-bold text-gray-500 w-8">#{i+1}</span>
-                                      {team.logoUrl ? <img src={team.logoUrl} className="w-12 h-12 rounded-full bg-white p-1 object-contain"/> : <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold">{team.name.charAt(0)}</div>}
+                              <div key={team.id} className="flex items-center justify-between bg-gradient-to-r from-slate-800 to-slate-900 p-6 rounded-2xl border border-white/5 hover:border-green-500/50 transition-all hover:translate-x-2">
+                                  <div className="flex items-center gap-6">
+                                      <span className={`text-4xl font-black w-12 text-center ${i < 3 ? 'text-yellow-400 drop-shadow' : 'text-slate-600'}`}>#{i+1}</span>
+                                      {team.logoUrl ? <img src={team.logoUrl} className="w-16 h-16 rounded-full bg-white p-1 object-contain shadow-lg"/> : <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center font-bold text-2xl">{team.name.charAt(0)}</div>}
                                       <div>
-                                          <h3 className="text-2xl font-bold">{team.name}</h3>
-                                          <p className="text-sm text-gray-400">{team.players.length} Players</p>
+                                          <h3 className="text-3xl font-black text-white">{team.name}</h3>
+                                          <p className="text-sm text-slate-400 font-bold uppercase tracking-wider">{team.players.length} Players Signed</p>
                                       </div>
                                   </div>
-                                  <div className="text-right">
-                                      <p className="text-4xl font-black text-green-400">{team.budget}</p>
+                                  <div className="text-right bg-black/20 px-6 py-2 rounded-xl border border-white/5">
+                                      <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Available Funds</p>
+                                      <p className="text-5xl font-black text-green-400 tabular-nums tracking-tight">{team.budget.toLocaleString()}</p>
                                   </div>
                               </div>
                           ))}
@@ -254,20 +270,22 @@ const ProjectorScreen: React.FC = () => {
           const soldPlayers = state.teams.flatMap(t => t.players).sort((a, b) => (Number(b.soldPrice) || 0) - (Number(a.soldPrice) || 0)).slice(0, 5);
           return (
               <RenderOverrideContainer title="Top 5 Most Expensive">
-                  <div className="h-full flex flex-col justify-center gap-4">
+                  <div className="h-full flex flex-col justify-center gap-5 px-4">
                       {soldPlayers.map((p, i) => (
-                          <div key={i} className="flex items-center justify-between bg-gradient-to-r from-slate-800 to-slate-900 p-6 rounded-2xl border-l-8 border-yellow-500 shadow-xl transform hover:scale-[1.02] transition-transform">
-                              <div className="flex items-center gap-6">
-                                  <div className="text-5xl font-black text-yellow-500/20">#{i+1}</div>
-                                  <img src={p.photoUrl} className="w-20 h-20 rounded-full object-cover border-2 border-white/20" />
+                          <div key={i} className="flex items-center justify-between bg-gradient-to-r from-slate-800 via-slate-900 to-black p-6 rounded-2xl border-l-8 border-yellow-500 shadow-xl transform hover:scale-[1.02] transition-transform">
+                              <div className="flex items-center gap-8">
+                                  <div className={`text-6xl font-black ${i===0 ? 'text-yellow-400' : i===1 ? 'text-gray-300' : i===2 ? 'text-orange-600' : 'text-slate-700'}`}>#{i+1}</div>
+                                  <img src={p.photoUrl} className="w-24 h-24 rounded-full object-cover border-4 border-white/10 shadow-lg" />
                                   <div>
-                                      <h3 className="text-3xl font-black uppercase">{p.name}</h3>
-                                      <p className="text-gray-400 uppercase font-bold">{p.category}</p>
+                                      <h3 className="text-4xl font-black uppercase text-white tracking-tight">{p.name}</h3>
+                                      <div className="flex gap-2 mt-1">
+                                          <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider border border-blue-600/30">{p.category}</span>
+                                      </div>
                                   </div>
                               </div>
                               <div className="text-right">
-                                  <p className="text-4xl font-black text-green-400">{p.soldPrice}</p>
-                                  <p className="text-sm text-gray-400 uppercase">Sold To: {p.soldTo}</p>
+                                  <p className="text-5xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.3)]">{p.soldPrice?.toLocaleString()}</p>
+                                  <p className="text-sm text-slate-400 uppercase font-bold tracking-widest mt-1">Sold To: <span className="text-white">{p.soldTo}</span></p>
                               </div>
                           </div>
                       ))}
@@ -286,11 +304,18 @@ const ProjectorScreen: React.FC = () => {
               <RenderOverrideContainer title={isSold ? "Sold Players List" : "Unsold Players List"}>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto h-full pr-2 custom-scrollbar">
                       {list.map((p, i) => (
-                          <div key={i} className="bg-white/10 p-3 rounded-lg flex flex-col items-center text-center hover:bg-white/20">
-                              <img src={p.photoUrl} className="w-16 h-16 rounded-full object-cover mb-2 border border-white/20"/>
-                              <h4 className="font-bold text-sm truncate w-full">{p.name}</h4>
-                              <p className="text-xs text-gray-400 uppercase">{p.category}</p>
-                              {isSold && <p className="text-green-400 font-bold text-lg mt-1">{p.soldPrice}</p>}
+                          <div key={i} className={`bg-gradient-to-b ${isSold ? 'from-green-900/20 to-slate-900 border-green-500/30' : 'from-red-900/20 to-slate-900 border-red-500/30'} p-4 rounded-xl flex flex-col items-center text-center border hover:scale-105 transition-transform shadow-lg`}>
+                              <div className="relative mb-3">
+                                  <img src={p.photoUrl} className={`w-20 h-20 rounded-full object-cover border-4 ${isSold ? 'border-green-500/50' : 'border-red-500/50'}`}/>
+                                  {isSold && <div className="absolute -bottom-2 -right-2 bg-green-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Sold</div>}
+                              </div>
+                              <h4 className="font-bold text-base truncate w-full text-white mb-1">{p.name}</h4>
+                              <p className="text-xs text-slate-400 uppercase font-bold tracking-wide mb-2">{p.category}</p>
+                              {isSold && (
+                                  <div className="mt-auto w-full bg-black/30 rounded py-1 border border-white/5">
+                                      <p className="text-green-400 font-black text-lg">{p.soldPrice?.toLocaleString()}</p>
+                                  </div>
+                              )}
                           </div>
                       ))}
                   </div>
