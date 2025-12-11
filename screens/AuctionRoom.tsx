@@ -19,20 +19,21 @@ const AuctionRoom: React.FC = () => {
     <div className="h-full">
       {currentPlayer ? (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
-          {/* Left Column: Team Info or Log */}
-          <div className="lg:col-span-1 space-y-6 flex flex-col h-[calc(100vh-140px)]">
-            {isTeamOwner && <div className="flex-1"><MyTeamPanel /></div>}
-            <div className="flex-1"><AuctionLog /></div>
-          </div>
-
-          {/* Center Column: Main Action */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+          
+          {/* Center Column: Main Action (Live Player) - First on Mobile */}
+          <div className="lg:col-span-2 lg:order-2 flex flex-col gap-6">
             <PlayerFocus player={currentPlayer} />
             {isTeamOwner && <div className="mt-auto"><BiddingPanel /></div>}
           </div>
 
-          {/* Right Column: Player Pool */}
-          <div className="lg:col-span-1 h-[calc(100vh-140px)]">
+          {/* Left Column: Team Info or Log - Second on Mobile */}
+          <div className="lg:col-span-1 lg:order-1 space-y-6 flex flex-col lg:h-[calc(100vh-140px)]">
+            {isTeamOwner && <div className="flex-1 min-h-[300px]"><MyTeamPanel /></div>}
+            <div className="flex-1 min-h-[300px] lg:min-h-0"><AuctionLog /></div>
+          </div>
+
+          {/* Right Column: Player Pool - Last on Mobile */}
+          <div className="lg:col-span-1 lg:order-3 lg:h-[calc(100vh-140px)] h-[500px]">
             <PlayerPool />
           </div>
         </div>
