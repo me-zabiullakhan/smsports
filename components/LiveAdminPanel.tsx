@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
+import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout, BiddingStatus } from '../types';
 import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, ChevronUp, Shuffle, Search, User, Palette, Trophy, Gavel, Settings, List, TrendingUp, Users, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, setAdminView } = useAuction();
-  const { teams, players, biddingEnabled, playerSelectionMode, adminViewOverride } = state;
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, setAdminView } = useAuction();
+  const { teams, players, biddingStatus, playerSelectionMode, adminViewOverride } = state;
   const navigate = useNavigate();
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -125,26 +125,18 @@ const LiveAdminPanel: React.FC = () => {
 
   // --- Broadcast Control Handlers ---
   const handleViewChange = async (type: string, data?: any) => {
-      // Logic to toggle off if clicking the same view
       const isSameType = adminViewOverride?.type === type;
       let isSameData = true;
-      
       if (type === 'SQUAD') {
-          // For squad, we check if the teamId is the same
           isSameData = adminViewOverride?.data?.teamId === data?.teamId;
       }
-
-      // If clicking the active view, toggle it OFF (set to null)
       if (isSameType && isSameData && type !== 'NONE') {
           await setAdminView(null);
           return;
       }
-
-      // Explicit Stop
       if (type === 'NONE') {
           await setAdminView(null);
       } else {
-          // Set new view
           await setAdminView({ type: type as any, data });
       }
   };
@@ -257,19 +249,27 @@ const LiveAdminPanel: React.FC = () => {
                 <Gavel className="w-4 h-4"/> Admin
             </h2>
             
-            <div className="flex gap-2">
-                 <button
-                    onClick={toggleBidding}
-                    className={`flex items-center gap-1 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wide transition-all border ${
-                        biddingEnabled 
-                        ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20' 
-                        : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
-                    }`}
-                    title="Toggle Team Bidding Access"
-                >
-                    {biddingEnabled ? <Unlock className="w-3 h-3"/> : <Lock className="w-3 h-3"/>}
-                    {biddingEnabled ? "BIDDING ON" : "PAUSED"}
-                </button>
+            <div className="flex gap-2 items-center">
+                 {/* BIDDING STATUS DROPDOWN */}
+                 <div className="relative">
+                     <select 
+                        value={biddingStatus} 
+                        onChange={(e) => updateBiddingStatus(e.target.value as BiddingStatus)}
+                        className={`appearance-none pl-6 pr-6 py-1 rounded text-[10px] font-bold uppercase tracking-wide border outline-none cursor-pointer transition-colors
+                            ${biddingStatus === 'ON' ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20' : 
+                              biddingStatus === 'PAUSED' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20' :
+                              'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'}`
+                        }
+                     >
+                         <option value="ON">BIDDING ON</option>
+                         <option value="PAUSED">PAUSED</option>
+                         <option value="HIDDEN">HIDDEN</option>
+                     </select>
+                     <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        {biddingStatus === 'ON' ? <Unlock className="w-3 h-3"/> : biddingStatus === 'PAUSED' ? <Lock className="w-3 h-3"/> : <EyeOff className="w-3 h-3"/>}
+                     </div>
+                 </div>
+
                  <button onClick={() => navigate('/admin')} className="p-1 text-gray-400 hover:text-white" title="Exit">
                     <ArrowLeft className="w-4 h-4"/>
                 </button>
@@ -308,17 +308,17 @@ const LiveAdminPanel: React.FC = () => {
                                 </div>
                             </div>
                             
-                            {/* Fast Bid Button */}
+                            {/* Fast Bid Button - Only if ON or Admin wants to override (currently only allowed if ON based on context rules, so disabled here too) */}
                             {state.status === AuctionStatus.InProgress && state.currentPlayerId && (
                                  <button
                                      onClick={() => handleAdminBid(team)}
-                                     disabled={!canAfford || isLeading || !biddingEnabled || nextBid <= 0}
+                                     disabled={!canAfford || isLeading || biddingStatus !== 'ON' || nextBid <= 0}
                                      className={`ml-2 px-3 py-0 rounded text-[10px] font-bold uppercase transition-all min-w-[75px] h-8 flex items-center justify-center
                                         ${isLeading 
                                             ? 'bg-green-600 text-white cursor-default opacity-80' 
                                             : (!canAfford)
                                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                                : nextBid <= 0
+                                                : (biddingStatus !== 'ON' || nextBid <= 0)
                                                     ? 'bg-gray-700 text-gray-400 cursor-wait'
                                                     : 'bg-highlight hover:bg-teal-400 text-primary hover:scale-105 active:scale-95 shadow-lg shadow-highlight/10'
                                         }

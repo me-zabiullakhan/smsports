@@ -109,6 +109,8 @@ export interface AdminViewOverride {
     data?: any; // e.g. { teamId: '...' }
 }
 
+export type BiddingStatus = 'ON' | 'PAUSED' | 'HIDDEN';
+
 export interface AuctionState {
   players: Player[];
   teams: Team[];
@@ -123,7 +125,7 @@ export interface AuctionState {
   bidIncrement: number; // Global fallback increment
   bidSlabs?: BidIncrementSlab[]; // Global fallback slabs
   auctionLog: AuctionLog[];
-  biddingEnabled: boolean; // Global toggle for team bidding
+  biddingStatus: BiddingStatus; // Replaces biddingEnabled
   playerSelectionMode: 'MANUAL' | 'AUTO';
   auctionLogoUrl?: string;
   tournamentName?: string;
@@ -209,7 +211,7 @@ export interface AuctionContextType {
     resetAuction: () => Promise<void>;
     resetCurrentPlayer: () => Promise<void>;
     resetUnsoldPlayers: () => Promise<void>;
-    toggleBidding: () => Promise<void>; // New toggle function
+    updateBiddingStatus: (status: BiddingStatus) => Promise<void>; // Updated from toggleBidding
     toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
     updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
     setAdminView: (view: AdminViewOverride | null) => Promise<void>;
