@@ -125,7 +125,28 @@ const LiveAdminPanel: React.FC = () => {
 
   // --- Broadcast Control Handlers ---
   const handleViewChange = async (type: string, data?: any) => {
-      await setAdminView({ type: type as any, data });
+      // Logic to toggle off if clicking the same view
+      const isSameType = adminViewOverride?.type === type;
+      let isSameData = true;
+      
+      if (type === 'SQUAD') {
+          // For squad, we check if the teamId is the same
+          isSameData = adminViewOverride?.data?.teamId === data?.teamId;
+      }
+
+      // If clicking the active view, toggle it OFF (set to null)
+      if (isSameType && isSameData && type !== 'NONE') {
+          await setAdminView(null);
+          return;
+      }
+
+      // Explicit Stop
+      if (type === 'NONE') {
+          await setAdminView(null);
+      } else {
+          // Set new view
+          await setAdminView({ type: type as any, data });
+      }
   };
 
   const renderMainControls = () => {
@@ -325,7 +346,7 @@ const LiveAdminPanel: React.FC = () => {
                     <div className="bg-black/40 p-2 rounded border border-gray-600">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-[10px] text-highlight font-bold uppercase flex items-center"><Monitor className="w-3 h-3 mr-1"/> Broadcast Views</span>
-                            {adminViewOverride && (
+                            {adminViewOverride && adminViewOverride.type !== 'NONE' && (
                                 <button onClick={() => handleViewChange('NONE')} className="text-[9px] bg-red-600 text-white px-2 py-0.5 rounded font-bold hover:bg-red-500 flex items-center">
                                     <EyeOff className="w-3 h-3 mr-1"/> Stop Override
                                 </button>
