@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, RefreshCw } from 'lucide-react';
 import { auth, db } from '../firebase';
+import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import { Link, useNavigate } from 'react-router-dom';
-import { Team } from '../types';
 
 const AuthScreen: React.FC = () => {
     const { setUserProfile } = useAuction();
@@ -16,6 +16,11 @@ const AuthScreen: React.FC = () => {
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
     const [isAdminRegister, setIsAdminRegister] = useState(false);
+
+    // Forgot Password State
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
+    const [resetMessage, setResetMessage] = useState<string | null>(null);
 
     // Team State
     const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -36,7 +41,6 @@ const AuthScreen: React.FC = () => {
         }
         if (code === 'auth/admin-restricted-operation') {
             setIsConfigError(true);
-            // Distinguish between Email registration and Anonymous login
             if (activeTab === 'team') {
                 setConfigErrorMsg("Anonymous Authentication is disabled.");
                 return "Team Login requires Anonymous Auth to be enabled.";
@@ -57,7 +61,42 @@ const AuthScreen: React.FC = () => {
         if (code === 'auth/weak-password') {
             return "Password should be at least 6 characters.";
         }
+        if (code === 'auth/popup-closed-by-user') {
+            return "Sign-in popup was closed.";
+        }
         return err.message || "An unknown error occurred.";
+    };
+
+    const handleGoogleLogin = async () => {
+        setError(null);
+        setIsConfigError(false);
+        setIsLoading(true);
+        try {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            await auth.signInWithPopup(provider);
+            // App.tsx auth listener will handle redirection
+        } catch (err: any) {
+            setError(getFriendlyErrorMessage(err));
+            setIsLoading(false);
+        }
+    };
+
+    const handlePasswordReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resetEmail) {
+            setError("Please enter your email address.");
+            return;
+        }
+        setError(null);
+        setIsLoading(true);
+        try {
+            await auth.sendPasswordResetEmail(resetEmail);
+            setResetMessage("Password reset email sent! Check your inbox.");
+            setIsLoading(false);
+        } catch (err: any) {
+            setError(getFriendlyErrorMessage(err));
+            setIsLoading(false);
+        }
     };
 
     const handleAdminSubmit = async (e: React.FormEvent) => {
@@ -67,16 +106,13 @@ const AuthScreen: React.FC = () => {
         setIsLoading(true);
 
         try {
-            // Ensure no previous session exists
             await auth.signOut();
 
-            // Admin Login Logic
             if (isAdminRegister) {
                 if (!adminName.trim()) {
                     throw new Error("Full Name is required for registration.");
                 }
                 const userCredential = await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
-                // Update Profile with Name
                 if (userCredential.user) {
                     await userCredential.user.updateProfile({
                         displayName: adminName
@@ -85,7 +121,6 @@ const AuthScreen: React.FC = () => {
             } else {
                 await auth.signInWithEmailAndPassword(adminEmail, adminPassword);
             }
-            // App.tsx will handle redirection via Auth State listener
         } catch (err: any) {
             setError(getFriendlyErrorMessage(err));
             setIsLoading(false);
@@ -99,8 +134,6 @@ const AuthScreen: React.FC = () => {
         setIsLoading(true);
 
         try {
-            // TEAM LOGIN LOGIC (Refactored to avoid Index requirement):
-            // 1. Fetch all auctions first
             const auctionsSnapshot = await db.collection('auctions').get();
             
             if (auctionsSnapshot.empty) {
@@ -110,16 +143,12 @@ const AuthScreen: React.FC = () => {
             let matchedTeam: any = null;
             let auctionId: string = "";
 
-            // 2. Search for the team in each auction
-            // We iterate because we don't know which auction the team belongs to
             for (const doc of auctionsSnapshot.docs) {
-                // Try to find the team in this auction's subcollection
                 const teamQuery = await doc.ref.collection('teams').where('id', '==', selectedTeamId).limit(1).get();
-                
                 if (!teamQuery.empty) {
                     matchedTeam = teamQuery.docs[0].data();
                     auctionId = doc.id;
-                    break; // Found the team, stop searching
+                    break;
                 }
             }
 
@@ -127,14 +156,10 @@ const AuthScreen: React.FC = () => {
                 throw new Error("Team ID not found.");
             }
 
-            // 3. Verify Password manually (Client-side verification)
-            // If password field exists on team data, verify it.
             if (matchedTeam.password && matchedTeam.password !== teamPassword) {
                 throw new Error("Incorrect Password.");
             }
 
-            // 4. Save Session locally BEFORE auth trigger to avoid race condition
-            // This ensures Context picks up the right role/auction immediately
             const sessionData = {
                 role: 'TEAM_OWNER',
                 teamId: selectedTeamId,
@@ -142,14 +167,8 @@ const AuthScreen: React.FC = () => {
             };
             localStorage.setItem('sm_sports_team_session', JSON.stringify(sessionData));
 
-            // Ensure no previous session exists
             await auth.signOut();
-
-            // 5. Login Anonymously to Firebase to satisfy security rules (request.auth != null)
             await auth.signInAnonymously();
-            
-            // 6. Force Redirect to specific auction dashboard
-            // Although App.tsx has redirect logic, this acts as a failsafe
             navigate(`/auction/${auctionId}`);
 
         } catch (err: any) {
@@ -177,13 +196,13 @@ const AuthScreen: React.FC = () => {
                     {/* Tabs */}
                     <div className="flex mb-6 bg-primary/50 rounded-lg p-1">
                         <button 
-                            onClick={() => { setActiveTab('team'); setError(null); setIsConfigError(false); }}
+                            onClick={() => { setActiveTab('team'); setError(null); setIsConfigError(false); setShowForgotPassword(false); }}
                             className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'team' ? 'bg-highlight text-primary shadow-lg' : 'text-text-secondary hover:text-white'}`}
                         >
                             Team Owner
                         </button>
                         <button 
-                            onClick={() => { setActiveTab('admin'); setError(null); setIsConfigError(false); }}
+                            onClick={() => { setActiveTab('admin'); setError(null); setIsConfigError(false); setShowForgotPassword(false); }}
                             className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'admin' ? 'bg-highlight text-primary shadow-lg' : 'text-text-secondary hover:text-white'}`}
                         >
                             Admin
@@ -191,7 +210,7 @@ const AuthScreen: React.FC = () => {
                     </div>
 
                     <h2 className="text-xl font-bold text-center text-white mb-6">
-                        {activeTab === 'team' ? 'Team Terminal Access' : (isAdminRegister ? 'Create Admin Account' : 'Administrator Login')}
+                        {activeTab === 'team' ? 'Team Terminal Access' : (showForgotPassword ? 'Reset Password' : (isAdminRegister ? 'Create Admin Account' : 'Administrator Login'))}
                     </h2>
 
                     {/* Critical Config Error Alert */}
@@ -207,9 +226,16 @@ const AuthScreen: React.FC = () => {
                                 {activeTab === 'team' ? (
                                      <li>Enable <b>Anonymous</b> provider and Save.</li>
                                 ) : (
-                                     <li>Go to <b>Settings</b> &gt; <b>User actions</b> &gt; Enable <b>Create (sign-up)</b>.</li>
+                                     <li>Enable <b>Email/Password</b> and <b>Google</b> providers.</li>
                                 )}
                             </ol>
+                        </div>
+                    )}
+
+                    {/* Forgot Password Message */}
+                    {resetMessage && (
+                        <div className="bg-green-500/20 border border-green-500 text-green-200 p-3 rounded-lg mb-4 text-sm text-center">
+                            {resetMessage}
                         </div>
                     )}
 
@@ -249,39 +275,16 @@ const AuthScreen: React.FC = () => {
                                <LogIn className="mr-2 h-5 w-5"/> {isLoading ? 'VERIFYING...' : 'ENTER AUCTION'}
                             </button>
                         </form>
-                    ) : (
-                        <form onSubmit={handleAdminSubmit} className="space-y-5">
-                            {isAdminRegister && (
-                                <div className="relative animate-fade-in">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
-                                    <input
-                                        type="text"
-                                        placeholder="Full Name"
-                                        value={adminName}
-                                        onChange={(e) => setAdminName(e.target.value)}
-                                        required={isAdminRegister}
-                                        className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
-                                    />
-                                </div>
-                            )}
+                    ) : showForgotPassword ? (
+                         // FORGOT PASSWORD FORM
+                         <form onSubmit={handlePasswordReset} className="space-y-5 animate-fade-in">
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
                                 <input
                                     type="email"
-                                    placeholder="Admin Email"
-                                    value={adminEmail}
-                                    onChange={(e) => setAdminEmail(e.target.value)}
-                                    required
-                                    className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
-                                />
-                            </div>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
-                                <input
-                                    type="password"
-                                    placeholder="Password"
-                                    value={adminPassword}
-                                    onChange={(e) => setAdminPassword(e.target.value)}
+                                    placeholder="Enter your registered email"
+                                    value={resetEmail}
+                                    onChange={(e) => setResetEmail(e.target.value)}
                                     required
                                     className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
                                 />
@@ -292,21 +295,108 @@ const AuthScreen: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full flex items-center justify-center bg-highlight hover:bg-teal-400 text-primary font-extrabold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 shadow-[0_0_15px_rgba(56,178,172,0.5)]"
+                                className="w-full flex items-center justify-center bg-highlight hover:bg-teal-400 text-primary font-extrabold py-3 px-6 rounded-lg transition-all"
                             >
-                               <LogIn className="mr-2 h-5 w-5"/> {isLoading ? 'CONNECTING...' : isAdminRegister ? 'REGISTER ADMIN' : 'LOGIN ADMIN'}
+                               {isLoading ? 'SENDING...' : 'SEND RESET LINK'}
                             </button>
-                            
-                            <div className="text-center mt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsAdminRegister(!isAdminRegister); setError(null); setIsConfigError(false); }}
-                                    className="text-xs text-text-secondary hover:text-highlight underline"
-                                >
-                                    {isAdminRegister ? 'Back to Login' : 'Register new Admin?'}
-                                </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowForgotPassword(false)}
+                                className="w-full text-sm text-text-secondary hover:text-white"
+                            >
+                                Back to Login
+                            </button>
+                         </form>
+                    ) : (
+                        // ADMIN LOGIN / REGISTER FORM
+                        <div className="space-y-5 animate-slide-up">
+                             <button
+                                onClick={handleGoogleLogin}
+                                disabled={isLoading}
+                                className="w-full flex items-center justify-center bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all shadow-md mb-4"
+                            >
+                                <Chrome className="mr-2 h-5 w-5 text-red-500" />
+                                Sign in with Google
+                            </button>
+
+                            <div className="relative flex py-1 items-center">
+                                <div className="flex-grow border-t border-gray-600"></div>
+                                <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase">Or with Email</span>
+                                <div className="flex-grow border-t border-gray-600"></div>
                             </div>
-                        </form>
+
+                            <form onSubmit={handleAdminSubmit} className="space-y-4">
+                                {isAdminRegister && (
+                                    <div className="relative animate-fade-in">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
+                                        <input
+                                            type="text"
+                                            placeholder="Full Name"
+                                            value={adminName}
+                                            onChange={(e) => setAdminName(e.target.value)}
+                                            required={isAdminRegister}
+                                            className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
+                                        />
+                                    </div>
+                                )}
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
+                                    <input
+                                        type="email"
+                                        placeholder="Admin Email"
+                                        value={adminEmail}
+                                        onChange={(e) => setAdminEmail(e.target.value)}
+                                        required
+                                        className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
+                                    />
+                                </div>
+                                <div>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
+                                        <input
+                                            type="password"
+                                            placeholder="Password"
+                                            value={adminPassword}
+                                            onChange={(e) => setAdminPassword(e.target.value)}
+                                            required
+                                            className="w-full bg-primary border border-gray-600 rounded-lg py-3 pl-10 pr-4 text-text-main focus:outline-none focus:ring-2 focus:ring-highlight placeholder-text-secondary/50"
+                                        />
+                                    </div>
+                                    {!isAdminRegister && (
+                                        <div className="text-right mt-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setShowForgotPassword(true); setError(null); setResetMessage(null); }}
+                                                className="text-xs text-text-secondary hover:text-highlight transition-colors"
+                                            >
+                                                Forgot Password?
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded">{error}</p>}
+
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full flex items-center justify-center bg-highlight hover:bg-teal-400 text-primary font-extrabold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 shadow-[0_0_15px_rgba(56,178,172,0.5)]"
+                                >
+                                <LogIn className="mr-2 h-5 w-5"/> {isLoading ? 'CONNECTING...' : isAdminRegister ? 'REGISTER ADMIN' : 'LOGIN ADMIN'}
+                                </button>
+                                
+                                <div className="text-center mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsAdminRegister(!isAdminRegister); setError(null); setIsConfigError(false); }}
+                                        className="text-xs text-text-secondary hover:text-highlight underline"
+                                    >
+                                        {isAdminRegister ? 'Back to Login' : 'Register new Admin?'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     )}
 
                     {/* Demo Credentials Box */}
@@ -315,7 +405,7 @@ const AuthScreen: React.FC = () => {
                             <Info className="w-3 h-3 mr-1" /> CREDENTIALS INFO
                         </div>
                         <ul className="space-y-1 list-disc list-inside text-gray-400">
-                            <li><span className="text-white font-semibold">Admin:</span> Login with your registered email/password.</li>
+                            <li><span className="text-white font-semibold">Admin:</span> Use Google Sign-in or register an email.</li>
                             <li><span className="text-white font-semibold">Team Owner:</span> Use the <span className="text-highlight">Team ID</span> (e.g. T001) and <span className="text-highlight">Password</span> provided by Admin.</li>
                         </ul>
                     </div>
