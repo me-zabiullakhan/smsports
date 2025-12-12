@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { Tournament, Team, Player } from '../types';
-import { Plus, Trash2, Save, FileSpreadsheet, Loader2, ChevronDown, ChevronRight, UserPlus, Users } from 'lucide-react';
+import { Plus, Trash2, Save, FileSpreadsheet, Loader2, ChevronDown, ChevronRight, UserPlus, Users, X, Image as ImageIcon, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuction } from '../hooks/useAuction';
 
@@ -24,6 +23,14 @@ const TournamentManager: React.FC = () => {
     // Excel Import
     const excelInputRef = useRef<HTMLInputElement>(null);
     const [importingTeamId, setImportingTeamId] = useState<string | null>(null);
+
+    // Manual Player Add State
+    const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+    const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
+    const [manualPlayerName, setManualPlayerName] = useState('');
+    const [manualPlayerPhoto, setManualPlayerPhoto] = useState('');
+    const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+    const photoInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!userProfile?.uid) return;
@@ -151,8 +158,70 @@ const TournamentManager: React.FC = () => {
         setTimeout(() => excelInputRef.current?.click(), 100);
     };
 
+    // Manual Player Functions
+    const openAddPlayerModal = (teamId: string) => {
+        setTargetTeamId(teamId);
+        setManualPlayerName('');
+        setManualPlayerPhoto('');
+        setShowAddPlayerModal(true);
+    };
+
+    const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 500 * 1024) {
+                alert("Image too large (Max 500KB)");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setManualPlayerPhoto(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const saveManualPlayer = async () => {
+        if (!expandedTournId || !targetTeamId || !manualPlayerName.trim()) return;
+        
+        setIsAddingPlayer(true);
+        try {
+            const teamRef = db.collection('tournaments').doc(expandedTournId).collection('teams').doc(targetTeamId);
+            const teamDoc = await teamRef.get();
+            
+            if (teamDoc.exists) {
+                const currentPlayers = (teamDoc.data() as Team).players || [];
+                
+                const newPlayer: Player = {
+                    id: db.collection('dummy').doc().id,
+                    name: manualPlayerName,
+                    role: 'General', 
+                    category: 'Standard', 
+                    basePrice: 0,
+                    photoUrl: manualPlayerPhoto,
+                    nationality: 'India',
+                    speciality: 'General',
+                    stats: { matches: 0, runs: 0, wickets: 0 },
+                    status: 'SOLD',
+                    soldPrice: 0
+                };
+
+                await teamRef.update({
+                    players: [...currentPlayers, newPlayer]
+                });
+                
+                setShowAddPlayerModal(false);
+            }
+        } catch (e: any) {
+            console.error(e);
+            alert("Error adding player: " + e.message);
+        } finally {
+            setIsAddingPlayer(false);
+        }
+    };
+
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                 <Users className="w-5 h-5 mr-2 text-blue-600"/> Tournament Manager
             </h2>
@@ -220,12 +289,19 @@ const TournamentManager: React.FC = () => {
                                     <div className="space-y-2">
                                         {teams.length === 0 && <p className="text-xs text-gray-400 text-center">No teams added yet.</p>}
                                         {teams.map(team => (
-                                            <div key={team.id} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                                                <div>
+                                            <div key={team.id} className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 gap-2">
+                                                <div className="flex-1">
                                                     <span className="font-bold text-sm text-gray-800">{team.name}</span>
                                                     <span className="text-xs text-gray-500 ml-2">({team.players.length} players)</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => openAddPlayerModal(team.id.toString())}
+                                                        className="bg-white text-green-600 hover:bg-green-50 px-2 py-1 rounded text-xs flex items-center border border-green-200 font-bold shadow-sm"
+                                                        title="Add Player Manually"
+                                                    >
+                                                        <UserPlus className="w-3 h-3 mr-1"/> Add
+                                                    </button>
                                                     <button 
                                                         onClick={() => triggerImport(team.id.toString())}
                                                         className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-xs flex items-center border border-blue-200"
@@ -233,7 +309,7 @@ const TournamentManager: React.FC = () => {
                                                     >
                                                         <FileSpreadsheet className="w-3 h-3 mr-1"/> Import
                                                     </button>
-                                                    <button onClick={() => handleDeleteTeam(team.id.toString())} className="text-gray-400 hover:text-red-500">
+                                                    <button onClick={() => handleDeleteTeam(team.id.toString())} className="text-gray-400 hover:text-red-500 p-1">
                                                         <Trash2 className="w-4 h-4"/>
                                                     </button>
                                                 </div>
@@ -249,6 +325,57 @@ const TournamentManager: React.FC = () => {
             
             {/* Hidden Input for Excel */}
             <input ref={excelInputRef} type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelImport}/>
+
+            {/* MANUAL PLAYER MODAL */}
+            {showAddPlayerModal && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-slide-up">
+                        <div className="bg-gray-100 p-3 border-b border-gray-200 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-700">Add Player to Team</h3>
+                            <button onClick={() => setShowAddPlayerModal(false)} className="text-gray-400 hover:text-red-500"><X className="w-5 h-5"/></button>
+                        </div>
+                        
+                        <div className="p-4 space-y-4">
+                            <div className="flex flex-col items-center">
+                                <div 
+                                    onClick={() => photoInputRef.current?.click()}
+                                    className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative"
+                                >
+                                    {manualPlayerPhoto ? (
+                                        <img src={manualPlayerPhoto} alt="Preview" className="w-full h-full object-cover"/>
+                                    ) : (
+                                        <div className="text-center text-gray-400">
+                                            <ImageIcon className="w-8 h-8 mx-auto mb-1"/>
+                                            <span className="text-[10px]">Photo</span>
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 w-full bg-black/50 text-white text-[9px] text-center py-0.5">Click to Upload</div>
+                                </div>
+                                <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect}/>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Player Name</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Enter full name"
+                                    value={manualPlayerName}
+                                    onChange={(e) => setManualPlayerName(e.target.value)}
+                                />
+                            </div>
+
+                            <button 
+                                onClick={saveManualPlayer}
+                                disabled={isAddingPlayer || !manualPlayerName.trim()}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                                {isAddingPlayer ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Add Player'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
