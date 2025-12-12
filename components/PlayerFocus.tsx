@@ -1,21 +1,11 @@
 
 import React from 'react';
-import { Player, PlayerCategory, AuctionStatus } from '../types';
+import { Player, AuctionStatus } from '../types';
 import { useAuction } from '../hooks/useAuction';
-import { Shield, Globe, User } from 'lucide-react';
+import { Globe, User, Tag } from 'lucide-react';
 
 interface PlayerFocusProps {
   player: Player;
-}
-
-const getCategoryClass = (category: PlayerCategory | string) => {
-    switch (category) {
-        case PlayerCategory.Batsman: return 'bg-blue-500 text-blue-100';
-        case PlayerCategory.Bowler: return 'bg-red-500 text-red-100';
-        case PlayerCategory.AllRounder: return 'bg-green-500 text-green-100';
-        case PlayerCategory.Wicketkeeper: return 'bg-yellow-500 text-yellow-100';
-        default: return 'bg-gray-500 text-gray-100';
-    }
 }
 
 const Timer: React.FC = () => {
@@ -40,10 +30,7 @@ const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
   const { state } = useAuction();
   const { currentBid, highestBidder, status } = state;
 
-  // Logic to ensure we don't show a bid lower than base price if data desyncs
   const displayPrice = (currentBid !== null && currentBid > 0) ? Math.max(currentBid, player.basePrice) : player.basePrice;
-
-  // Final sold check: Either status is SOLD, or player object has status SOLD (persistence in Manual mode)
   const isSold = status === AuctionStatus.Sold || player.status === 'SOLD';
   const isUnsold = status === AuctionStatus.Unsold || player.status === 'UNSOLD';
 
@@ -59,18 +46,17 @@ const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
                 <div>
                     <h2 className="text-2xl md:text-4xl font-extrabold text-white tracking-wide">{player.name}</h2>
                     <div className="flex flex-wrap items-center justify-center gap-2 mt-2 md:mt-3">
-                        {/* Category Badge */}
-                        <span className={`px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-bold rounded-full uppercase tracking-wider shadow-sm ${getCategoryClass(player.category)}`}>
-                            {player.category}
+                        {/* ROLE (Player Type) - Primary Badge */}
+                        <span className="px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-bold rounded-full uppercase tracking-wider shadow-sm bg-blue-600 text-white flex items-center">
+                            <User className="w-3 h-3 mr-1.5 opacity-80"/>
+                            {player.role || player.category}
                         </span>
                         
-                        {/* Role/Speciality Badge */}
-                        {player.speciality && player.speciality !== player.category && (
-                            <span className="px-3 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-bold rounded-full uppercase tracking-wider bg-gray-700 text-gray-300 border border-gray-600 flex items-center shadow-sm">
-                                <User className="w-3 h-3 mr-1.5 opacity-70"/>
-                                {player.speciality}
-                            </span>
-                        )}
+                        {/* AUCTION CATEGORY (Group) - Secondary Badge */}
+                        <span className="px-3 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-bold rounded-full uppercase tracking-wider bg-gray-700 text-gray-300 border border-gray-600 flex items-center shadow-sm">
+                            <Tag className="w-3 h-3 mr-1.5 opacity-70"/>
+                            {player.category}
+                        </span>
 
                         {/* Nationality Badge */}
                         <span className="flex items-center text-text-secondary font-medium bg-primary/50 px-3 py-1 md:px-3 md:py-1.5 text-xs md:text-sm rounded-full border border-white/5">
@@ -80,22 +66,18 @@ const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
                 </div>
             </div>
 
-            {/* Bidding Info - Centered and Large */}
+            {/* Bidding Info */}
             <div className="bg-primary/40 p-4 md:p-6 rounded-xl border border-white/5 flex flex-col items-center justify-center flex-grow relative overflow-hidden">
                 {isSold && (
                     <div className="absolute inset-0 bg-black/60 z-20 flex flex-col items-center justify-center animate-fade-in backdrop-blur-sm">
-                        <div className="bg-green-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">
-                            SOLD
-                        </div>
+                        <div className="bg-green-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">SOLD</div>
                         {player.soldTo && <div className="mt-4 text-white text-lg font-bold">To {player.soldTo}</div>}
                         {player.soldPrice && <div className="text-highlight text-xl font-bold">for {player.soldPrice}</div>}
                     </div>
                 )}
                 {isUnsold && (
                     <div className="absolute inset-0 bg-black/60 z-20 flex items-center justify-center animate-fade-in backdrop-blur-sm">
-                        <div className="bg-red-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">
-                            UNSOLD
-                        </div>
+                        <div className="bg-red-600 text-white font-black text-3xl md:text-5xl px-8 py-4 border-4 border-white -rotate-12 shadow-2xl tracking-widest uppercase">UNSOLD</div>
                     </div>
                 )}
 
@@ -129,7 +111,6 @@ const PlayerFocus: React.FC<PlayerFocusProps> = ({ player }) => {
                 </div>
             </div>
 
-             {/* Timer */}
             <Timer />
         </div>
     </div>

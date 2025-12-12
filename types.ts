@@ -6,14 +6,21 @@ export enum PlayerCategory {
   Wicketkeeper = "Wicketkeeper",
 }
 
+export interface PlayerRole {
+    id?: string;
+    name: string;
+    basePrice: number; // Default base price for this role
+}
+
 export interface Player {
   id: number | string;
   name: string;
   photoUrl: string;
-  category: PlayerCategory | string;
+  category: string; // Auction Category (Group: MVP, Set 1, Uncapped)
+  role: string;     // Player Type (Skill: Batsman, Bowler)
   basePrice: number;
   nationality: string;
-  speciality: string;
+  speciality: string; // Kept for backward compat, usually same as role
   stats: {
     matches: number;
     runs: number;
@@ -116,6 +123,7 @@ export interface AuctionState {
   teams: Team[];
   unsoldPlayers: Player[]; // This is the pool of available players
   categories: AuctionCategory[]; // Available categories with rules
+  roles: PlayerRole[]; // Added Roles to State
   status: AuctionStatus;
   currentPlayerId: string | number | null; // Source of truth for current player
   currentPlayerIndex: number | null; // Derived helper

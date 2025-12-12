@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor, ProjectorLayout, OBSLayout, AdminViewOverride, BiddingStatus } from '../types';
+import { AuctionState, AuctionStatus, Team, Player, AuctionLog, UserProfile, UserRole, AuctionContextType, AuctionCategory, Sponsor, ProjectorLayout, OBSLayout, AdminViewOverride, BiddingStatus, PlayerRole } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
@@ -12,6 +12,7 @@ const initialState: AuctionState = {
   teams: [],
   unsoldPlayers: [],
   categories: [],
+  roles: [],
   status: AuctionStatus.NotStarted,
   currentPlayerId: null,
   currentPlayerIndex: null,
@@ -174,6 +175,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         setState(p => ({ ...p, categories }));
     }, (err) => console.error("Categories sync error", err));
 
+    const unsubRoles = auctionDocRef.collection('roles').onSnapshot((s) => {
+        const roles = s.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRole));
+        setState(p => ({ ...p, roles }));
+    }, (err) => console.error("Roles sync error", err));
+
     const unsubSponsors = auctionDocRef.collection('sponsors').onSnapshot((s) => {
         const sponsors = s.docs.map(d => ({ id: d.id, ...d.data() } as Sponsor));
         setState(p => ({ ...p, sponsors }));
@@ -198,6 +204,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         unsubTeams();
         unsubPlayers();
         unsubCats();
+        unsubRoles();
         unsubSponsors();
         unsubLog();
     };
@@ -215,38 +222,71 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       setActiveAuctionId(id);
   };
 
+  // --- CORE BIDDING ENGINE ---
   const calculateNextBid = () => {
-      const { currentPlayerId, players, currentBid, categories, bidIncrement, bidSlabs } = state;
+      const { currentPlayerId, players, currentBid, categories, roles, bidIncrement, bidSlabs } = state;
       const currentPlayer = players.find(p => String(p.id) === String(currentPlayerId));
       if (!currentPlayer) return 0;
 
-      const basePrice = Number(currentPlayer.basePrice || 0);
       const currentPrice = Number(currentBid || 0);
 
-      if (currentPrice === 0) {
-          return basePrice > 0 ? basePrice : 0;
-      }
-
-      let effectiveIncrement = Number(bidIncrement || 10);
-      let ruleFound = false;
+      // --- 1. DETERMINE EFFECTIVE BASE PRICE ---
+      // Logic:
+      // A. If Player has a Category (e.g. 'MVP'), use Category's base price.
+      // B. If NOT (or category has no price), check if Player has a Role (e.g. 'Batsman'). Use Role's base price.
+      // C. Fallback to the individual player's basePrice (usually imported/set during add).
       
-      if (categories.length > 0) {
-          const playerCat = categories.find(c => c.name === currentPlayer.category);
-          if (playerCat) {
-              if (playerCat.slabs && playerCat.slabs.length > 0) {
-                  const activeSlab = [...playerCat.slabs].sort((a, b) => b.from - a.from).find(s => currentPrice >= s.from);
-                  if (activeSlab) {
-                      effectiveIncrement = Number(activeSlab.increment);
-                      ruleFound = true;
-                  }
-              }
-              if (!ruleFound && playerCat.bidIncrement > 0) {
-                  effectiveIncrement = Number(playerCat.bidIncrement);
-                  ruleFound = true;
+      let effectiveBasePrice = Number(currentPlayer.basePrice || 0);
+      let rulesSource: 'CATEGORY' | 'GLOBAL' = 'GLOBAL';
+      let activeCategory: AuctionCategory | undefined;
+
+      // Check Category
+      if (currentPlayer.category) {
+          activeCategory = categories.find(c => c.name === currentPlayer.category);
+          if (activeCategory) {
+              if (activeCategory.basePrice > 0) {
+                  effectiveBasePrice = activeCategory.basePrice;
+                  rulesSource = 'CATEGORY'; // We found a category, so we prefer its slabs
               }
           }
       }
 
+      // Check Role (Only if Category didn't override base price or wasn't found)
+      // Note: The prompt says "If assigned to any category follow base price... if not assigned... have default base price as defined while creating player type"
+      // So if activeCategory exists, we stick with it (even if basePrice was 0, it implies category determines it).
+      // But if activeCategory is missing (e.g. 'Uncategorized'), we check Role.
+      if (!activeCategory && currentPlayer.role) {
+          const activeRole = roles.find(r => r.name === currentPlayer.role);
+          if (activeRole && activeRole.basePrice > 0) {
+              effectiveBasePrice = activeRole.basePrice;
+          }
+      }
+
+      // If this is the FIRST bid
+      if (currentPrice === 0) {
+          return effectiveBasePrice > 0 ? effectiveBasePrice : 0;
+      }
+
+      // --- 2. DETERMINE INCREMENT / SLABS ---
+      let effectiveIncrement = Number(bidIncrement || 10);
+      let ruleFound = false;
+      
+      // If we are following Category rules
+      if (activeCategory) {
+          if (activeCategory.slabs && activeCategory.slabs.length > 0) {
+              const activeSlab = [...activeCategory.slabs].sort((a, b) => b.from - a.from).find(s => currentPrice >= s.from);
+              if (activeSlab) {
+                  effectiveIncrement = Number(activeSlab.increment);
+                  ruleFound = true;
+              }
+          }
+          if (!ruleFound && activeCategory.bidIncrement > 0) {
+              effectiveIncrement = Number(activeCategory.bidIncrement);
+              ruleFound = true;
+          }
+      }
+
+      // If no category rule found, check Global Slabs
       if (!ruleFound && bidSlabs && bidSlabs.length > 0) {
           const activeSlab = [...bidSlabs].sort((a, b) => b.from - a.from).find(s => currentPrice >= s.from);
           if (activeSlab) {
@@ -255,7 +295,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           }
       }
 
-      const startPoint = Math.max(currentPrice, basePrice);
+      const startPoint = Math.max(currentPrice, effectiveBasePrice);
       return startPoint + effectiveIncrement;
   };
 
@@ -340,8 +380,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
             const playerSnap = await transaction.get(playerRef);
             if (!playerSnap.exists) throw "Player data missing";
             const playerData = playerSnap.data() as Player;
-            const basePrice = Number(playerData.basePrice || 0);
-
+            // Note: Server-side validation logic mirrors calculateNextBid mostly, 
+            // but for safety we check against the passed 'amount' vs currentBid.
+            
             const teamRef = auctionRef.collection('teams').doc(String(teamId));
             const teamSnap = await transaction.get(teamRef);
             if (!teamSnap.exists) throw "Team not found";
@@ -349,9 +390,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
             const currentHighest = Number(data?.currentBid || 0);
             
-            if (amount < basePrice) {
-                throw `Bid (${amount}) cannot be lower than Base Price (${basePrice})`;
-            }
+            // Allow initial bid to be base price
+            if (amount <= 0) throw "Invalid Bid Amount";
 
             if (currentHighest > 0 && amount <= currentHighest) {
                 throw `Bid (${amount}) must be higher than current bid (${currentHighest})`;
