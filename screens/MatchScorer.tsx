@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { Match, Player, Team, InningsState, BallEvent, BatsmanStats, BowlerStats } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette, ChevronDown } from 'lucide-react';
 
 const MatchScorer: React.FC = () => {
     const { matchId } = useParams<{ matchId: string }>();
@@ -15,8 +15,11 @@ const MatchScorer: React.FC = () => {
     
     // UI States
     const [showTossModal, setShowTossModal] = useState(false);
-    const [showPlayerModal, setShowPlayerModal] = useState(false);
-    const [playerSelectionType, setPlayerSelectionType] = useState<'STRIKER' | 'NON_STRIKER' | 'BOWLER' | null>(null);
+    
+    // Toss State
+    const [tossWinner, setTossWinner] = useState('');
+    const [tossChoice, setTossChoice] = useState<'BAT' | 'BOWL'>('BAT');
+
     const [processing, setProcessing] = useState(false);
 
     // Controller Inputs
@@ -41,7 +44,12 @@ const MatchScorer: React.FC = () => {
             if (doc.exists) {
                 const m = { id: doc.id, ...doc.data() } as Match;
                 setMatch(m);
-                if (m.status === 'SCHEDULED' || m.status === 'TOSS') setShowTossModal(true);
+                if (m.status === 'SCHEDULED' || m.status === 'TOSS') {
+                    setShowTossModal(true);
+                } else {
+                    setShowTossModal(false);
+                }
+                
                 // Sync local state if needed (e.g. MOM)
                 if (m.overlay?.momId) setSelectedMOM(m.overlay.momId);
                 if (m.overlay?.customMessage) setCustomInput(m.overlay.customMessage);
@@ -81,14 +89,14 @@ const MatchScorer: React.FC = () => {
 
     // --- ACTIONS ---
 
-    const handleToss = async (winnerId: string, choice: 'BAT' | 'BOWL') => {
-        if (!match) return;
+    const handleToss = async () => {
+        if (!match || !tossWinner || !tossChoice) return;
         setProcessing(true);
         
-        let battingId = winnerId;
-        let bowlingId = winnerId === match.teamAId ? match.teamBId : match.teamAId;
+        let battingId = tossWinner;
+        let bowlingId = tossWinner === match.teamAId ? match.teamBId : match.teamAId;
 
-        if (choice === 'BOWL') {
+        if (tossChoice === 'BOWL') {
             const temp = battingId;
             battingId = bowlingId;
             bowlingId = temp;
@@ -112,8 +120,8 @@ const MatchScorer: React.FC = () => {
         };
 
         await db.collection('matches').doc(match.id).update({
-            tossWinnerId: winnerId,
-            tossChoice: choice,
+            tossWinnerId: tossWinner,
+            tossChoice: tossChoice,
             status: 'LIVE',
             [`innings.1`]: newInnings,
             overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'DEFAULT' }
@@ -123,10 +131,10 @@ const MatchScorer: React.FC = () => {
         setProcessing(false);
     };
 
-    const handlePlayerSelect = async (playerId: string) => {
-        if (!match || !playerSelectionType) return;
+    const handlePlayerSelect = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', playerId: string) => {
+        if (!match || !playerId) return;
         
-        const playerObj = playerSelectionType === 'BOWLER' 
+        const playerObj = type === 'BOWLER' 
             ? bowlingTeam?.players.find(p => String(p.id) === playerId)
             : battingTeam?.players.find(p => String(p.id) === playerId);
             
@@ -135,8 +143,9 @@ const MatchScorer: React.FC = () => {
         const updateData: any = {};
         const prefix = `innings.${match.currentInnings}`;
 
-        if (playerSelectionType === 'BOWLER') {
-            if (!currentInnings?.bowlers[playerId]) {
+        if (type === 'BOWLER') {
+            // Check if bowler exists in map, if not add them
+            if (!currentInnings?.bowlers || !currentInnings.bowlers[playerId]) {
                 const newBowlerStats: BowlerStats = {
                     playerId,
                     name: playerObj.name,
@@ -150,7 +159,8 @@ const MatchScorer: React.FC = () => {
             }
             updateData[`${prefix}.currentBowlerId`] = playerId;
         } else {
-            if (!currentInnings?.batsmen[playerId]) {
+            // Check if batsman exists in map
+            if (!currentInnings?.batsmen || !currentInnings.batsmen[playerId]) {
                 const newBatStats: BatsmanStats = {
                     playerId,
                     name: playerObj.name,
@@ -158,24 +168,29 @@ const MatchScorer: React.FC = () => {
                     balls: 0,
                     fours: 0,
                     sixes: 0,
-                    isStriker: playerSelectionType === 'STRIKER',
+                    isStriker: type === 'STRIKER',
                     outBy: undefined
                 };
                 updateData[`${prefix}.batsmen.${playerId}`] = newBatStats;
             } else {
-                updateData[`${prefix}.batsmen.${playerId}.isStriker`] = playerSelectionType === 'STRIKER';
+                updateData[`${prefix}.batsmen.${playerId}.isStriker`] = type === 'STRIKER';
             }
             
-            if (playerSelectionType === 'STRIKER') updateData[`${prefix}.strikerId`] = playerId;
+            if (type === 'STRIKER') updateData[`${prefix}.strikerId`] = playerId;
             else updateData[`${prefix}.nonStrikerId`] = playerId;
         }
 
         await db.collection('matches').doc(match.id).update(updateData);
-        setShowPlayerModal(false);
     };
 
     const handleScore = async (runs: number) => {
-        if (!match || !currentInnings || needsStriker || needsNonStriker || needsBowler) return;
+        if (!match || !currentInnings) return;
+        
+        if (needsStriker || needsNonStriker || needsBowler) {
+            alert("Please select Striker, Non-Striker and Bowler first.");
+            return;
+        }
+
         setProcessing(true);
 
         const state = JSON.parse(JSON.stringify(currentInnings)) as InningsState;
@@ -495,8 +510,64 @@ const MatchScorer: React.FC = () => {
         </button>
     );
 
+    // --- RENDER ---
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
+            
+            {/* TOSS MODAL - Properly Fixed and Visible */}
+            {showTossModal && (
+                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl scale-100 transform transition-all">
+                        <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4 animate-bounce" />
+                        <h2 className="text-2xl font-black mb-6">MATCH TOSS</h2>
+                        
+                        <div className="mb-4 text-left">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Who won the toss?</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button 
+                                    onClick={() => setTossWinner(match.teamAId)}
+                                    className={`p-3 rounded border-2 font-bold ${tossWinner === match.teamAId ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'}`}
+                                >
+                                    {match.teamAName}
+                                </button>
+                                <button 
+                                    onClick={() => setTossWinner(match.teamBId)}
+                                    className={`p-3 rounded border-2 font-bold ${tossWinner === match.teamBId ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'}`}
+                                >
+                                    {match.teamBName}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-6 text-left">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Choice</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button 
+                                    onClick={() => setTossChoice('BAT')}
+                                    className={`p-3 rounded border-2 font-bold ${tossChoice === 'BAT' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}
+                                >
+                                    BAT
+                                </button>
+                                <button 
+                                    onClick={() => setTossChoice('BOWL')}
+                                    className={`p-3 rounded border-2 font-bold ${tossChoice === 'BOWL' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}
+                                >
+                                    BOWL
+                                </button>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleToss}
+                            disabled={!tossWinner || processing}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {processing ? 'Starting Match...' : 'START MATCH'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* 1. Header Match Scoreboard */}
             <div className="bg-white p-4 shadow-sm border-b sticky top-0 z-10">
                 <div className="flex justify-between items-center mb-2">
@@ -557,14 +628,14 @@ const MatchScorer: React.FC = () => {
 
                     {/* View Control Grid */}
                     <div className="grid grid-cols-5 gap-2 mb-3">
-                        <button className="bg-indigo-900 text-[10px] py-1 rounded">Mini-Score</button>
-                        <button className="bg-blue-700 text-[10px] py-1 rounded">Tour Name</button>
-                        <button className="bg-teal-500 text-[10px] py-1 rounded">B1</button>
-                        <button className="bg-pink-500 text-[10px] py-1 rounded">B2</button>
-                        <button className="bg-cyan-500 text-[10px] py-1 rounded">Bowler</button>
+                        <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-indigo-900 text-[10px] py-1 rounded">Mini-Score</button>
+                        <button onClick={() => toggleTheme()} className="bg-blue-700 text-[10px] py-1 rounded flex items-center justify-center gap-1"><Palette className="w-3 h-3"/> Theme</button>
+                        <button onClick={() => updateOverlay({ currentView: 'B1' })} className="bg-teal-500 text-[10px] py-1 rounded">B1</button>
+                        <button onClick={() => updateOverlay({ currentView: 'B2' })} className="bg-pink-500 text-[10px] py-1 rounded">B2</button>
+                        <button onClick={() => updateOverlay({ currentView: 'BOWLER' })} className="bg-cyan-500 text-[10px] py-1 rounded">Bowler</button>
                         
-                        <button className="bg-red-800 text-[10px] py-1 rounded">Batting</button>
-                        <button className="bg-purple-800 text-[10px] py-1 rounded">Bowling</button>
+                        <button onClick={() => updateOverlay({ currentView: 'I1BAT' })} className="bg-red-800 text-[10px] py-1 rounded">Batting</button>
+                        <button onClick={() => updateOverlay({ currentView: 'I1BALL' })} className="bg-purple-800 text-[10px] py-1 rounded">Bowling</button>
                         <button className="bg-yellow-500 text-black text-[10px] py-1 rounded">PP+</button>
                         <button onClick={handleInningsEnd} className="bg-purple-900 text-[10px] py-1 rounded col-span-2">END Inning {match.currentInnings}</button>
                     </div>
@@ -640,12 +711,7 @@ const MatchScorer: React.FC = () => {
 
                 {/* 5. Display Controller */}
                 <div className="bg-black text-white rounded-xl p-4 text-center">
-                    <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-bold text-sm uppercase">Display Controller</h4>
-                        <button onClick={toggleTheme} className="bg-indigo-600 px-2 py-1 rounded text-[10px] flex items-center font-bold border border-indigo-400">
-                            <Palette className="w-3 h-3 mr-1"/> {match.overlay?.theme === 'CWC2023' ? 'CWC2023' : 'DEFAULT'} Theme
-                        </button>
-                    </div>
+                    <h4 className="font-bold text-sm mb-3 uppercase">Display Controller</h4>
                     <div className="flex flex-wrap gap-2 justify-center">
                         {['DEFAULT', 'I1BAT', 'I1BALL', 'I2BAT', 'I2BALL', 'SUMMARY', 'FOW', 'B1', 'B2'].map(v => (
                             <button key={v} onClick={() => updateOverlay({ currentView: v })} className={`px-3 py-1 rounded text-[10px] font-bold ${v === 'DEFAULT' ? 'bg-green-500' : v.startsWith('I') ? 'bg-blue-600' : 'bg-pink-500'}`}>{v}</button>
@@ -684,42 +750,45 @@ const MatchScorer: React.FC = () => {
                 </div>
 
             </div>
-
-            {/* PLAYER SELECT MODAL (Same as before) */}
-            {showPlayerModal && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">Select {playerSelectionType === 'BOWLER' ? 'Bowler' : 'Batsman'}</h3>
-                            <button onClick={() => setShowPlayerModal(false)}><Circle className="w-5 h-5 text-gray-400"/></button>
-                        </div>
-                        <div className="max-h-[60vh] overflow-y-auto space-y-2">
-                            {(playerSelectionType === 'BOWLER' ? bowlingTeam : battingTeam)?.players.map(p => (
-                                <button 
-                                    key={p.id}
-                                    onClick={() => handlePlayerSelect(String(p.id))}
-                                    className="w-full text-left p-3 hover:bg-gray-50 border rounded-lg flex justify-between items-center"
-                                >
-                                    <span className="font-semibold">{p.name}</span>
-                                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">{p.role}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
             
-            {/* STRIKER/NON-STRIKER/BOWLER Prompts */}
-            <div className="fixed bottom-0 w-full bg-white border-t p-2 flex justify-around z-20">
-                 <button onClick={() => { setPlayerSelectionType('STRIKER'); setShowPlayerModal(true); }} className={`flex-1 text-xs font-bold p-2 ${needsStriker ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-600'}`}>
-                     {needsStriker ? 'SELECT STRIKER' : currentInnings?.batsmen[currentInnings.strikerId || '']?.name || 'Striker'}
-                 </button>
-                 <button onClick={() => { setPlayerSelectionType('NON_STRIKER'); setShowPlayerModal(true); }} className={`flex-1 text-xs font-bold p-2 border-l ${needsNonStriker ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-600'}`}>
-                     {needsNonStriker ? 'SELECT NON-STR' : currentInnings?.batsmen[currentInnings.nonStrikerId || '']?.name || 'Non-Striker'}
-                 </button>
-                 <button onClick={() => { setPlayerSelectionType('BOWLER'); setShowPlayerModal(true); }} className={`flex-1 text-xs font-bold p-2 border-l ${needsBowler ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-600'}`}>
-                     {needsBowler ? 'SELECT BOWLER' : currentInnings?.bowlers[currentInnings.currentBowlerId || '']?.name || 'Bowler'}
-                 </button>
+            {/* Inline Selection Bar (Replaces Popups) */}
+            <div className="fixed bottom-0 w-full bg-white border-t p-2 flex justify-around z-20 shadow-lg">
+                 <div className="flex-1 px-1">
+                     <select 
+                        value={currentInnings?.strikerId || ''} 
+                        onChange={(e) => handlePlayerSelect('STRIKER', e.target.value)}
+                        className={`w-full text-xs font-bold p-2 border rounded ${needsStriker ? 'bg-red-100 text-red-600 border-red-300 animate-pulse' : 'bg-gray-50 text-gray-700'}`}
+                     >
+                         <option value="">{needsStriker ? 'SELECT STRIKER' : 'Striker'}</option>
+                         {battingTeam?.players.map(p => (
+                             <option key={p.id} value={p.id} disabled={String(p.id) === String(currentInnings?.nonStrikerId)}>{p.name}</option>
+                         ))}
+                     </select>
+                 </div>
+                 <div className="flex-1 px-1">
+                     <select 
+                        value={currentInnings?.nonStrikerId || ''} 
+                        onChange={(e) => handlePlayerSelect('NON_STRIKER', e.target.value)}
+                        className={`w-full text-xs font-bold p-2 border rounded ${needsNonStriker ? 'bg-red-100 text-red-600 border-red-300 animate-pulse' : 'bg-gray-50 text-gray-700'}`}
+                     >
+                         <option value="">{needsNonStriker ? 'SELECT NON-STR' : 'Non-Striker'}</option>
+                         {battingTeam?.players.map(p => (
+                             <option key={p.id} value={p.id} disabled={String(p.id) === String(currentInnings?.strikerId)}>{p.name}</option>
+                         ))}
+                     </select>
+                 </div>
+                 <div className="flex-1 px-1">
+                     <select 
+                        value={currentInnings?.currentBowlerId || ''} 
+                        onChange={(e) => handlePlayerSelect('BOWLER', e.target.value)}
+                        className={`w-full text-xs font-bold p-2 border rounded ${needsBowler ? 'bg-red-100 text-red-600 border-red-300 animate-pulse' : 'bg-gray-50 text-gray-700'}`}
+                     >
+                         <option value="">{needsBowler ? 'SELECT BOWLER' : 'Bowler'}</option>
+                         {bowlingTeam?.players.map(p => (
+                             <option key={p.id} value={p.id}>{p.name}</option>
+                         ))}
+                     </select>
+                 </div>
             </div>
         </div>
     );
