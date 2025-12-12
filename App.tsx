@@ -10,6 +10,9 @@ import SuperAdminDashboard from './screens/SuperAdminDashboard';
 import CreateAuction from './screens/CreateAuction';
 import AuctionManage from './screens/AuctionManage';
 import PlayerRegistration from './screens/PlayerRegistration';
+import ScoringDashboard from './screens/ScoringDashboard';
+import MatchScorer from './screens/MatchScorer';
+import MatchOverlay from './screens/MatchOverlay';
 import { useAuction } from './hooks/useAuction';
 import { auth } from './firebase';
 import firebase from 'firebase/compat/app';
@@ -88,6 +91,15 @@ const AppContent: React.FC = () => {
         <Route path="/admin/auction/:id/manage" element={
             isAdmin ? <AuctionManage /> : <Navigate to="/auth" replace />
         } />
+
+        {/* Scoring Routes */}
+        <Route path="/scoring" element={
+            isAdmin ? <ScoringDashboard /> : <Navigate to="/auth" replace />
+        } />
+        <Route path="/scoring/:matchId" element={
+            isAdmin ? <MatchScorer /> : <Navigate to="/auth" replace />
+        } />
+        <Route path="/match-overlay/:matchId" element={<MatchOverlay />} />
 
         {/* Utility Route: OBS Overlay (Transparent) */}
         <Route path="/obs-overlay/:auctionId" element={<OBSOverlay />} />

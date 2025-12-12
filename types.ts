@@ -229,3 +229,82 @@ export interface AuctionContextType {
     activeAuctionId: string | null;
     nextBid: number; 
 }
+
+// --- SCORING TYPES ---
+
+export interface BatsmanStats {
+    playerId: string;
+    name: string;
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    isStriker: boolean;
+    outBy?: string; // If out, how/who
+}
+
+export interface BowlerStats {
+    playerId: string;
+    name: string;
+    overs: number; // 1.2
+    ballsBowled: number; // actual valid balls in current over
+    runsConceded: number;
+    wickets: number;
+    maidens: number;
+}
+
+export interface BallEvent {
+    ballNumber: number;
+    overNumber: number; // 0, 1, 2...
+    bowlerId: string;
+    batsmanId: string;
+    runs: number;
+    isWide: boolean;
+    isNoBall: boolean;
+    isWicket: boolean;
+    wicketType?: string;
+    extras: number;
+    commentary?: string;
+}
+
+export interface InningsState {
+    battingTeamId: string;
+    bowlingTeamId: string;
+    totalRuns: number;
+    wickets: number;
+    overs: number; // e.g., 10.4
+    ballsInCurrentOver: number; // 0-6 (valid balls)
+    currentRunRate: number;
+    extras: {
+        wides: number;
+        noBalls: number;
+        byes: number;
+        legByes: number;
+    };
+    strikerId: string | null;
+    nonStrikerId: string | null;
+    currentBowlerId: string | null;
+    batsmen: { [playerId: string]: BatsmanStats };
+    bowlers: { [playerId: string]: BowlerStats };
+    recentBalls: BallEvent[];
+}
+
+export interface Match {
+    id: string;
+    auctionId: string; // To link back to auction players
+    teamAId: string;
+    teamBId: string;
+    teamAName: string;
+    teamBName: string;
+    totalOvers: number;
+    status: 'SCHEDULED' | 'TOSS' | 'LIVE' | 'COMPLETED';
+    tossWinnerId?: string;
+    tossChoice?: 'BAT' | 'BOWL';
+    currentInnings: 1 | 2;
+    innings: {
+        1: InningsState;
+        2: InningsState;
+    };
+    winnerId?: string;
+    createdAt: number;
+}

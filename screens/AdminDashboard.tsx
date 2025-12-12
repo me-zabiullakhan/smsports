@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup } from '../types';
 
@@ -148,12 +148,20 @@ const AdminDashboard: React.FC = () => {
       <main className="container mx-auto px-6 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
-            <button 
-                onClick={() => navigate('/admin/new')}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center"
-            >
-                <Plus className="w-4 h-4 mr-2" /> Create new auction
-            </button>
+            <div className="flex gap-2">
+                <button 
+                    onClick={() => navigate('/scoring')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center"
+                >
+                    <Activity className="w-4 h-4 mr-2" /> Cricket Scoring
+                </button>
+                <button 
+                    onClick={() => navigate('/admin/new')}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center"
+                >
+                    <Plus className="w-4 h-4 mr-2" /> Create new auction
+                </button>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6">
