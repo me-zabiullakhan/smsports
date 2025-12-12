@@ -297,6 +297,15 @@ export interface InningsState {
     recentBalls: BallEvent[];
 }
 
+export interface OverlayState {
+    currentView: string; 
+    animation: string; 
+    customMessage?: string;
+    decision?: string;
+    momId?: string;
+    autoRefresh?: boolean;
+}
+
 export interface Match {
     id: string;
     auctionId: string; // ID of the Auction OR the Tournament
@@ -316,4 +325,5 @@ export interface Match {
     };
     winnerId?: string;
     createdAt: number;
+    overlay?: OverlayState;
 }
