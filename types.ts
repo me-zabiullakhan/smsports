@@ -206,6 +206,14 @@ export interface AuctionSetup {
     obsLayout?: OBSLayout;
 }
 
+export interface Tournament {
+    id?: string;
+    name: string;
+    createdAt: number;
+    createdBy: string;
+    teams?: Team[]; // For simplicity in standalone tournaments, teams might be nested or subcollection
+}
+
 export interface AuctionContextType {
     state: AuctionState;
     userProfile: UserProfile | null;
@@ -291,7 +299,8 @@ export interface InningsState {
 
 export interface Match {
     id: string;
-    auctionId: string; // To link back to auction players
+    auctionId: string; // ID of the Auction OR the Tournament
+    sourceType?: 'AUCTION' | 'TOURNAMENT'; // Distinguish between sources
     teamAId: string;
     teamBId: string;
     teamAName: string;

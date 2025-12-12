@@ -2,21 +2,26 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { AuctionSetup, Match, Team } from '../types';
-import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy } from 'lucide-react';
+import { AuctionSetup, Match, Team, Tournament } from '../types';
+import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy, Layers, PenTool, Save } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
+import TournamentManager from '../components/TournamentManager';
 
 const ScoringDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { userProfile } = useAuction();
     const [matches, setMatches] = useState<Match[]>([]);
-    const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
     
-    // Modal State
-    const [selectedAuctionId, setSelectedAuctionId] = useState('');
-    const [auctionTeams, setAuctionTeams] = useState<Team[]>([]);
+    // UI Tabs
+    const [activeTab, setActiveTab] = useState<'MATCHES' | 'TOURNAMENTS'>('MATCHES');
+
+    // Inline Create Match State
+    const [sourceType, setSourceType] = useState<'AUCTION' | 'TOURNAMENT'>('AUCTION');
+    const [sourceList, setSourceList] = useState<(AuctionSetup | Tournament)[]>([]);
+    const [selectedSourceId, setSelectedSourceId] = useState('');
+    const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+    
     const [teamA, setTeamA] = useState('');
     const [teamB, setTeamB] = useState('');
     const [overs, setOvers] = useState(20);
@@ -33,32 +38,42 @@ const ScoringDashboard: React.FC = () => {
                 setMatches(snap.docs.map(d => ({ id: d.id, ...d.data() } as Match)));
                 setLoading(false);
             });
-
-        // Fetch Auctions (for dropdown)
-        db.collection('auctions')
-            .where('createdBy', '==', userProfile.uid)
-            .get()
-            .then(snap => {
-                setAuctions(snap.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup)));
-            });
-
         return () => unsubMatches();
     }, [userProfile]);
 
+    // Load Sources based on Type selection
     useEffect(() => {
-        if (!selectedAuctionId) {
-            setAuctionTeams([]);
+        if (!userProfile?.uid) return;
+        setSourceList([]);
+        setSelectedSourceId('');
+        setAvailableTeams([]);
+
+        const collection = sourceType === 'AUCTION' ? 'auctions' : 'tournaments';
+        
+        db.collection(collection)
+            .where('createdBy', '==', userProfile.uid)
+            .get()
+            .then(snap => {
+                const list = snap.docs.map(d => ({ id: d.id, name: (d.data().title || d.data().name), ...d.data() } as any));
+                setSourceList(list);
+            });
+    }, [sourceType, userProfile]);
+
+    // Load Teams when source selected
+    useEffect(() => {
+        if (!selectedSourceId) {
+            setAvailableTeams([]);
             return;
         }
-        // Fetch teams when auction selected
-        db.collection('auctions').doc(selectedAuctionId).collection('teams').get()
+        const collection = sourceType === 'AUCTION' ? 'auctions' : 'tournaments';
+        db.collection(collection).doc(selectedSourceId).collection('teams').get()
             .then(snap => {
-                setAuctionTeams(snap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
+                setAvailableTeams(snap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
             });
-    }, [selectedAuctionId]);
+    }, [selectedSourceId, sourceType]);
 
     const handleCreateMatch = async () => {
-        if (!selectedAuctionId || !teamA || !teamB || !overs) {
+        if (!selectedSourceId || !teamA || !teamB || !overs) {
             alert("Please fill all fields");
             return;
         }
@@ -69,11 +84,12 @@ const ScoringDashboard: React.FC = () => {
 
         setCreating(true);
         try {
-            const teamAObj = auctionTeams.find(t => t.id === teamA);
-            const teamBObj = auctionTeams.find(t => t.id === teamB);
+            const teamAObj = availableTeams.find(t => t.id === teamA);
+            const teamBObj = availableTeams.find(t => t.id === teamB);
 
             const newMatch: Omit<Match, 'id'> = {
-                auctionId: selectedAuctionId,
+                auctionId: selectedSourceId, // Used as generic source ID
+                sourceType: sourceType, // NEW FIELD
                 teamAId: teamA,
                 teamBId: teamB,
                 teamAName: teamAObj?.name || 'Team A',
@@ -83,46 +99,14 @@ const ScoringDashboard: React.FC = () => {
                 currentInnings: 1,
                 createdAt: Date.now(),
                 innings: {
-                    1: {
-                        battingTeamId: '',
-                        bowlingTeamId: '',
-                        totalRuns: 0,
-                        wickets: 0,
-                        overs: 0,
-                        ballsInCurrentOver: 0,
-                        currentRunRate: 0,
-                        extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 },
-                        strikerId: null,
-                        nonStrikerId: null,
-                        currentBowlerId: null,
-                        batsmen: {},
-                        bowlers: {},
-                        recentBalls: []
-                    },
-                    2: {
-                        battingTeamId: '',
-                        bowlingTeamId: '',
-                        totalRuns: 0,
-                        wickets: 0,
-                        overs: 0,
-                        ballsInCurrentOver: 0,
-                        currentRunRate: 0,
-                        extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 },
-                        strikerId: null,
-                        nonStrikerId: null,
-                        currentBowlerId: null,
-                        batsmen: {},
-                        bowlers: {},
-                        recentBalls: []
-                    }
+                    1: { battingTeamId: '', bowlingTeamId: '', totalRuns: 0, wickets: 0, overs: 0, ballsInCurrentOver: 0, currentRunRate: 0, extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null, batsmen: {}, bowlers: {}, recentBalls: [] },
+                    2: { battingTeamId: '', bowlingTeamId: '', totalRuns: 0, wickets: 0, overs: 0, ballsInCurrentOver: 0, currentRunRate: 0, extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null, batsmen: {}, bowlers: {}, recentBalls: [] }
                 }
             };
 
             await db.collection('matches').add(newMatch);
-            setShowModal(false);
             setCreating(false);
-            // Reset form
-            setTeamA(''); setTeamB(''); setSelectedAuctionId('');
+            setTeamA(''); setTeamB(''); // Reset teams but keep source for fast creation
         } catch (e: any) {
             alert("Error creating match: " + e.message);
             setCreating(false);
@@ -136,152 +120,154 @@ const ScoringDashboard: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
             {/* Header */}
-            <header className="bg-white shadow-sm border-b border-gray-200">
-                <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-700">
-                            <ArrowLeft />
+            <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+                <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => navigate('/admin')} className="text-gray-400 hover:text-gray-700">
+                            <ArrowLeft className="w-5 h-5"/>
                         </button>
-                        <h1 className="text-xl font-bold text-gray-700">Cricket Scoring Manager</h1>
+                        <h1 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                           <Trophy className="w-5 h-5 text-yellow-500"/> Cricket Scoring
+                        </h1>
                     </div>
-                    <button 
-                        onClick={() => setShowModal(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-lg transition-all active:scale-95"
-                    >
-                        <Plus className="w-4 h-4 mr-2" /> New Match
-                    </button>
+                    
+                    <div className="flex bg-gray-100 rounded-lg p-1">
+                        <button 
+                            onClick={() => setActiveTab('MATCHES')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'MATCHES' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Matches
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('TOURNAMENTS')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'TOURNAMENTS' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Tournaments
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            <main className="container mx-auto px-6 py-8">
-                {loading ? (
-                    <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8 text-blue-600"/></div>
-                ) : matches.length === 0 ? (
-                    <div className="text-center p-12 text-gray-500 bg-white rounded-xl shadow-sm">
-                        <Trophy className="w-12 h-12 mx-auto mb-4 text-gray-300"/>
-                        <p>No matches created yet. Click "New Match" to start.</p>
-                    </div>
+            <main className="container mx-auto px-4 py-6 max-w-6xl">
+                
+                {activeTab === 'TOURNAMENTS' ? (
+                    <TournamentManager />
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {matches.map(match => (
-                            <div key={match.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-all">
-                                <div className="p-5 border-b border-gray-100">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${match.status === 'LIVE' ? 'bg-red-100 text-red-600 animate-pulse' : match.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
-                                            {match.status}
-                                        </span>
-                                        <div className="text-xs text-gray-400 font-mono">
-                                            {new Date(match.createdAt).toLocaleDateString()}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-4">
-                                        <div className="text-center w-1/3">
-                                            <div className="font-bold text-gray-800 truncate">{match.teamAName}</div>
-                                        </div>
-                                        <div className="text-gray-400 font-bold text-xs">VS</div>
-                                        <div className="text-center w-1/3">
-                                            <div className="font-bold text-gray-800 truncate">{match.teamBName}</div>
-                                        </div>
+                    <>
+                        {/* INLINE CREATE MATCH PANEL */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
+                            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Plus className="w-4 h-4"/> Schedule New Match
+                            </h2>
+                            <div className="flex flex-col md:flex-row gap-4 items-end">
+                                <div className="w-full md:w-auto">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Source</label>
+                                    <div className="flex bg-gray-100 rounded p-1">
+                                        <button onClick={() => setSourceType('AUCTION')} className={`flex-1 px-3 py-1.5 text-xs font-bold rounded ${sourceType === 'AUCTION' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>Auction</button>
+                                        <button onClick={() => setSourceType('TOURNAMENT')} className={`flex-1 px-3 py-1.5 text-xs font-bold rounded ${sourceType === 'TOURNAMENT' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>Tournament</button>
                                     </div>
                                 </div>
-                                <div className="bg-gray-50 p-4 flex justify-between items-center gap-2">
-                                    <button 
-                                        onClick={() => navigate(`/scoring/${match.id}`)}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded flex items-center justify-center gap-2"
-                                    >
-                                        <Play className="w-3 h-3"/> Scorer
-                                    </button>
-                                    <button 
-                                        onClick={() => window.open(`/#/match-overlay/${match.id}`, '_blank')}
-                                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold p-2 rounded"
-                                        title="OBS Overlay"
-                                    >
-                                        <Monitor className="w-4 h-4"/>
-                                    </button>
-                                    <button 
-                                        onClick={() => deleteMatch(match.id)}
-                                        className="bg-red-50 hover:bg-red-100 text-red-500 p-2 rounded"
-                                    >
-                                        <Trash2 className="w-4 h-4"/>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
 
-            {/* Create Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="bg-blue-600 p-4 text-white font-bold text-lg">Create New Match</div>
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Select Auction</label>
-                                <select 
-                                    className="w-full border rounded p-2 text-sm"
-                                    value={selectedAuctionId}
-                                    onChange={e => setSelectedAuctionId(e.target.value)}
-                                >
-                                    <option value="">-- Choose Auction --</option>
-                                    {auctions.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Team A</label>
-                                    <select 
-                                        className="w-full border rounded p-2 text-sm"
-                                        value={teamA}
-                                        onChange={e => setTeamA(e.target.value)}
-                                        disabled={!selectedAuctionId}
-                                    >
-                                        <option value="">Select</option>
-                                        {auctionTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                <div className="flex-1 w-full">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select {sourceType === 'AUCTION' ? 'Auction' : 'Tournament'}</label>
+                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={selectedSourceId} onChange={e => setSelectedSourceId(e.target.value)}>
+                                        <option value="">-- Select --</option>
+                                        {sourceList.map((s: any) => <option key={s.id} value={s.id}>{s.name || s.title}</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Team B</label>
-                                    <select 
-                                        className="w-full border rounded p-2 text-sm"
-                                        value={teamB}
-                                        onChange={e => setTeamB(e.target.value)}
-                                        disabled={!selectedAuctionId}
-                                    >
-                                        <option value="">Select</option>
-                                        {auctionTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+
+                                <div className="flex-1 w-full">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Team A</label>
+                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={teamA} onChange={e => setTeamA(e.target.value)} disabled={!selectedSourceId}>
+                                        <option value="">-- Team A --</option>
+                                        {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Overs</label>
-                                <input 
-                                    type="number" 
-                                    className="w-full border rounded p-2 text-sm"
-                                    value={overs}
-                                    onChange={e => setOvers(Number(e.target.value))}
-                                />
-                            </div>
+                                <div className="flex-1 w-full">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Team B</label>
+                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={teamB} onChange={e => setTeamB(e.target.value)} disabled={!selectedSourceId}>
+                                        <option value="">-- Team B --</option>
+                                        {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                </div>
 
-                            <div className="flex gap-2 pt-4">
-                                <button onClick={() => setShowModal(false)} className="flex-1 border border-gray-300 py-2 rounded text-sm font-bold text-gray-600">Cancel</button>
+                                <div className="w-20">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Overs</label>
+                                    <input type="number" className="w-full border rounded-lg px-2 py-2 text-sm bg-gray-50 text-center" value={overs} onChange={e => setOvers(Number(e.target.value))} />
+                                </div>
+
                                 <button 
-                                    onClick={handleCreateMatch}
+                                    onClick={handleCreateMatch} 
                                     disabled={creating}
-                                    className="flex-1 bg-blue-600 text-white py-2 rounded text-sm font-bold flex justify-center items-center"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all active:scale-95 flex items-center h-[38px]"
                                 >
-                                    {creating ? <Loader2 className="animate-spin w-4 h-4"/> : 'Create Match'}
+                                    {creating ? <Loader2 className="animate-spin w-4 h-4"/> : 'Create'}
                                 </button>
                             </div>
                         </div>
-                    </div>
-                </div>
-            )}
+
+                        {/* Matches List */}
+                        {loading ? (
+                            <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8 text-blue-600"/></div>
+                        ) : matches.length === 0 ? (
+                            <div className="text-center p-12 text-gray-400 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
+                                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-20"/>
+                                <p>No matches scheduled.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {matches.map(match => (
+                                    <div key={match.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group">
+                                        <div className="p-4 border-b border-gray-50">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${match.status === 'LIVE' ? 'bg-red-50 text-red-600 animate-pulse border border-red-100' : match.status === 'COMPLETED' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {match.status}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-1 rounded">
+                                                    {match.sourceType === 'TOURNAMENT' ? '🏆 TOUR' : '🔨 AUCTION'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <div className="w-[45%]">
+                                                    <div className="font-bold text-gray-800 truncate text-sm" title={match.teamAName}>{match.teamAName}</div>
+                                                </div>
+                                                <div className="text-gray-300 font-bold text-xs">VS</div>
+                                                <div className="w-[45%] text-right">
+                                                    <div className="font-bold text-gray-800 truncate text-sm" title={match.teamBName}>{match.teamBName}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 flex justify-between gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => navigate(`/scoring/${match.id}`)}
+                                                className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-xs font-bold py-2 rounded flex items-center justify-center gap-2 transition-colors"
+                                            >
+                                                <Play className="w-3 h-3"/> Scorer
+                                            </button>
+                                            <button 
+                                                onClick={() => window.open(`/#/match-overlay/${match.id}`, '_blank')}
+                                                className="bg-white hover:bg-gray-100 text-gray-600 border border-gray-200 p-2 rounded"
+                                                title="OBS Overlay"
+                                            >
+                                                <Monitor className="w-4 h-4"/>
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteMatch(match.id)}
+                                                className="bg-white hover:bg-red-50 text-red-400 border border-gray-200 hover:border-red-200 p-2 rounded transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+            </main>
         </div>
     );
 };
