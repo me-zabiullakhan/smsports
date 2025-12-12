@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { Match, Player, Team, InningsState, BallEvent, BatsmanStats, BowlerStats } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette, ChevronDown, RefreshCw } from 'lucide-react';
 
 const MatchScorer: React.FC = () => {
     const { matchId } = useParams<{ matchId: string }>();
@@ -80,8 +80,17 @@ const MatchScorer: React.FC = () => {
 
     // --- COMPUTED HELPERS ---
     const currentInnings = match ? match.innings[match.currentInnings] : null;
-    const battingTeam = currentInnings?.battingTeamId === teamA?.id ? teamA : teamB;
-    const bowlingTeam = currentInnings?.bowlingTeamId === teamA?.id ? teamA : teamB;
+    
+    // Robust Team Helper
+    const getTeam = (id: string | undefined | null) => {
+        if (!id) return null;
+        if (String(teamA?.id) === String(id)) return teamA;
+        if (String(teamB?.id) === String(id)) return teamB;
+        return null;
+    };
+
+    const battingTeam = currentInnings ? getTeam(currentInnings.battingTeamId) : null;
+    const bowlingTeam = currentInnings ? getTeam(currentInnings.bowlingTeamId) : null;
 
     const needsStriker = currentInnings && !currentInnings.strikerId;
     const needsNonStriker = currentInnings && !currentInnings.nonStrikerId;
@@ -134,11 +143,20 @@ const MatchScorer: React.FC = () => {
     const handlePlayerSelect = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', playerId: string) => {
         if (!match || !playerId) return;
         
-        const playerObj = type === 'BOWLER' 
-            ? bowlingTeam?.players.find(p => String(p.id) === playerId)
-            : battingTeam?.players.find(p => String(p.id) === playerId);
+        // Ensure we are looking at the right team
+        const targetTeam = type === 'BOWLER' ? bowlingTeam : battingTeam;
+        
+        if (!targetTeam) {
+            console.error("Target team not found for selection");
+            return;
+        }
+
+        const playerObj = targetTeam.players.find(p => String(p.id) === String(playerId));
             
-        if (!playerObj) return;
+        if (!playerObj) {
+            console.error("Player not found in team", playerId);
+            return;
+        }
 
         const updateData: any = {};
         const prefix = `innings.${match.currentInnings}`;
@@ -514,10 +532,10 @@ const MatchScorer: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
             
-            {/* TOSS MODAL - Properly Fixed and Visible */}
+            {/* TOSS MODAL - High Z-Index and Visibility */}
             {showTossModal && (
-                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 animate-fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl scale-100 transform transition-all">
+                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 animate-fade-in backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl border-4 border-yellow-400 scale-100 transform transition-all">
                         <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4 animate-bounce" />
                         <h2 className="text-2xl font-black mb-6">MATCH TOSS</h2>
                         
@@ -629,7 +647,13 @@ const MatchScorer: React.FC = () => {
                     {/* View Control Grid */}
                     <div className="grid grid-cols-5 gap-2 mb-3">
                         <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-indigo-900 text-[10px] py-1 rounded">Mini-Score</button>
-                        <button onClick={() => toggleTheme()} className="bg-blue-700 text-[10px] py-1 rounded flex items-center justify-center gap-1"><Palette className="w-3 h-3"/> Theme</button>
+                        
+                        {/* THEME TOGGLE - Explicitly showing state */}
+                        <button onClick={() => toggleTheme()} className="bg-blue-700 hover:bg-blue-600 text-[10px] py-1 rounded flex flex-col items-center justify-center font-bold border border-blue-400">
+                            <Palette className="w-3 h-3 mb-0.5"/> 
+                            {match.overlay?.theme === 'CWC2023' ? 'Theme: CWC 23' : 'Theme: Standard'}
+                        </button>
+
                         <button onClick={() => updateOverlay({ currentView: 'B1' })} className="bg-teal-500 text-[10px] py-1 rounded">B1</button>
                         <button onClick={() => updateOverlay({ currentView: 'B2' })} className="bg-pink-500 text-[10px] py-1 rounded">B2</button>
                         <button onClick={() => updateOverlay({ currentView: 'BOWLER' })} className="bg-cyan-500 text-[10px] py-1 rounded">Bowler</button>
