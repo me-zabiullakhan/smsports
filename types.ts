@@ -269,6 +269,8 @@ export interface BallEvent {
     runs: number;
     isWide: boolean;
     isNoBall: boolean;
+    isBye?: boolean;
+    isLegBye?: boolean;
     isWicket: boolean;
     wicketType?: string;
     extras: number;
@@ -299,6 +301,7 @@ export interface InningsState {
 
 export interface OverlayState {
     currentView: string; 
+    theme?: 'DEFAULT' | 'CWC2023'; // Added Theme Property
     animation: string; 
     customMessage?: string;
     decision?: string;

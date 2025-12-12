@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { Match, Player, Team, InningsState, BallEvent, BatsmanStats, BowlerStats } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette } from 'lucide-react';
 
 const MatchScorer: React.FC = () => {
     const { matchId } = useParams<{ matchId: string }>();
@@ -115,7 +116,7 @@ const MatchScorer: React.FC = () => {
             tossChoice: choice,
             status: 'LIVE',
             [`innings.1`]: newInnings,
-            overlay: { currentView: 'DEFAULT', animation: 'NONE' }
+            overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'DEFAULT' }
         });
         
         setShowTossModal(false);
@@ -245,7 +246,7 @@ const MatchScorer: React.FC = () => {
             bowlerId: bowler.playerId,
             batsmanId: striker.playerId,
             runs,
-            isWide, isNoBall, isWicket,
+            isWide, isNoBall, isWicket, isBye, isLegBye,
             extras: (extraType ? 1 : 0),
             wicketType: isWicket ? 'bowled' : undefined
         };
@@ -352,6 +353,12 @@ const MatchScorer: React.FC = () => {
         await db.collection('matches').doc(match.id).update({
             overlay: { ...match.overlay, ...updates }
         });
+    };
+
+    const toggleTheme = async () => {
+        if (!match) return;
+        const newTheme = match.overlay?.theme === 'CWC2023' ? 'DEFAULT' : 'CWC2023';
+        await updateOverlay({ theme: newTheme });
     };
 
     const handleUndo = async () => {
@@ -633,7 +640,12 @@ const MatchScorer: React.FC = () => {
 
                 {/* 5. Display Controller */}
                 <div className="bg-black text-white rounded-xl p-4 text-center">
-                    <h4 className="font-bold text-sm mb-3 uppercase">Display Controller</h4>
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-bold text-sm uppercase">Display Controller</h4>
+                        <button onClick={toggleTheme} className="bg-indigo-600 px-2 py-1 rounded text-[10px] flex items-center font-bold border border-indigo-400">
+                            <Palette className="w-3 h-3 mr-1"/> {match.overlay?.theme === 'CWC2023' ? 'CWC2023' : 'DEFAULT'} Theme
+                        </button>
+                    </div>
                     <div className="flex flex-wrap gap-2 justify-center">
                         {['DEFAULT', 'I1BAT', 'I1BALL', 'I2BAT', 'I2BALL', 'SUMMARY', 'FOW', 'B1', 'B2'].map(v => (
                             <button key={v} onClick={() => updateOverlay({ currentView: v })} className={`px-3 py-1 rounded text-[10px] font-bold ${v === 'DEFAULT' ? 'bg-green-500' : v.startsWith('I') ? 'bg-blue-600' : 'bg-pink-500'}`}>{v}</button>
