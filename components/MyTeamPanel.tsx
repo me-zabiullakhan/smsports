@@ -1,17 +1,16 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { Gavel, Wallet, Shirt } from 'lucide-react';
+import { Gavel, Wallet, Shirt, Users } from 'lucide-react';
 
 const MyTeamPanel: React.FC = () => {
   const { state, placeBid, userProfile, nextBid } = useAuction();
   const { teams, highestBidder } = state;
+  const [activeTab, setActiveTab] = useState<'MY_SQUAD' | 'ALL_TEAMS'>('MY_SQUAD');
 
   // Find the specific team belonging to this logged-in user
-  // Use String comparison to be safe against number/string mismatches
   const userTeam = teams.find(t => String(t.id) === String(userProfile?.teamId));
   
-  // If no team found (or not logged in as owner), don't render panel
   if (!userTeam) return (
       <div className="bg-secondary rounded-lg p-4 text-center text-text-secondary">
           <p>Team data not found.</p>
@@ -30,6 +29,8 @@ const MyTeamPanel: React.FC = () => {
         }
     }
   };
+
+  const sortedTeams = [...teams].sort((a,b) => b.budget - a.budget);
 
   return (
     <div className="bg-secondary rounded-lg shadow-lg p-4 flex flex-col h-full border border-accent/50">
@@ -62,30 +63,57 @@ const MyTeamPanel: React.FC = () => {
         {isLeading && <p className="text-green-400 text-xs mt-2 text-center font-bold animate-pulse">You are the highest bidder!</p>}
       </div>
 
-      <div className="flex-grow flex flex-col">
-         <h4 className="text-md font-bold text-highlight mb-2 flex items-center border-b border-accent/30 pb-1">
-             <Shirt className="w-4 h-4 mr-2"/>
-             My Squad ({userTeam.players?.length || 0})
-         </h4>
-         <div className="space-y-2 pr-1 flex-grow overflow-y-auto custom-scrollbar">
-            {userTeam.players && userTeam.players.length > 0 ? userTeam.players.map(player => (
-                <div key={player.id} className="bg-primary/40 p-2 rounded-md text-sm border-l-2 border-highlight flex justify-between items-center">
-                    <div>
-                        <p className="font-semibold text-text-main">{player.name}</p>
-                        <p className="text-[10px] text-text-secondary uppercase">{player.category}</p>
-                    </div>
-                    {(player as any).soldPrice && (
-                        <span className="text-green-400 font-mono font-bold text-xs">
-                            {(player as any).soldPrice}
-                        </span>
+      <div className="flex bg-primary/50 rounded mb-2 p-1">
+          <button onClick={() => setActiveTab('MY_SQUAD')} className={`flex-1 text-[10px] font-bold py-1.5 rounded uppercase ${activeTab === 'MY_SQUAD' ? 'bg-highlight text-primary' : 'text-text-secondary'}`}>My Squad</button>
+          <button onClick={() => setActiveTab('ALL_TEAMS')} className={`flex-1 text-[10px] font-bold py-1.5 rounded uppercase ${activeTab === 'ALL_TEAMS' ? 'bg-highlight text-primary' : 'text-text-secondary'}`}>All Purses</button>
+      </div>
+
+      <div className="flex-grow flex flex-col min-h-0">
+         {activeTab === 'MY_SQUAD' ? (
+             <>
+                <h4 className="text-md font-bold text-highlight mb-2 flex items-center border-b border-accent/30 pb-1">
+                    <Shirt className="w-4 h-4 mr-2"/>
+                    Players ({userTeam.players?.length || 0})
+                </h4>
+                <div className="space-y-2 pr-1 flex-grow overflow-y-auto custom-scrollbar">
+                    {userTeam.players && userTeam.players.length > 0 ? userTeam.players.map(player => (
+                        <div key={player.id} className="bg-primary/40 p-2 rounded-md text-sm border-l-2 border-highlight flex justify-between items-center">
+                            <div>
+                                <p className="font-semibold text-text-main">{player.name}</p>
+                                <p className="text-[10px] text-text-secondary uppercase">{player.category}</p>
+                            </div>
+                            {(player as any).soldPrice && (
+                                <span className="text-green-400 font-mono font-bold text-xs">
+                                    {(player as any).soldPrice}
+                                </span>
+                            )}
+                        </div>
+                    )) : (
+                        <div className="text-text-secondary text-sm italic text-center py-4 opacity-50">
+                            No players bought yet.
+                        </div>
                     )}
                 </div>
-            )) : (
-                <div className="text-text-secondary text-sm italic text-center py-4 opacity-50">
-                    No players bought yet.
+             </>
+         ) : (
+             <>
+                <h4 className="text-md font-bold text-highlight mb-2 flex items-center border-b border-accent/30 pb-1">
+                    <Users className="w-4 h-4 mr-2"/>
+                    Leaderboard
+                </h4>
+                <div className="space-y-2 pr-1 flex-grow overflow-y-auto custom-scrollbar">
+                    {sortedTeams.map(t => (
+                        <div key={t.id} className={`p-2 rounded-md text-xs flex justify-between items-center ${t.id === userTeam.id ? 'bg-highlight/10 border border-highlight/30' : 'bg-primary/30 border border-transparent'}`}>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-bold ${t.id === userTeam.id ? 'text-highlight' : 'text-gray-300'}`}>{t.name}</span>
+                                <span className="text-[10px] text-gray-500">({t.players.length} players)</span>
+                            </div>
+                            <span className="text-green-400 font-mono font-bold">{t.budget}</span>
+                        </div>
+                    ))}
                 </div>
-            )}
-         </div>
+             </>
+         )}
       </div>
     </div>
   );

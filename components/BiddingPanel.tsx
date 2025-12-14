@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { Gavel, AlertCircle, Lock, EyeOff } from 'lucide-react';
+import { Gavel, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 
 const BiddingPanel: React.FC = () => {
   const { state, placeBid, userProfile, nextBid } = useAuction();
   const { currentBid, teams, highestBidder, biddingStatus } = state;
   const [isBidding, setIsBidding] = useState(false);
+  const [showPurses, setShowPurses] = useState(false);
 
   // Totally hide if admin set to HIDDEN
   if (biddingStatus === 'HIDDEN') return null;
@@ -24,6 +25,9 @@ const BiddingPanel: React.FC = () => {
   // Status Helpers
   const isPaused = biddingStatus === 'PAUSED';
   const isActive = biddingStatus === 'ON';
+
+  // Sorted teams by budget for display
+  const sortedTeams = [...teams].sort((a,b) => b.budget - a.budget);
 
   const handleBid = async () => {
     // Strict Client-Side Check: Only allow if Active
@@ -86,6 +90,28 @@ const BiddingPanel: React.FC = () => {
       
       {!canAfford && isActive && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold"><AlertCircle className="w-3 h-3 mr-1"/> Insufficient Budget</p>}
       {!isActive && <p className="hidden sm:flex text-red-300 text-xs mt-2 items-center justify-center sm:justify-start font-bold uppercase tracking-wide"><Lock className="w-3 h-3 mr-1"/> Bidding Paused by Admin</p>}
+
+      {/* Opponent Purses Toggle */}
+      <div className="mt-4 pt-3 border-t border-gray-700">
+          <button 
+            onClick={() => setShowPurses(!showPurses)}
+            className="w-full flex items-center justify-center text-[10px] text-highlight font-bold uppercase tracking-widest hover:text-white transition-colors gap-1 py-1"
+          >
+              {showPurses ? <EyeOff className="w-3 h-3"/> : <Eye className="w-3 h-3"/>}
+              {showPurses ? 'Hide' : 'View'} Opponent Purses
+          </button>
+          
+          {showPurses && (
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto custom-scrollbar bg-primary/40 p-2 rounded-lg border border-gray-700">
+                  {sortedTeams.map(t => (
+                      <div key={t.id} className={`p-2 rounded flex justify-between items-center text-xs ${t.id === userTeam.id ? 'bg-highlight/20 border border-highlight/50' : 'bg-gray-800 border border-gray-700'}`}>
+                          <span className={`truncate max-w-[70px] font-bold ${t.id === userTeam.id ? 'text-highlight' : 'text-gray-300'}`}>{t.name}</span>
+                          <span className={`font-mono font-bold ${t.id === userTeam.id ? 'text-white' : 'text-green-400'}`}>{t.budget}</span>
+                      </div>
+                  ))}
+              </div>
+          )}
+      </div>
     </div>
   );
 };

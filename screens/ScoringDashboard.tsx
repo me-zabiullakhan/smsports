@@ -113,9 +113,14 @@ const ScoringDashboard: React.FC = () => {
         }
     };
 
-    const deleteMatch = async (id: string) => {
-        if(window.confirm("Delete this match?")) {
-            await db.collection('matches').doc(id).delete();
+    const deleteMatch = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if(window.confirm("Are you sure you want to permanently delete this match?")) {
+            try {
+                await db.collection('matches').doc(id).delete();
+            } catch (err: any) {
+                alert("Error deleting match: " + err.message);
+            }
         }
     };
 
@@ -255,8 +260,9 @@ const ScoringDashboard: React.FC = () => {
                                                 <Monitor className="w-4 h-4"/>
                                             </button>
                                             <button 
-                                                onClick={() => deleteMatch(match.id)}
+                                                onClick={(e) => deleteMatch(match.id, e)}
                                                 className="bg-white hover:bg-red-50 text-red-400 border border-gray-200 hover:border-red-200 p-2 rounded transition-colors"
+                                                title="Delete Match"
                                             >
                                                 <Trash2 className="w-4 h-4"/>
                                             </button>
