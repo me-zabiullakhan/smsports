@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Player } from '../types';
-import { Search, Filter, X, Clock, CheckCircle } from 'lucide-react';
+import { Search, Filter, X, Clock, CheckCircle, Users } from 'lucide-react';
 import { db } from '../firebase';
 
-type PlayerStatus = 'upcoming' | 'sold';
+type PlayerStatus = 'upcoming' | 'sold' | 'teams';
 
 const PlayerPool: React.FC = () => {
   const { state, activeAuctionId } = useAuction();
@@ -40,11 +40,11 @@ const PlayerPool: React.FC = () => {
         });
     }
 
-    if (selectedRole !== 'All') {
+    if (selectedRole !== 'All' && activeTab !== 'teams') {
         list = list.filter(p => p.role === selectedRole || (!p.role && p.category === selectedRole)); // Fallback to category if role undefined
     }
 
-    if (searchTerm) {
+    if (searchTerm && activeTab !== 'teams') {
         const term = searchTerm.toLowerCase();
         list = list.filter(p => p.name.toLowerCase().includes(term));
     }
@@ -64,35 +64,60 @@ const PlayerPool: React.FC = () => {
   return (
     <div className="bg-secondary rounded-xl shadow-xl h-full flex flex-col border border-gray-700 overflow-hidden">
       <div className="p-4 bg-primary/30 border-b border-gray-700">
-        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><span className="w-1 h-6 bg-highlight rounded-full"></span>Player Pool</h2>
+        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><span className="w-1 h-6 bg-highlight rounded-full"></span>
+            {activeTab === 'teams' ? 'Team Purses' : 'Player Pool'}
+        </h2>
         
-        <div className="space-y-3">
-            <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-highlight transition-colors" />
-                <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-10 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight transition-all" />
-                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 transition-colors"><X className="h-4 w-4" /></button>}
-            </div>
+        {activeTab !== 'teams' && (
+            <div className="space-y-3">
+                <div className="relative group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-highlight transition-colors" />
+                    <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-10 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight transition-all" />
+                    {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 transition-colors"><X className="h-4 w-4" /></button>}
+                </div>
 
-            <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-8 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight appearance-none cursor-pointer transition-all">
-                    <option value="All">All Roles</option>
-                    {availableRoles.length > 0 ? availableRoles.map((role) => <option key={role} value={role}>{role}</option>) : (
-                        // Fallback if no roles defined yet
-                        ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)
-                    )}
-                </select>
+                <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-8 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight appearance-none cursor-pointer transition-all">
+                        <option value="All">All Roles</option>
+                        {availableRoles.length > 0 ? availableRoles.map((role) => <option key={role} value={role}>{role}</option>) : (
+                            // Fallback if no roles defined yet
+                            ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)
+                        )}
+                    </select>
+                </div>
             </div>
-        </div>
+        )}
       </div>
 
       <div className="flex border-b border-gray-700 bg-primary/20">
         <TabButton tab="upcoming" label="Upcoming" icon={<Clock className="w-4 h-4"/>} />
         <TabButton tab="sold" label="Sold" icon={<CheckCircle className="w-4 h-4"/>} />
+        <TabButton tab="teams" label="Teams" icon={<Users className="w-4 h-4"/>} />
       </div>
 
       <div className="flex-grow overflow-y-auto p-2 custom-scrollbar">
-        {filteredPlayers.length > 0 ? (
+        {activeTab === 'teams' ? (
+            <div className="space-y-2">
+                {[...teams].sort((a,b) => b.budget - a.budget).map(team => (
+                    <div key={team.id} className="p-3 rounded-lg bg-primary/40 border border-gray-700 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden p-1">
+                                {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain"/> : <span className="text-black font-bold">{team.name.charAt(0)}</span>}
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-text-main text-sm">{team.name}</h4>
+                                <p className="text-xs text-text-secondary">{team.players.length} Players</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="block font-mono text-green-400 font-bold">{team.budget}</span>
+                            <span className="text-[10px] text-gray-500 uppercase tracking-wider">REMAINING</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        ) : filteredPlayers.length > 0 ? (
             <div className="space-y-2">
                 {filteredPlayers.map(player => (
                     <div key={player.id} className={`p-3 rounded-lg flex items-center gap-3 transition-all border ${player.id === currentPlayer?.id && activeTab === 'upcoming' ? 'bg-highlight/10 border-highlight shadow-[0_0_10px_rgba(56,178,172,0.2)]' : 'bg-primary/40 border-transparent hover:border-gray-600 hover:bg-primary/60'}`}>
