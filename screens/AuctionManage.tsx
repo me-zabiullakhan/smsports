@@ -311,23 +311,47 @@ const AuctionManage: React.FC = () => {
               return;
           }
 
+          console.log("Excel Data First Row:", jsonData[0]); // Debugging
+
           let count = 0;
           let batch = db.batch();
           const BATCH_SIZE = 400; // Firestore batch limit is 500
 
+          // Helper to case-insensitively find a property value
+          const findValue = (row: any, ...possibleKeys: string[]) => {
+              const keys = Object.keys(row);
+              const lowerKeys = keys.map(k => k.toLowerCase().trim());
+              
+              for (const key of possibleKeys) {
+                  // Direct check
+                  if (row[key] !== undefined) return row[key];
+                  
+                  // Case-insensitive check
+                  const index = lowerKeys.indexOf(key.toLowerCase());
+                  if (index !== -1) return row[keys[index]];
+              }
+              return undefined;
+          };
+
           for (const row of jsonData as any[]) {
-               const name = row['Name'] || row['name'] || row['Player Name'];
+               const name = findValue(row, 'Name', 'Player Name', 'Player', 'Full Name', 'name');
+               
                if(name) {
+                   const category = findValue(row, 'Category', 'Cat', 'Group', 'Set', 'category') || 'Standard';
+                   const role = findValue(row, 'Role', 'Type', 'Skill', 'Speciality', 'role') || 'General';
+                   const basePriceRaw = findValue(row, 'Base Price', 'Base', 'Price', 'Cost', 'base price', 'base_price', 'reserved price');
+                   const basePrice = basePriceRaw ? Number(basePriceRaw) : 0;
+
                    const newId = db.collection('dummy').doc().id;
                    const playerData: Player = {
                        id: String(newId),
-                       name: String(name),
-                       category: row['Category'] || row['category'] || 'Standard',
-                       role: row['Role'] || row['role'] || 'General',
-                       basePrice: Number(row['Base Price'] || row['Base'] || 0),
+                       name: String(name).trim(),
+                       category: String(category).trim(),
+                       role: String(role).trim(),
+                       basePrice: isNaN(basePrice) ? 0 : basePrice,
                        nationality: 'India',
                        photoUrl: '',
-                       speciality: row['Role'] || row['role'] || 'General',
+                       speciality: String(role).trim(),
                        stats: { matches: 0, runs: 0, wickets: 0 },
                        status: 'UNSOLD'
                    };
@@ -342,11 +366,16 @@ const AuctionManage: React.FC = () => {
                }
           }
           
-          if (count % BATCH_SIZE !== 0) {
+          if (count % BATCH_SIZE !== 0 || count === 0) {
               await batch.commit();
           }
           
-          alert(`Successfully imported ${count} players!`);
+          if (count === 0) {
+              alert("No valid players found! Please check your Excel headers. Expected 'Name', 'Category', 'Role', 'Base Price'.");
+          } else {
+              alert(`Successfully imported ${count} players!`);
+          }
+
       } catch (err: any) { 
           console.error(err);
           alert("Import Failed: " + err.message); 
