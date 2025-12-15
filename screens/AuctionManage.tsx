@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 const AuctionManage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { correctPlayerSale } = useAuction();
+  const { correctPlayerSale, joinAuction } = useAuction();
   
   const [auction, setAuction] = useState<AuctionSetup | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +97,11 @@ const AuctionManage: React.FC = () => {
 
   // Export Modal
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // Initialize Auction Context with ID to ensure helpers like correctPlayerSale work
+  useEffect(() => {
+      if (id) joinAuction(id);
+  }, [id]);
 
   // Real-time Listener for Auction Details
   useEffect(() => {
