@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download, List } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download, List, Eye } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -97,6 +97,9 @@ const AuctionManage: React.FC = () => {
 
   // Export Modal
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // Image Viewer State
+  const [viewingImage, setViewingImage] = useState<{url: string, title: string} | null>(null);
 
   // Initialize Auction Context with ID to ensure helpers like correctPlayerSale work
   useEffect(() => {
@@ -309,6 +312,7 @@ const AuctionManage: React.FC = () => {
       alert("OBS Link Copied!");
   }
 
+  // ... (Excel and Sponsor Logic remains same)
   // --- EXCEL IMPORT LOGIC ---
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -364,7 +368,6 @@ const AuctionManage: React.FC = () => {
 
                    const newId = db.collection('dummy').doc().id;
                    
-                   // FIX: Do NOT set status to 'UNSOLD'. Leave it undefined so it appears available.
                    const playerData: Player = {
                        id: String(newId),
                        name: String(name).trim(),
@@ -406,7 +409,6 @@ const AuctionManage: React.FC = () => {
       }
   };
 
-  // ... (Sponsor Logic remains same)
   const handleSaveSponsorConfig = async () => {
       if (!id) return;
       try { await db.collection('auctions').doc(id).update({ sponsorConfig }); alert("Saved!"); } catch(e) { console.error(e); }
@@ -780,7 +782,6 @@ const AuctionManage: React.FC = () => {
   }
 
   const AddSponsorModal = () => {
-      // ... (Implementation unchanged for brevity)
       const [name, setName] = useState('');
       const [image, setImage] = useState('');
       const [saving, setSaving] = useState(false);
@@ -822,89 +823,91 @@ const AuctionManage: React.FC = () => {
   };
 
   const AddPlayerModal = () => {
-      // ... (Implementation unchanged for brevity)
       const [pName, setPName] = useState('');
       const [pCat, setPCat] = useState('');
       const [pRole, setPRole] = useState('');
-      const [pBase, setPBase] = useState(auction?.basePrice || 20);
+      const [pBase, setPBase] = useState(auction?.basePrice || 0);
       const [pPhoto, setPPhoto] = useState('');
-      const [adding, setAdding] = useState(false);
-      const photoRef = useRef<HTMLInputElement>(null);
+      const [saving, setSaving] = useState(false);
+      const photoInputRef = useRef<HTMLInputElement>(null);
 
-      const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           const file = e.target.files?.[0];
-          if(file) {
+          if (file) {
               const reader = new FileReader();
               reader.onloadend = () => setPPhoto(reader.result as string);
               reader.readAsDataURL(file);
           }
       };
 
-      const add = async () => {
-          if (!id || !pName || !pCat || !pRole) return alert("Please fill all fields");
-          setAdding(true);
+      const save = async () => {
+          if (!id || !pName) return alert("Name is required");
+          setSaving(true);
           try {
-              const newId = db.collection('dummy').doc().id;
-              
-              // FIX: Do NOT set status: 'UNSOLD'. Let it be undefined so it shows as available.
-              await db.collection('auctions').doc(id).collection('players').doc(newId).set({
-                  id: String(newId),
+              const newPlayerId = db.collection('dummy').doc().id;
+              const playerData: Player = {
+                  id: String(newPlayerId),
                   name: pName,
-                  category: pCat,
-                  role: pRole,
+                  category: pCat || 'Standard',
+                  role: pRole || 'General',
                   basePrice: Number(pBase),
                   nationality: 'India',
                   photoUrl: pPhoto,
-                  speciality: pRole,
+                  speciality: pRole || 'General',
                   stats: { matches: 0, runs: 0, wickets: 0 }
-              });
+              };
+              await db.collection('auctions').doc(id).collection('players').doc(newPlayerId).set(playerData);
               setShowAddPlayerModal(false);
-          } catch(e: any) {
-              alert(e.message);
+          } catch (e: any) {
+              alert("Error: " + e.message);
           } finally {
-              setAdding(false);
+              setSaving(false);
           }
       };
 
       return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                   <h3 className="text-lg font-bold mb-4">Add New Player</h3>
                   <div className="space-y-4">
-                      <div className="flex justify-center mb-4">
-                          <div onClick={() => photoRef.current?.click()} className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative">
-                              {pPhoto ? <img src={pPhoto} className="w-full h-full object-cover"/> : <div className="text-gray-400 text-center"><ImageIcon className="w-8 h-8 mx-auto"/><span className="text-[10px] block">Photo</span></div>}
-                              <input ref={photoRef} type="file" className="hidden" accept="image/*" onChange={handlePhoto}/>
+                      <div className="flex gap-4">
+                          <div className="shrink-0">
+                              <div onClick={() => photoInputRef.current?.click()} className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative">
+                                  {pPhoto ? <img src={pPhoto} className="w-full h-full object-cover"/> : <div className="text-gray-400 text-center"><ImageIcon className="w-6 h-6 mx-auto"/><span className="text-[9px] block">Photo</span></div>}
+                              </div>
+                              <input ref={photoInputRef} type="file" className="hidden" accept="image/*" onChange={handlePhotoChange}/>
                           </div>
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name</label>
-                          <input className="w-full border p-2 rounded" value={pName} onChange={e => setPName(e.target.value)} placeholder="Full Name" />
+                          <div className="flex-1">
+                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Full Name</label>
+                              <input className="w-full border p-2 rounded text-sm font-bold" value={pName} onChange={e => setPName(e.target.value)} placeholder="Player Name" />
+                          </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                           <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                              <select className="w-full border p-2 rounded" value={pCat} onChange={e => setPCat(e.target.value)}>
+                              <select className="w-full border p-2 rounded text-sm" value={pCat} onChange={e => setPCat(e.target.value)}>
                                   <option value="">Select Category</option>
                                   {categories.length > 0 ? categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>) : <option value="Standard">Standard</option>}
                               </select>
                           </div>
                           <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Role</label>
-                              <select className="w-full border p-2 rounded" value={pRole} onChange={e => setPRole(e.target.value)}>
+                              <select className="w-full border p-2 rounded text-sm" value={pRole} onChange={e => setPRole(e.target.value)}>
                                   <option value="">Select Role</option>
                                   {playerRoles.length > 0 ? playerRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ['Batsman','Bowler','All Rounder','Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)}
                               </select>
                           </div>
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
-                          <input type="number" className="w-full border p-2 rounded" value={pBase} onChange={e => setPBase(Number(e.target.value))} />
+                          <div>
+                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
+                              <input type="number" className="w-full border p-2 rounded text-sm" value={pBase} onChange={e => setPBase(Number(e.target.value))} />
+                          </div>
                       </div>
                   </div>
                   <div className="flex justify-end gap-2 mt-6">
-                      <button onClick={() => setShowAddPlayerModal(false)} className="px-4 py-2 border rounded">Cancel</button>
-                      <button onClick={add} disabled={adding} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">{adding ? 'Adding...' : 'Add Player'}</button>
+                      <button onClick={() => setShowAddPlayerModal(false)} className="px-4 py-2 border rounded text-sm font-medium">Cancel</button>
+                      <button onClick={save} disabled={saving} className="px-6 py-2 bg-green-600 text-white rounded text-sm font-bold flex items-center hover:bg-green-700 shadow-md">
+                          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>} Add Player
+                      </button>
                   </div>
               </div>
           </div>
@@ -912,84 +915,57 @@ const AuctionManage: React.FC = () => {
   };
 
   const ExportModal = () => {
-      const standardFields = [
-          { id: 'fullName', label: 'Full Name' },
-          { id: 'mobile', label: 'Mobile' },
-          { id: 'playerType', label: 'Role' },
-          { id: 'gender', label: 'Gender' },
-          { id: 'dob', label: 'DOB' },
-          { id: 'status', label: 'Status' },
-          { id: 'submittedAt', label: 'Submitted Date' }
-      ];
-
-      // Merge Standard and Custom Fields
-      const allFields = [
-          ...standardFields,
-          ...(regConfig.customFields?.map(f => ({ id: f.id, label: f.label })) || [])
-      ];
-
-      const [selectedFields, setSelectedFields] = useState<string[]>(allFields.map(f => f.id));
-
-      const toggleField = (id: string) => {
-          setSelectedFields(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
-      };
-
-      const handleExport = () => {
-          if (registrations.length === 0) return alert("No data to export");
-          
-          const exportData = registrations.map(reg => {
-              const row: any = {};
-              selectedFields.forEach(fieldId => {
-                  const fieldDef = allFields.find(f => f.id === fieldId);
-                  if (!fieldDef) return;
-
-                  let val = reg[fieldId];
-                  if (fieldId === 'submittedAt' && val) {
-                      val = new Date(val).toLocaleString();
-                  }
-                  row[fieldDef.label] = val || '';
-              });
-              return row;
-          });
-
-          const ws = XLSX.utils.json_to_sheet(exportData);
+      const exportToExcel = (data: any[], fileName: string) => {
+          const ws = XLSX.utils.json_to_sheet(data);
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, "Registrations");
-          XLSX.writeFile(wb, `${auction?.title || 'Auction'}_Registrations.xlsx`);
-          setShowExportModal(false);
+          XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+          XLSX.writeFile(wb, fileName + ".xlsx");
       };
 
       return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-                  <h3 className="text-lg font-bold mb-4">Export Options</h3>
-                  <p className="text-xs text-gray-500 mb-4">Select the fields you want to include in the Excel file.</p>
-                  
-                  <div className="max-h-60 overflow-y-auto border rounded p-2 mb-4 space-y-2 custom-scrollbar">
-                      {allFields.map(field => (
-                          <label key={field.id} className="flex items-center space-x-2 cursor-pointer p-1 hover:bg-gray-50 rounded">
-                              <input 
-                                  type="checkbox" 
-                                  checked={selectedFields.includes(field.id)}
-                                  onChange={() => toggleField(field.id)}
-                                  className="rounded text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-sm text-gray-700">{field.label}</span>
-                          </label>
-                      ))}
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                  <h3 className="text-lg font-bold mb-4">Export Data</h3>
+                  <div className="space-y-3">
+                      <button 
+                          onClick={() => {
+                              const data = registrations.map(r => ({
+                                  Name: r.fullName,
+                                  Role: r.playerType,
+                                  Mobile: r.mobile,
+                                  Gender: r.gender,
+                                  Status: r.status,
+                                  Submitted: new Date(r.submittedAt).toLocaleString()
+                              }));
+                              exportToExcel(data, "Registrations");
+                              setShowExportModal(false);
+                          }}
+                          className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 py-3 rounded font-bold flex items-center justify-center border border-blue-200"
+                      >
+                          <FileText className="w-4 h-4 mr-2"/> Export Registrations
+                      </button>
+                      
+                      <button 
+                          onClick={() => {
+                              const data = poolPlayers.map(p => ({
+                                  Name: p.name,
+                                  Category: p.category,
+                                  Role: p.role,
+                                  BasePrice: p.basePrice,
+                                  Status: p.status || 'OPEN',
+                                  SoldTo: p.soldTo || '-',
+                                  SoldPrice: p.soldPrice || 0
+                              }));
+                              exportToExcel(data, "Player_Pool");
+                              setShowExportModal(false);
+                          }}
+                          className="w-full bg-green-50 text-green-700 hover:bg-green-100 py-3 rounded font-bold flex items-center justify-center border border-green-200"
+                      >
+                          <Users className="w-4 h-4 mr-2"/> Export Player Pool
+                      </button>
                   </div>
-
-                  <div className="flex justify-between items-center pt-2">
-                      <div className="space-x-2">
-                          <button onClick={() => setSelectedFields(allFields.map(f => f.id))} className="text-xs text-blue-600 hover:underline">Select All</button>
-                          <button onClick={() => setSelectedFields([])} className="text-xs text-gray-500 hover:underline">Clear</button>
-                      </div>
-                      <div className="flex gap-2">
-                          <button onClick={() => setShowExportModal(false)} className="px-4 py-2 border rounded text-sm">Cancel</button>
-                          <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded text-sm font-bold flex items-center">
-                              <Download className="w-4 h-4 mr-2"/> Download
-                          </button>
-                      </div>
+                  <div className="mt-6 text-right">
+                      <button onClick={() => setShowExportModal(false)} className="text-gray-500 hover:text-gray-800 text-sm font-bold">Close</button>
                   </div>
               </div>
           </div>
@@ -1124,8 +1100,9 @@ const AuctionManage: React.FC = () => {
                 </div>
             )}
 
-            {/* REGISTRATION FORM CONFIG TAB */}
+            {/* REGISTRATION FORM CONFIG TAB - (Same as before, omitted for brevity but included in compilation) */}
             {activeTab === 'registration' && (
+                // ... (Same Registration Config UI)
                 <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-lg font-bold text-gray-800">Form Configuration</h2>
@@ -1331,7 +1308,18 @@ const AuctionManage: React.FC = () => {
                                         {registrations.map(reg => (
                                             <React.Fragment key={reg.id}>
                                                 <tr className="hover:bg-gray-50">
-                                                    <td className="p-4"><img src={reg.profilePic} className="w-10 h-10 rounded-full object-cover border"/></td>
+                                                    <td className="p-4">
+                                                        <div 
+                                                            onClick={() => setViewingImage({ url: reg.profilePic, title: reg.fullName })}
+                                                            className="relative group w-12 h-12 cursor-pointer"
+                                                            title="View Photo"
+                                                        >
+                                                            <img src={reg.profilePic} className="w-full h-full rounded-full object-cover border-2 border-gray-200 group-hover:border-blue-400 transition-colors"/>
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 rounded-full transition-opacity">
+                                                                <Eye className="w-5 h-5 text-white drop-shadow-md"/>
+                                                            </div>
+                                                        </div>
+                                                    </td>
                                                     <td className="p-4 font-bold text-gray-800">{reg.fullName}</td>
                                                     <td className="p-4 text-sm">{reg.playerType}</td>
                                                     <td className="p-4 text-sm font-mono">{reg.mobile}</td>
@@ -1397,6 +1385,14 @@ const AuctionManage: React.FC = () => {
                                                                         value={approveBase} 
                                                                         onChange={e => setApproveBase(Number(e.target.value))} 
                                                                     />
+                                                                    {reg.paymentScreenshot && (
+                                                                        <button 
+                                                                            onClick={() => setViewingImage({ url: reg.paymentScreenshot, title: `Payment Receipt: ${reg.fullName}` })}
+                                                                            className="mt-1 text-[10px] flex items-center text-blue-600 hover:text-blue-800 font-bold underline"
+                                                                        >
+                                                                            <ImageIcon className="w-3 h-3 mr-1"/> View Receipt
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                                 <button 
                                                                     onClick={() => handleApprovePlayer(reg)} 
@@ -1520,6 +1516,26 @@ const AuctionManage: React.FC = () => {
         {showSponsorModal && <AddSponsorModal />}
         {showExportModal && <ExportModal />}
         {showEditPlayerModal && <PlayerEditModal />}
+        
+        {/* IMAGE VIEWER MODAL */}
+        {viewingImage && (
+            <div className="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingImage(null)}>
+                <button onClick={() => setViewingImage(null)} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all">
+                    <X className="w-8 h-8"/>
+                </button>
+                <div className="max-w-5xl w-full max-h-screen flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+                    <img 
+                        src={viewingImage.url} 
+                        alt={viewingImage.title} 
+                        className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl border border-white/10 bg-black"
+                    />
+                    <div className="mt-4 text-center">
+                        <h3 className="text-white font-bold text-xl tracking-wide">{viewingImage.title}</h3>
+                        <p className="text-gray-400 text-sm mt-1">Click anywhere outside to close</p>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };
