@@ -294,40 +294,66 @@ const AuctionManage: React.FC = () => {
       alert("OBS Link Copied!");
   }
 
-  // ... (Excel Import Logic remains same)
+  // --- EXCEL IMPORT LOGIC ---
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !id) return;
       setIsImporting(true);
       try {
           const data = await file.arrayBuffer();
-          const workbook = XLSX.read(data);
-          const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          // Specify type: 'array' for reliability
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          if (jsonData.length === 0) {
+              alert("File appears to be empty.");
+              return;
+          }
+
           let count = 0;
           let batch = db.batch();
+          const BATCH_SIZE = 400; // Firestore batch limit is 500
+
           for (const row of jsonData as any[]) {
                const name = row['Name'] || row['name'] || row['Player Name'];
                if(name) {
                    const newId = db.collection('dummy').doc().id;
-                   batch.set(db.collection('auctions').doc(id).collection('players').doc(newId), {
+                   const playerData: Player = {
                        id: String(newId),
                        name: String(name),
-                       category: row['Category'] || 'Standard',
-                       role: row['Role'] || 'General',
-                       basePrice: Number(row['Base Price'] || 0),
+                       category: row['Category'] || row['category'] || 'Standard',
+                       role: row['Role'] || row['role'] || 'General',
+                       basePrice: Number(row['Base Price'] || row['Base'] || 0),
                        nationality: 'India',
                        photoUrl: '',
-                       speciality: row['Role'] || 'General',
+                       speciality: row['Role'] || row['role'] || 'General',
                        stats: { matches: 0, runs: 0, wickets: 0 },
                        status: 'UNSOLD'
-                   });
+                   };
+
+                   batch.set(db.collection('auctions').doc(id).collection('players').doc(newId), playerData);
                    count++;
-                   if(count % 400 === 0) { await batch.commit(); batch = db.batch(); }
+                   
+                   if(count % BATCH_SIZE === 0) { 
+                       await batch.commit(); 
+                       batch = db.batch(); 
+                   }
                }
           }
-          await batch.commit();
-          alert(`Imported ${count} players!`);
-      } catch (err: any) { alert(err.message); } finally { setIsImporting(false); if(excelInputRef.current) excelInputRef.current.value=''; }
+          
+          if (count % BATCH_SIZE !== 0) {
+              await batch.commit();
+          }
+          
+          alert(`Successfully imported ${count} players!`);
+      } catch (err: any) { 
+          console.error(err);
+          alert("Import Failed: " + err.message); 
+      } finally { 
+          setIsImporting(false); 
+          if(excelInputRef.current) excelInputRef.current.value=''; 
+      }
   };
 
   // ... (Sponsor Logic remains same)

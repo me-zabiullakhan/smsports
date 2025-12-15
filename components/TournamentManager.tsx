@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { Tournament, Team, Player } from '../types';
@@ -108,32 +109,45 @@ const TournamentManager: React.FC = () => {
 
     const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        // Ensure we have a file, a tournament selected, and a target team ID
         if (!file || !expandedTournId || !importingTeamId) return;
 
         try {
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data);
+            // Important: Specify type: 'array' for arrayBuffer
+            const workbook = XLSX.read(data, { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
             if (jsonData.length === 0) {
-                alert("File empty");
+                alert("File empty or invalid format");
                 return;
             }
 
-            const newPlayers: Player[] = jsonData.map((row: any) => ({
-                id: db.collection('dummy').doc().id,
-                name: row['Name'] || row['name'] || 'Unknown',
-                role: row['Role'] || row['role'] || 'General',
-                category: 'Standard',
-                basePrice: 0,
-                photoUrl: '',
-                nationality: 'India',
-                speciality: row['Role'] || 'General',
-                stats: { matches: 0, runs: 0, wickets: 0 },
-                status: 'SOLD',
-                soldPrice: 0
-            }));
+            const newPlayers: Player[] = jsonData.map((row: any) => {
+                // Support multiple column names for Name
+                const name = row['Name'] || row['name'] || row['Player Name'];
+                if (!name) return null;
+
+                return {
+                    id: db.collection('dummy').doc().id,
+                    name: String(name),
+                    role: row['Role'] || row['role'] || 'General',
+                    category: row['Category'] || row['category'] || 'Standard',
+                    basePrice: Number(row['Base Price'] || 0),
+                    photoUrl: '',
+                    nationality: 'India',
+                    speciality: row['Role'] || 'General',
+                    stats: { matches: 0, runs: 0, wickets: 0 },
+                    status: 'SOLD',
+                    soldPrice: Number(row['Sold Price'] || row['Price'] || 0)
+                };
+            }).filter(p => p !== null) as Player[];
+
+            if (newPlayers.length === 0) {
+                alert("No valid players found in Excel. Check column headers (Name, Role, Category).");
+                return;
+            }
 
             // Fetch current team to append
             const teamRef = db.collection('tournaments').doc(expandedTournId).collection('teams').doc(importingTeamId);
@@ -143,9 +157,12 @@ const TournamentManager: React.FC = () => {
                 await teamRef.update({
                     players: [...currentPlayers, ...newPlayers]
                 });
-                alert(`Added ${newPlayers.length} players to team.`);
+                alert(`Successfully added ${newPlayers.length} players to team.`);
+            } else {
+                alert("Team not found in database.");
             }
         } catch (err: any) {
+            console.error("Import Error", err);
             alert("Import Failed: " + err.message);
         } finally {
             if (excelInputRef.current) excelInputRef.current.value = '';
@@ -155,7 +172,12 @@ const TournamentManager: React.FC = () => {
 
     const triggerImport = (teamId: string) => {
         setImportingTeamId(teamId);
-        setTimeout(() => excelInputRef.current?.click(), 100);
+        // Small timeout to ensure state update propagates before click
+        setTimeout(() => {
+            if (excelInputRef.current) {
+                excelInputRef.current.click();
+            }
+        }, 100);
     };
 
     // Manual Player Functions
