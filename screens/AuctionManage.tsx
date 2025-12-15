@@ -59,7 +59,11 @@ const AuctionManage: React.FC = () => {
   // UI States
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  
+  // Category UI State
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<AuctionCategory | null>(null);
+
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -147,6 +151,13 @@ const AuctionManage: React.FC = () => {
       if (!id || !auth.currentUser) return alert("You must be logged in to delete teams.");
       if (window.confirm(`Are you sure you want to delete this team (ID: ${teamId})?`)) {
           try { await db.collection('auctions').doc(id).collection('teams').doc(teamId).delete(); } catch (e: any) { alert("Failed to delete team: " + e.message); }
+      }
+  };
+
+  const handleDeleteCategory = async (catId: string) => {
+      if (!id) return;
+      if (window.confirm("Delete this category?")) {
+          try { await db.collection('auctions').doc(id).collection('categories').doc(catId).delete(); } catch (e: any) { alert("Failed to delete: " + e.message); }
       }
   };
 
@@ -321,6 +332,48 @@ const AuctionManage: React.FC = () => {
   };
 
   // --- MODALS ---
+  const CategoryModal = () => {
+      const [cName, setCName] = useState(editingCategory?.name || '');
+      const [cBase, setCBase] = useState(editingCategory?.basePrice || 0);
+      const [saving, setSaving] = useState(false);
+
+      const save = async () => {
+          if (!id || !cName) return alert("Name required");
+          setSaving(true);
+          try {
+              const data = { name: cName, basePrice: Number(cBase) };
+              if (editingCategory?.id) {
+                  await db.collection('auctions').doc(id).collection('categories').doc(editingCategory.id).update(data);
+              } else {
+                  await db.collection('auctions').doc(id).collection('categories').add(data);
+              }
+              setShowCategoryModal(false);
+          } catch(e: any) { alert(e.message); } finally { setSaving(false); }
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                  <h3 className="text-lg font-bold mb-4">{editingCategory ? 'Edit' : 'Add'} Category</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category Name</label>
+                          <input className="w-full border p-2 rounded" value={cName} onChange={e => setCName(e.target.value)} placeholder="e.g. Marquee, Grade A" />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
+                          <input type="number" className="w-full border p-2 rounded" value={cBase} onChange={e => setCBase(Number(e.target.value))} />
+                      </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-6">
+                      <button onClick={() => setShowCategoryModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                      <button onClick={save} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">Save</button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const EditAuctionModal = () => {
       // ... (Implementation unchanged for brevity, keeping existing modal logic)
       const [formData, setFormData] = useState({
@@ -647,6 +700,33 @@ const AuctionManage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* CATEGORIES TAB */}
+            {activeTab === 'categories' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Categories Manager</h2>
+                        <button onClick={() => { setEditingCategory(null); setShowCategoryModal(true); }} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow flex items-center">
+                            <Plus className="w-4 h-4 mr-2" /> Add Category
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {categories.map(cat => (
+                            <div key={cat.id} className="bg-white border rounded-lg p-4 flex justify-between items-center shadow-sm">
+                                <div>
+                                    <h4 className="font-bold text-gray-800">{cat.name}</h4>
+                                    <p className="text-xs text-gray-500">Base Price: <span className="font-mono font-bold text-green-600">{cat.basePrice}</span></p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setEditingCategory(cat); setShowCategoryModal(true); }} className="text-blue-500 hover:bg-blue-50 p-2 rounded"><Edit className="w-4 h-4"/></button>
+                                    <button onClick={() => handleDeleteCategory(cat.id!)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 className="w-4 h-4"/></button>
+                                </div>
+                            </div>
+                        ))}
+                        {categories.length === 0 && <div className="col-span-full text-center text-gray-400 py-8 italic">No categories defined.</div>}
                     </div>
                 </div>
             )}
@@ -1039,7 +1119,7 @@ const AuctionManage: React.FC = () => {
         </main>
 
         {showTeamModal && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-white p-6 rounded text-center"><p>Use Dashboard to add teams easily.</p><button onClick={() => setShowTeamModal(false)} className="mt-2 px-4 py-2 bg-gray-200 rounded">Close</button></div></div>}
-        {showCategoryModal && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-white p-6 rounded text-center"><p>Category Modal Placeholder</p><button onClick={() => setShowCategoryModal(false)} className="mt-2 px-4 py-2 bg-gray-200 rounded">Close</button></div></div>}
+        {showCategoryModal && <CategoryModal />}
         {showAddPlayerModal && <AddPlayerModal />}
         {showEditAuctionModal && <EditAuctionModal />}
         {showSponsorModal && <AddSponsorModal />}
