@@ -207,7 +207,17 @@ const AuctionManage: React.FC = () => {
   const handleSaveRegConfig = async () => {
       if (!id) return;
       setIsSavingConfig(true);
-      try { await db.collection('auctions').doc(id).update({ registrationConfig: regConfig }); alert("Config Saved!"); } catch (e) { alert("Failed."); } finally { setIsSavingConfig(false); }
+      try { 
+          // Deep clean undefined values (Firestore rejects undefined)
+          const cleanConfig = JSON.parse(JSON.stringify(regConfig));
+          await db.collection('auctions').doc(id).update({ registrationConfig: cleanConfig }); 
+          alert("Config Saved Successfully!"); 
+      } catch (e: any) { 
+          console.error("Save Error:", e);
+          alert("Failed to save config: " + e.message); 
+      } finally { 
+          setIsSavingConfig(false); 
+      }
   };
 
   // Custom Field Handlers
@@ -215,14 +225,19 @@ const AuctionManage: React.FC = () => {
       if (!newField.label.trim()) return alert("Field Label is required");
       
       const fieldId = `field_${Date.now()}`;
+      
       const field: FormField = {
           id: fieldId,
           label: newField.label,
           type: newField.type,
           required: newField.required,
-          placeholder: `Enter ${newField.label}`,
-          options: newField.type === 'select' ? newField.options.split(',').map(s => s.trim()).filter(s => s) : undefined
+          placeholder: `Enter ${newField.label}`
       };
+
+      // Only add options if it's a select field to avoid undefined values in state
+      if (newField.type === 'select') {
+          field.options = newField.options.split(',').map(s => s.trim()).filter(s => s);
+      }
 
       setRegConfig(prev => ({
           ...prev,
