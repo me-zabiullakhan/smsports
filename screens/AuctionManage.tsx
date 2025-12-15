@@ -198,6 +198,8 @@ const AuctionManage: React.FC = () => {
 
       setIsApproving(true);
       const newPlayerId = db.collection('dummy').doc().id; 
+      
+      // FIX: Do NOT set status: 'UNSOLD'. Let it be undefined so it shows as available.
       const playerData: Player = {
           id: String(newPlayerId),
           name: String(approveName),
@@ -207,8 +209,7 @@ const AuctionManage: React.FC = () => {
           nationality: 'India',
           photoUrl: reg.profilePic || '',
           speciality: String(approveRole),
-          stats: { matches: 0, runs: 0, wickets: 0 },
-          status: 'UNSOLD'
+          stats: { matches: 0, runs: 0, wickets: 0 }
       };
       try {
           await db.collection('auctions').doc(id).collection('players').doc(newPlayerId).set(playerData);
@@ -317,32 +318,39 @@ const AuctionManage: React.FC = () => {
           let batch = db.batch();
           const BATCH_SIZE = 400; // Firestore batch limit is 500
 
-          // Helper to case-insensitively find a property value
+          // Helper to case-insensitively and loosely find a property value
           const findValue = (row: any, ...possibleKeys: string[]) => {
               const keys = Object.keys(row);
-              const lowerKeys = keys.map(k => k.toLowerCase().trim());
               
-              for (const key of possibleKeys) {
+              for (const possibleKey of possibleKeys) {
                   // Direct check
-                  if (row[key] !== undefined) return row[key];
+                  if (row[possibleKey] !== undefined) return row[possibleKey];
                   
-                  // Case-insensitive check
-                  const index = lowerKeys.indexOf(key.toLowerCase());
-                  if (index !== -1) return row[keys[index]];
+                  // Normalize check: remove spaces, lowercase
+                  const normalizedPossible = possibleKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  
+                  for (const key of keys) {
+                      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                      if (normalizedKey === normalizedPossible) {
+                          return row[key];
+                      }
+                  }
               }
               return undefined;
           };
 
           for (const row of jsonData as any[]) {
-               const name = findValue(row, 'Name', 'Player Name', 'Player', 'Full Name', 'name');
+               const name = findValue(row, 'Name', 'Player Name', 'Player', 'Full Name', 'PlayerName');
                
                if(name) {
-                   const category = findValue(row, 'Category', 'Cat', 'Group', 'Set', 'category') || 'Standard';
-                   const role = findValue(row, 'Role', 'Type', 'Skill', 'Speciality', 'role') || 'General';
-                   const basePriceRaw = findValue(row, 'Base Price', 'Base', 'Price', 'Cost', 'base price', 'base_price', 'reserved price');
+                   const category = findValue(row, 'Category', 'Cat', 'Group', 'Set', 'Auction Set', 'category') || 'Standard';
+                   const role = findValue(row, 'Role', 'Type', 'Skill', 'Speciality', 'Player Role', 'role') || 'General';
+                   const basePriceRaw = findValue(row, 'Base Price', 'Base', 'Price', 'Cost', 'BasePrice', 'Reserve Price', 'reserved price');
                    const basePrice = basePriceRaw ? Number(basePriceRaw) : 0;
 
                    const newId = db.collection('dummy').doc().id;
+                   
+                   // FIX: Do NOT set status to 'UNSOLD'. Leave it undefined so it appears available.
                    const playerData: Player = {
                        id: String(newId),
                        name: String(name).trim(),
@@ -352,8 +360,7 @@ const AuctionManage: React.FC = () => {
                        nationality: 'India',
                        photoUrl: '',
                        speciality: String(role).trim(),
-                       stats: { matches: 0, runs: 0, wickets: 0 },
-                       status: 'UNSOLD'
+                       stats: { matches: 0, runs: 0, wickets: 0 }
                    };
 
                    batch.set(db.collection('auctions').doc(id).collection('players').doc(newId), playerData);
@@ -373,7 +380,7 @@ const AuctionManage: React.FC = () => {
           if (count === 0) {
               alert("No valid players found! Please check your Excel headers. Expected 'Name', 'Category', 'Role', 'Base Price'.");
           } else {
-              alert(`Successfully imported ${count} players!`);
+              alert(`Successfully imported ${count} players! They are now available in the pool.`);
           }
 
       } catch (err: any) { 
@@ -637,6 +644,8 @@ const AuctionManage: React.FC = () => {
           setAdding(true);
           try {
               const newId = db.collection('dummy').doc().id;
+              
+              // FIX: Do NOT set status: 'UNSOLD'. Let it be undefined so it shows as available.
               await db.collection('auctions').doc(id).collection('players').doc(newId).set({
                   id: String(newId),
                   name: pName,
@@ -646,8 +655,7 @@ const AuctionManage: React.FC = () => {
                   nationality: 'India',
                   photoUrl: pPhoto,
                   speciality: pRole,
-                  stats: { matches: 0, runs: 0, wickets: 0 },
-                  status: 'UNSOLD'
+                  stats: { matches: 0, runs: 0, wickets: 0 }
               });
               setShowAddPlayerModal(false);
           } catch(e: any) {
