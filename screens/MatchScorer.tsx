@@ -368,7 +368,7 @@ const MatchScorer: React.FC = () => {
             const teamDoc = await teamRef.get();
             if (teamDoc.exists) {
                 const currentPlayers = teamDoc.data()?.players || [];
-                const newPlayer = {
+                const newPlayer: Player = {
                     id: Date.now().toString(),
                     name: playerName,
                     role: 'General',
@@ -384,8 +384,8 @@ const MatchScorer: React.FC = () => {
                 await teamRef.update({ players: [...currentPlayers, newPlayer] });
                 
                 // Refresh local state immediately
-                if (teamId === teamA?.id) setTeamA({ ...teamA, players: [...teamA.players, newPlayer] });
-                if (teamId === teamB?.id) setTeamB({ ...teamB, players: [...teamB.players, newPlayer] });
+                if (teamId === teamA?.id && teamA) setTeamA({ ...teamA, players: [...teamA.players, newPlayer] });
+                if (teamId === teamB?.id && teamB) setTeamB({ ...teamB, players: [...teamB.players, newPlayer] });
                 
                 setNewPlayerNameA('');
                 setNewPlayerNameB('');

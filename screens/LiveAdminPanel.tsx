@@ -7,8 +7,8 @@ import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, toggleBidding, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
-  const { teams, players, biddingEnabled, playerSelectionMode } = state;
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
+  const { teams, players, biddingStatus, playerSelectionMode } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -353,19 +353,18 @@ const LiveAdminPanel: React.FC = () => {
                     {/* Bidding Dropdown */}
                     <div className="relative ml-1">
                         <select
-                            value={biddingEnabled ? 'ON' : 'OFF'}
+                            value={biddingStatus === 'ON' ? 'ON' : 'OFF'}
                             onChange={(e) => {
-                                // Only toggle if value actually changes to avoid redundant calls
                                 const newVal = e.target.value === 'ON';
-                                if (newVal !== biddingEnabled) toggleBidding();
+                                updateBiddingStatus(newVal ? 'ON' : 'PAUSED');
                             }}
-                            className={`appearance-none pl-6 pr-6 py-1 rounded text-xs font-bold border outline-none cursor-pointer ${biddingEnabled ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}
+                            className={`appearance-none pl-6 pr-6 py-1 rounded text-xs font-bold border outline-none cursor-pointer ${biddingStatus === 'ON' ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}
                         >
                             <option value="ON">BIDDING ON</option>
                             <option value="OFF">BIDDING PAUSED</option>
                         </select>
                         <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {biddingEnabled ? <Unlock className="w-3 h-3 text-green-400"/> : <Lock className="w-3 h-3 text-red-400"/>}
+                            {biddingStatus === 'ON' ? <Unlock className="w-3 h-3 text-green-400"/> : <Lock className="w-3 h-3 text-red-400"/>}
                         </div>
                     </div>
                   </div>
