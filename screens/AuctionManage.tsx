@@ -77,6 +77,10 @@ const AuctionManage: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   
+  // Player Status Edit State
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusPlayer, setStatusPlayer] = useState<Player | null>(null);
+  
   // Registration View Modal
   const [selectedRegistration, setSelectedRegistration] = useState<RegisteredPlayer | null>(null);
   // Auto-fill states for approval
@@ -176,6 +180,11 @@ const AuctionManage: React.FC = () => {
       if (window.confirm("Remove player from pool?")) {
           try { await db.collection('auctions').doc(id).collection('players').doc(playerId).delete(); } catch (e: any) { alert(e.message); }
       }
+  };
+
+  const handleEditStatus = (player: Player) => {
+      setStatusPlayer(player);
+      setShowStatusModal(true);
   };
 
   const handleClearPool = async () => {
@@ -404,6 +413,101 @@ const AuctionManage: React.FC = () => {
   };
 
   // --- MODALS ---
+  const PlayerStatusModal = () => {
+        const [sStatus, setSStatus] = useState<'OPEN' | 'SOLD' | 'UNSOLD'>('OPEN');
+        const [sTeam, setSTeam] = useState('');
+        const [sPrice, setSPrice] = useState(0);
+        const [saving, setSaving] = useState(false);
+
+        useEffect(() => {
+            if (statusPlayer) {
+                if (statusPlayer.status === 'SOLD') {
+                    setSStatus('SOLD');
+                    const t = teams.find(team => team.name === statusPlayer.soldTo);
+                    setSTeam(t ? String(t.id) : '');
+                    setSPrice(statusPlayer.soldPrice || 0);
+                } else if (statusPlayer.status === 'UNSOLD') {
+                    setSStatus('UNSOLD');
+                } else {
+                    setSStatus('OPEN');
+                    setSPrice(statusPlayer.basePrice || 0);
+                }
+            }
+        }, [statusPlayer]);
+
+        const handleSave = async () => {
+            if (!id || !statusPlayer) return;
+            setSaving(true);
+            try {
+                if (sStatus === 'SOLD') {
+                    if (!sTeam) throw new Error("Please select a team");
+                    if (sPrice < 0) throw new Error("Invalid price");
+                    await correctPlayerSale(String(statusPlayer.id), sTeam, Number(sPrice));
+                } else {
+                    // Reset to OPEN first (handles refunds if previously sold)
+                    await correctPlayerSale(String(statusPlayer.id), null, 0);
+                    
+                    if (sStatus === 'UNSOLD') {
+                        await db.collection('auctions').doc(id).collection('players').doc(String(statusPlayer.id)).update({
+                            status: 'UNSOLD'
+                        });
+                    }
+                }
+                setShowStatusModal(false);
+                setStatusPlayer(null);
+            } catch (e: any) {
+                alert("Error updating status: " + e.message);
+            } finally {
+                setSaving(false);
+            }
+        };
+
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                    <h3 className="text-lg font-bold mb-4">Edit Player Status</h3>
+                    <p className="text-sm text-gray-500 mb-4">Player: <span className="font-bold text-gray-800">{statusPlayer?.name}</span></p>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                            <select className="w-full border p-2 rounded" value={sStatus} onChange={(e) => setSStatus(e.target.value as any)}>
+                                <option value="OPEN">Available (Open)</option>
+                                <option value="SOLD">Sold</option>
+                                <option value="UNSOLD">Unsold</option>
+                            </select>
+                        </div>
+
+                        {sStatus === 'SOLD' && (
+                            <div className="bg-blue-50 p-3 rounded border border-blue-100 space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sold To Team</label>
+                                    <select className="w-full border p-2 rounded" value={sTeam} onChange={e => setSTeam(e.target.value)}>
+                                        <option value="">Select Team</option>
+                                        {teams.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} (Budget: {t.budget})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sold Price</label>
+                                    <input type="number" className="w-full border p-2 rounded" value={sPrice} onChange={e => setSPrice(Number(e.target.value))} />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button onClick={() => { setShowStatusModal(false); setStatusPlayer(null); }} className="px-4 py-2 border rounded text-sm font-medium">Cancel</button>
+                        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold flex items-center">
+                            {saving && <Loader2 className="w-3 h-3 mr-2 animate-spin" />} Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+  };
+
   const CategoryModal = () => {
       const [cName, setCName] = useState(editingCategory?.name || '');
       const [cBase, setCBase] = useState(editingCategory?.basePrice || 0);
@@ -1252,6 +1356,7 @@ const AuctionManage: React.FC = () => {
                                         </td>
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleEditStatus(p)} className="text-blue-400 hover:text-blue-600 p-1"><Edit className="w-4 h-4"/></button>
                                                 <button onClick={() => handleDeletePoolPlayer(p.id.toString())} className="text-gray-400 hover:text-red-500 p-1"><Trash2 className="w-4 h-4"/></button>
                                             </div>
                                         </td>
@@ -1317,6 +1422,7 @@ const AuctionManage: React.FC = () => {
         {showEditAuctionModal && <EditAuctionModal />}
         {showSponsorModal && <AddSponsorModal />}
         {showExportModal && <ExportModal />}
+        {showStatusModal && <PlayerStatusModal />}
     </div>
   );
 };
