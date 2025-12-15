@@ -64,7 +64,10 @@ const AuctionManage: React.FC = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<AuctionCategory | null>(null);
 
+  // Role UI State
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<PlayerRole | null>(null);
+
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -158,6 +161,13 @@ const AuctionManage: React.FC = () => {
       if (!id) return;
       if (window.confirm("Delete this category?")) {
           try { await db.collection('auctions').doc(id).collection('categories').doc(catId).delete(); } catch (e: any) { alert("Failed to delete: " + e.message); }
+      }
+  };
+
+  const handleDeleteRole = async (roleId: string) => {
+      if (!id) return;
+      if (window.confirm("Delete this player role?")) {
+          try { await db.collection('auctions').doc(id).collection('roles').doc(roleId).delete(); } catch (e: any) { alert("Failed to delete: " + e.message); }
       }
   };
 
@@ -374,8 +384,50 @@ const AuctionManage: React.FC = () => {
       );
   };
 
+  const RoleModal = () => {
+      const [rName, setRName] = useState(editingRole?.name || '');
+      const [rBase, setRBase] = useState(editingRole?.basePrice || 0);
+      const [saving, setSaving] = useState(false);
+
+      const save = async () => {
+          if (!id || !rName) return alert("Name required");
+          setSaving(true);
+          try {
+              const data = { name: rName, basePrice: Number(rBase) };
+              if (editingRole?.id) {
+                  await db.collection('auctions').doc(id).collection('roles').doc(editingRole.id).update(data);
+              } else {
+                  await db.collection('auctions').doc(id).collection('roles').add(data);
+              }
+              setShowRoleModal(false);
+          } catch(e: any) { alert(e.message); } finally { setSaving(false); }
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                  <h3 className="text-lg font-bold mb-4">{editingRole ? 'Edit' : 'Add'} Player Type</h3>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Role Name</label>
+                          <input className="w-full border p-2 rounded" value={rName} onChange={e => setRName(e.target.value)} placeholder="e.g. Batsman, Bowler" />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Default Base Price</label>
+                          <input type="number" className="w-full border p-2 rounded" value={rBase} onChange={e => setRBase(Number(e.target.value))} />
+                          <p className="text-[10px] text-gray-400 mt-1">Used if player has no category.</p>
+                      </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-6">
+                      <button onClick={() => setShowRoleModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                      <button onClick={save} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">Save</button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const EditAuctionModal = () => {
-      // ... (Implementation unchanged for brevity, keeping existing modal logic)
       const [formData, setFormData] = useState({
           title: auction?.title || '',
           date: auction?.date || '',
@@ -384,13 +436,32 @@ const AuctionManage: React.FC = () => {
           basePrice: auction?.basePrice || 0,
           bidIncrement: auction?.bidIncrement || 0
       });
+      
+      const [slabs, setSlabs] = useState<BidIncrementSlab[]>(auction?.slabs || []);
+      const [newSlab, setNewSlab] = useState({ from: '', increment: '' });
       const [saving, setSaving] = useState(false);
+
+      const addSlab = () => {
+          const fromVal = Number(newSlab.from);
+          const incVal = Number(newSlab.increment);
+          if (fromVal >= 0 && incVal > 0) {
+              setSlabs(prev => [...prev, { from: fromVal, increment: incVal }]);
+              setNewSlab({ from: '', increment: '' });
+          }
+      };
+
+      const removeSlab = (index: number) => {
+          setSlabs(prev => prev.filter((_, i) => i !== index));
+      };
 
       const save = async () => {
           if(!id) return;
           setSaving(true);
           try {
-              await db.collection('auctions').doc(id).update(formData);
+              await db.collection('auctions').doc(id).update({
+                  ...formData,
+                  slabs: slabs // Include slabs update
+              });
               setShowEditAuctionModal(false);
           } catch(e:any) { alert("Failed: " + e.message); }
           finally { setSaving(false); }
@@ -398,7 +469,7 @@ const AuctionManage: React.FC = () => {
 
       return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                   <h3 className="text-lg font-bold mb-4">Edit Auction Settings</h3>
                   <div className="space-y-4">
                       <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Title</label><input className="w-full border p-2 rounded" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} /></div>
@@ -409,12 +480,36 @@ const AuctionManage: React.FC = () => {
                       <div className="grid grid-cols-3 gap-4">
                           <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Purse</label><input type="number" className="w-full border p-2 rounded" value={formData.purseValue} onChange={e => setFormData({...formData, purseValue: Number(e.target.value)})} /></div>
                           <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base</label><input type="number" className="w-full border p-2 rounded" value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: Number(e.target.value)})} /></div>
-                          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Increment</label><input type="number" className="w-full border p-2 rounded" value={formData.bidIncrement} onChange={e => setFormData({...formData, bidIncrement: Number(e.target.value)})} /></div>
+                          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Def. Increment</label><input type="number" className="w-full border p-2 rounded" value={formData.bidIncrement} onChange={e => setFormData({...formData, bidIncrement: Number(e.target.value)})} /></div>
+                      </div>
+
+                      {/* SLABS SECTION */}
+                      <div className="border-t pt-4 mt-2">
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Bid Increment Slabs</label>
+                          <div className="bg-gray-50 p-3 rounded border border-gray-200 mb-2">
+                              {slabs.length > 0 ? (
+                                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar">
+                                      {slabs.map((slab, idx) => (
+                                          <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded border shadow-sm">
+                                              <span>From <b>{slab.from}</b>: +<b>{slab.increment}</b></span>
+                                              <button onClick={() => removeSlab(idx)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : <p className="text-xs text-gray-400 italic mb-3">No slabs defined. Using default increment.</p>}
+
+                              <div className="flex gap-2 items-center">
+                                  <input type="number" placeholder="Price >=" className="w-full border p-2 rounded text-sm" value={newSlab.from} onChange={e => setNewSlab({...newSlab, from: e.target.value})} />
+                                  <input type="number" placeholder="+ Increment" className="w-full border p-2 rounded text-sm" value={newSlab.increment} onChange={e => setNewSlab({...newSlab, increment: e.target.value})} />
+                                  <button onClick={addSlab} className="bg-green-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-green-700 whitespace-nowrap shadow-sm">Add Rule</button>
+                              </div>
+                          </div>
+                          <p className="text-[10px] text-gray-400">Example: If price &ge; 1000, increment by 500.</p>
                       </div>
                   </div>
                   <div className="flex justify-end gap-2 mt-6">
                       <button onClick={() => setShowEditAuctionModal(false)} className="px-4 py-2 border rounded">Cancel</button>
-                      <button onClick={save} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold">{saving ? 'Saving...' : 'Save'}</button>
+                      <button onClick={save} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded font-bold shadow-md">{saving ? 'Saving...' : 'Save Changes'}</button>
                   </div>
               </div>
           </div>
@@ -700,6 +795,40 @@ const AuctionManage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* PLAYER TYPES (ROLES) TAB */}
+            {activeTab === 'types' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Player Types (Roles)</h2>
+                        <button onClick={() => { setEditingRole(null); setShowRoleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow flex items-center">
+                            <Plus className="w-4 h-4 mr-2" /> Add Type
+                        </button>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg mb-6 flex items-start gap-3">
+                        <Info className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                            <p className="font-bold mb-1">How Player Types Work:</p>
+                            <p>Define roles here (e.g. Batsman, Bowler). These options will appear in the registration form for players to select. You can also set a specific Base Price for each role.</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {playerRoles.map(role => (
+                            <div key={role.id} className="bg-white border rounded-lg p-4 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow">
+                                <div>
+                                    <h4 className="font-bold text-gray-800">{role.name}</h4>
+                                    <p className="text-xs text-gray-500">Base Price: <span className="font-mono font-bold text-green-600">{role.basePrice}</span></p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setEditingRole(role); setShowRoleModal(true); }} className="text-blue-500 hover:bg-blue-50 p-2 rounded"><Edit className="w-4 h-4"/></button>
+                                    <button onClick={() => handleDeleteRole(role.id!)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 className="w-4 h-4"/></button>
+                                </div>
+                            </div>
+                        ))}
+                        {playerRoles.length === 0 && <div className="col-span-full text-center text-gray-400 py-8 italic border-2 border-dashed border-gray-200 rounded-lg">No player types defined. Players will see default options.</div>}
                     </div>
                 </div>
             )}
@@ -1120,6 +1249,7 @@ const AuctionManage: React.FC = () => {
 
         {showTeamModal && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div className="bg-white p-6 rounded text-center"><p>Use Dashboard to add teams easily.</p><button onClick={() => setShowTeamModal(false)} className="mt-2 px-4 py-2 bg-gray-200 rounded">Close</button></div></div>}
         {showCategoryModal && <CategoryModal />}
+        {showRoleModal && <RoleModal />}
         {showAddPlayerModal && <AddPlayerModal />}
         {showEditAuctionModal && <EditAuctionModal />}
         {showSponsorModal && <AddSponsorModal />}

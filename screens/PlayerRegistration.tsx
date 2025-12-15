@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { AuctionSetup, RegistrationConfig, FormField } from '../types';
+import { AuctionSetup, RegistrationConfig, FormField, PlayerRole } from '../types';
 import { Upload, Calendar, CheckCircle, AlertTriangle, ArrowUpCircle, FileText, Home, ArrowLeft } from 'lucide-react';
 
 const PlayerRegistration: React.FC = () => {
@@ -10,6 +10,7 @@ const PlayerRegistration: React.FC = () => {
     const navigate = useNavigate();
     const [auction, setAuction] = useState<AuctionSetup | null>(null);
     const [config, setConfig] = useState<RegistrationConfig | null>(null);
+    const [roles, setRoles] = useState<PlayerRole[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -74,11 +75,12 @@ const PlayerRegistration: React.FC = () => {
         });
     };
 
+    // Load Auction Config & Roles
     useEffect(() => {
         const fetchAuction = async () => {
             if (!id) return;
             try {
-                // COMPAT SYNTAX
+                // 1. Fetch Auction Doc
                 const docSnap = await db.collection('auctions').doc(id).get();
                 if (docSnap.exists) {
                     const data = docSnap.data() as AuctionSetup;
@@ -91,6 +93,12 @@ const PlayerRegistration: React.FC = () => {
                 } else {
                     setError("Auction not found.");
                 }
+
+                // 2. Fetch Roles (Player Types)
+                const roleSnap = await db.collection('auctions').doc(id).collection('roles').get();
+                const fetchedRoles = roleSnap.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRole));
+                setRoles(fetchedRoles);
+
             } catch (e) {
                 console.error(e);
                 setError("Failed to load registration form.");
@@ -382,10 +390,19 @@ const PlayerRegistration: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Player type <span className="text-red-500">*</span></label>
                                     <select required name="playerType" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 bg-white outline-none">
                                         <option value="">Select an option</option>
-                                        <option value="Batsman">Batsman</option>
-                                        <option value="Bowler">Bowler</option>
-                                        <option value="All Rounder">All Rounder</option>
-                                        <option value="Wicket Keeper">Wicket Keeper</option>
+                                        {roles.length > 0 ? (
+                                            roles.map(role => (
+                                                <option key={role.id} value={role.name}>{role.name}</option>
+                                            ))
+                                        ) : (
+                                            // Fallback default options
+                                            <>
+                                                <option value="Batsman">Batsman</option>
+                                                <option value="Bowler">Bowler</option>
+                                                <option value="All Rounder">All Rounder</option>
+                                                <option value="Wicket Keeper">Wicket Keeper</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
 
