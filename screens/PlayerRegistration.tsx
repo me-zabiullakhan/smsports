@@ -202,7 +202,7 @@ const PlayerRegistration: React.FC = () => {
 
     // --- Dynamic Field Renderer ---
     const renderField = (field: FormField) => {
-        const commonClasses = "w-full border border-gray-300 rounded p-2 bg-white outline-none focus:ring-2 focus:ring-green-500 transition-shadow";
+        const commonClasses = "w-full border border-gray-300 rounded p-2 bg-white outline-none focus:ring-2 focus:ring-green-500 transition-shadow text-gray-900";
         
         switch (field.type) {
             case 'select':
@@ -275,7 +275,7 @@ const PlayerRegistration: React.FC = () => {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading form...</div>;
+    if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-900">Loading form...</div>;
 
     if (error) {
         return (
@@ -372,7 +372,7 @@ const PlayerRegistration: React.FC = () => {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Full name <span className="text-red-500">*</span></label>
-                                    <input required name="fullName" type="text" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-green-500 outline-none" />
+                                    <input required name="fullName" type="text" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-green-500 outline-none text-gray-900" />
                                 </div>
                                 
                                 <div>
@@ -388,7 +388,7 @@ const PlayerRegistration: React.FC = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Player type <span className="text-red-500">*</span></label>
-                                    <select required name="playerType" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 bg-white outline-none">
+                                    <select required name="playerType" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 bg-white outline-none text-gray-900">
                                         <option value="">Select an option</option>
                                         {roles.length > 0 ? (
                                             roles.map(role => (
@@ -408,7 +408,7 @@ const PlayerRegistration: React.FC = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label>
-                                    <select required name="gender" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 bg-white outline-none">
+                                    <select required name="gender" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 bg-white outline-none text-gray-900">
                                         <option value="">Select an option</option>
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
@@ -417,13 +417,13 @@ const PlayerRegistration: React.FC = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Mobile <span className="text-red-500">*</span> <span className="text-xs text-gray-400 float-right">Enter WhatsApp number</span></label>
-                                    <input required name="mobile" type="tel" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 outline-none" />
+                                    <input required name="mobile" type="tel" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 outline-none text-gray-900" />
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth <span className="text-red-500">*</span></label>
                                     <div className="relative">
-                                        <input required name="dob" type="date" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 outline-none" />
+                                        <input required name="dob" type="date" onChange={handleInputChange} className="w-full border border-gray-300 rounded p-2 outline-none text-gray-900" />
                                         <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
                                     </div>
                                 </div>
@@ -469,7 +469,7 @@ const PlayerRegistration: React.FC = () => {
                                 type="text" 
                                 name="captcha" 
                                 onChange={handleInputChange}
-                                className="w-full border border-gray-300 rounded p-2 mb-2 outline-none" 
+                                className="w-full border border-gray-300 rounded p-2 mb-2 outline-none text-gray-900" 
                             />
                             <div className="bg-gray-100 p-2 rounded border border-gray-300 inline-block">
                                 <span className="font-mono text-xl tracking-[0.5em] text-gray-600 font-bold italic line-through decoration-wavy decoration-red-400">de j 7ym</span>
