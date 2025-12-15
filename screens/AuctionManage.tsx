@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download, List, Eye } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download, List, Eye, Crop, ZoomIn, Check } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -421,6 +421,7 @@ const AuctionManage: React.FC = () => {
 
   // --- MODALS ---
   const PlayerEditModal = () => {
+        // ... (Existing Implementation)
         // State for all editable fields
         const [pName, setPName] = useState('');
         const [pCat, setPCat] = useState('');
@@ -831,12 +832,80 @@ const AuctionManage: React.FC = () => {
       const [saving, setSaving] = useState(false);
       const photoInputRef = useRef<HTMLInputElement>(null);
 
+      // Cropper State
+      const [cropImage, setCropImage] = useState<string | null>(null);
+      const [cropZoom, setCropZoom] = useState(1);
+      const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+      const [isDragging, setIsDragging] = useState(false);
+      const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+      const imgRef = useRef<HTMLImageElement>(null);
+
       const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           const file = e.target.files?.[0];
           if (file) {
               const reader = new FileReader();
-              reader.onloadend = () => setPPhoto(reader.result as string);
+              reader.onloadend = () => {
+                  setCropImage(reader.result as string);
+                  setCropZoom(1);
+                  setCropOffset({ x: 0, y: 0 });
+              };
               reader.readAsDataURL(file);
+          }
+      };
+
+      const handleCropMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+          setIsDragging(true);
+          const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+          const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+          setDragStart({ x: clientX - cropOffset.x, y: clientY - cropOffset.y });
+      };
+
+      const handleCropMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+          if (!isDragging) return;
+          const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+          const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+          setCropOffset({
+              x: clientX - dragStart.x,
+              y: clientY - dragStart.y
+          });
+      };
+
+      const handleCropMouseUp = () => {
+          setIsDragging(false);
+      };
+
+      const performCrop = () => {
+          if (!cropImage || !imgRef.current) return;
+
+          const canvas = document.createElement('canvas');
+          const size = 300; 
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+
+          if (ctx) {
+              const img = imgRef.current;
+              const CONTAINER_SIZE = 250; 
+              const scale = cropZoom; 
+              const x = cropOffset.x;
+              const y = cropOffset.y;
+
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, size, size);
+
+              const ratio = size / CONTAINER_SIZE;
+
+              ctx.translate(size / 2, size / 2);
+              ctx.translate(x * ratio, y * ratio);
+              ctx.scale(scale * ratio, scale * ratio);
+              
+              const drawWidth = CONTAINER_SIZE;
+              const drawHeight = (img.naturalHeight / img.naturalWidth) * CONTAINER_SIZE;
+              
+              ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+
+              setPPhoto(canvas.toDataURL('image/jpeg', 0.8));
+              setCropImage(null); 
           }
       };
 
@@ -866,51 +935,93 @@ const AuctionManage: React.FC = () => {
       };
 
       return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-lg font-bold mb-4">Add New Player</h3>
-                  <div className="space-y-4">
-                      <div className="flex gap-4">
-                          <div className="shrink-0">
-                              <div onClick={() => photoInputRef.current?.click()} className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative">
-                                  {pPhoto ? <img src={pPhoto} className="w-full h-full object-cover"/> : <div className="text-gray-400 text-center"><ImageIcon className="w-6 h-6 mx-auto"/><span className="text-[9px] block">Photo</span></div>}
-                              </div>
-                              <input ref={photoInputRef} type="file" className="hidden" accept="image/*" onChange={handlePhotoChange}/>
-                          </div>
-                          <div className="flex-1">
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Full Name</label>
-                              <input className="w-full border p-2 rounded text-sm font-bold" value={pName} onChange={e => setPName(e.target.value)} placeholder="Player Name" />
-                          </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                              <select className="w-full border p-2 rounded text-sm" value={pCat} onChange={e => setPCat(e.target.value)}>
-                                  <option value="">Select Category</option>
-                                  {categories.length > 0 ? categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>) : <option value="Standard">Standard</option>}
-                              </select>
-                          </div>
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Role</label>
-                              <select className="w-full border p-2 rounded text-sm" value={pRole} onChange={e => setPRole(e.target.value)}>
-                                  <option value="">Select Role</option>
-                                  {playerRoles.length > 0 ? playerRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ['Batsman','Bowler','All Rounder','Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)}
-                              </select>
-                          </div>
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
-                              <input type="number" className="w-full border p-2 rounded text-sm" value={pBase} onChange={e => setPBase(Number(e.target.value))} />
-                          </div>
-                      </div>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-6">
-                      <button onClick={() => setShowAddPlayerModal(false)} className="px-4 py-2 border rounded text-sm font-medium">Cancel</button>
-                      <button onClick={save} disabled={saving} className="px-6 py-2 bg-green-600 text-white rounded text-sm font-bold flex items-center hover:bg-green-700 shadow-md">
-                          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>} Add Player
-                      </button>
-                  </div>
-              </div>
-          </div>
+          <>
+            {cropImage && (
+                <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">Crop Photo</h3>
+                            <button onClick={() => { setCropImage(null); if(photoInputRef.current) photoInputRef.current.value=''; }}><X className="w-5 h-5"/></button>
+                        </div>
+                        <div 
+                            className="relative w-[250px] h-[250px] mx-auto bg-gray-100 overflow-hidden border-2 border-dashed border-gray-300 rounded-lg cursor-move"
+                            onMouseDown={handleCropMouseDown}
+                            onMouseMove={handleCropMouseMove}
+                            onMouseUp={handleCropMouseUp}
+                            onMouseLeave={handleCropMouseUp}
+                            onTouchStart={handleCropMouseDown}
+                            onTouchMove={handleCropMouseMove}
+                            onTouchEnd={handleCropMouseUp}
+                        >
+                            <img 
+                                ref={imgRef}
+                                src={cropImage} 
+                                className="absolute max-w-none"
+                                draggable={false}
+                                style={{
+                                    width: '100%', 
+                                    transformOrigin: 'center',
+                                    transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                                    transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                                }}
+                            />
+                        </div>
+                        <div className="mt-4 flex items-center gap-3">
+                            <ZoomIn className="w-4 h-4 text-gray-500"/>
+                            <input type="range" min="1" max="3" step="0.1" value={cropZoom} onChange={e => setCropZoom(Number(e.target.value))} className="flex-1 accent-blue-600"/>
+                        </div>
+                        <button onClick={performCrop} className="w-full mt-4 bg-blue-600 text-white font-bold py-2 rounded flex items-center justify-center">
+                            <Check className="w-4 h-4 mr-2"/> Crop & Save
+                        </button>
+                    </div>
+                </div>
+            )}
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                    <h3 className="text-lg font-bold mb-4">Add New Player</h3>
+                    <div className="space-y-4">
+                        <div className="flex gap-4">
+                            <div className="shrink-0">
+                                <div onClick={() => photoInputRef.current?.click()} className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative">
+                                    {pPhoto ? <img src={pPhoto} className="w-full h-full object-cover"/> : <div className="text-gray-400 text-center"><ImageIcon className="w-6 h-6 mx-auto"/><span className="text-[9px] block">Photo</span></div>}
+                                </div>
+                                <input ref={photoInputRef} type="file" className="hidden" accept="image/*" onChange={handlePhotoChange}/>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Full Name</label>
+                                <input className="w-full border p-2 rounded text-sm font-bold" value={pName} onChange={e => setPName(e.target.value)} placeholder="Player Name" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                                <select className="w-full border p-2 rounded text-sm" value={pCat} onChange={e => setPCat(e.target.value)}>
+                                    <option value="">Select Category</option>
+                                    {categories.length > 0 ? categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>) : <option value="Standard">Standard</option>}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Role</label>
+                                <select className="w-full border p-2 rounded text-sm" value={pRole} onChange={e => setPRole(e.target.value)}>
+                                    <option value="">Select Role</option>
+                                    {playerRoles.length > 0 ? playerRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ['Batsman','Bowler','All Rounder','Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price</label>
+                                <input type="number" className="w-full border p-2 rounded text-sm" value={pBase} onChange={e => setPBase(Number(e.target.value))} />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button onClick={() => setShowAddPlayerModal(false)} className="px-4 py-2 border rounded text-sm font-medium">Cancel</button>
+                        <button onClick={save} disabled={saving} className="px-6 py-2 bg-green-600 text-white rounded text-sm font-bold flex items-center hover:bg-green-700 shadow-md">
+                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>} Add Player
+                        </button>
+                    </div>
+                </div>
+            </div>
+          </>
       );
   };
 
