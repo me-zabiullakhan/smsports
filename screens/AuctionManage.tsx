@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -30,6 +30,7 @@ const AuctionManage: React.FC = () => {
   // Registration Config State
   const [regConfig, setRegConfig] = useState<RegistrationConfig>({
       isEnabled: false,
+      includePayment: true,
       fee: 1500,
       upiId: '',
       upiName: '',
@@ -57,6 +58,11 @@ const AuctionManage: React.FC = () => {
   
   // Registration View Modal
   const [selectedRegistration, setSelectedRegistration] = useState<RegisteredPlayer | null>(null);
+  // Auto-fill states for approval
+  const [approveName, setApproveName] = useState('');
+  const [approveRole, setApproveRole] = useState('');
+  const [approveCategory, setApproveCategory] = useState('');
+  const [approveBase, setApproveBase] = useState(0);
 
   // Auction Edit Modal
   const [showEditAuctionModal, setShowEditAuctionModal] = useState(false);
@@ -76,6 +82,7 @@ const AuctionManage: React.FC = () => {
             if (data.registrationConfig) {
                 setRegConfig({
                     ...data.registrationConfig,
+                    includePayment: data.registrationConfig.includePayment ?? true,
                     customFields: data.registrationConfig.customFields || []
                 });
             }
@@ -109,24 +116,20 @@ const AuctionManage: React.FC = () => {
       };
   }, [id]);
 
+  // Set default approval values when a registration is selected
+  useEffect(() => {
+      if (selectedRegistration) {
+          setApproveName(selectedRegistration.fullName);
+          setApproveRole(selectedRegistration.playerType);
+          setApproveCategory(''); // Let admin choose, or could default to 'Standard'
+          setApproveBase(auction?.basePrice || 0);
+      }
+  }, [selectedRegistration, auction]);
+
   const handleDeleteTeam = async (teamId: string) => {
       if (!id || !auth.currentUser) return alert("You must be logged in to delete teams.");
       if (window.confirm(`Are you sure you want to delete this team (ID: ${teamId})?`)) {
           try { await db.collection('auctions').doc(id).collection('teams').doc(teamId).delete(); } catch (e: any) { alert("Failed to delete team: " + e.message); }
-      }
-  };
-
-  const handleDeleteCategory = async (catId: string) => {
-      if (!id) return;
-      if (window.confirm("Delete this category?")) {
-          try { await db.collection('auctions').doc(id).collection('categories').doc(catId).delete(); } catch (e) { console.error(e); }
-      }
-  };
-
-  const handleDeleteRole = async (roleId: string) => {
-      if (!id) return;
-      if (window.confirm("Delete this player type?")) {
-          try { await db.collection('auctions').doc(id).collection('roles').doc(roleId).delete(); } catch (e) { console.error(e); }
       }
   };
 
@@ -151,26 +154,28 @@ const AuctionManage: React.FC = () => {
       }
   };
 
-  const handleApprovePlayer = async (reg: RegisteredPlayer, selectedCategory: string, selectedBasePrice: number) => {
+  const handleApprovePlayer = async (reg: RegisteredPlayer) => {
       if (!id) return;
+      if (!approveName || !approveRole) return alert("Name and Role are required.");
+
       setIsApproving(true);
       const newPlayerId = db.collection('dummy').doc().id; 
       const playerData: Player = {
           id: String(newPlayerId),
-          name: String(reg.fullName),
-          category: String(selectedCategory),
-          role: String(reg.playerType),
-          basePrice: Number(selectedBasePrice),
+          name: String(approveName),
+          category: String(approveCategory || 'Standard'),
+          role: String(approveRole),
+          basePrice: Number(approveBase),
           nationality: 'India',
           photoUrl: reg.profilePic || '',
-          speciality: String(reg.playerType),
+          speciality: String(approveRole),
           stats: { matches: 0, runs: 0, wickets: 0 },
           status: 'UNSOLD'
       };
       try {
           await db.collection('auctions').doc(id).collection('players').doc(newPlayerId).set(playerData);
           await db.collection('auctions').doc(id).collection('registrations').doc(reg.id).update({ status: 'APPROVED' });
-          alert("Player Approved!");
+          alert("Player Approved & Added to Pool!");
           setSelectedRegistration(null);
       } catch (e: any) { alert(e.message); } finally { setIsApproving(false); }
   };
@@ -201,7 +206,7 @@ const AuctionManage: React.FC = () => {
       alert("OBS Link Copied!");
   }
 
-  // --- SMART EXCEL IMPORT ---
+  // ... (Excel Import Logic remains same)
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !id) return;
@@ -210,8 +215,6 @@ const AuctionManage: React.FC = () => {
           const data = await file.arrayBuffer();
           const workbook = XLSX.read(data);
           const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-          // ... (Same import logic as before) ...
-          // Simplified for brevity in change block, assuming same logic handles Category/Role creation
           let count = 0;
           let batch = db.batch();
           for (const row of jsonData as any[]) {
@@ -239,7 +242,7 @@ const AuctionManage: React.FC = () => {
       } catch (err: any) { alert(err.message); } finally { setIsImporting(false); if(excelInputRef.current) excelInputRef.current.value=''; }
   };
 
-  // --- SPONSOR LOGIC ---
+  // ... (Sponsor Logic remains same)
   const handleSaveSponsorConfig = async () => {
       if (!id) return;
       try { await db.collection('auctions').doc(id).update({ sponsorConfig }); alert("Saved!"); } catch(e) { console.error(e); }
@@ -252,6 +255,7 @@ const AuctionManage: React.FC = () => {
 
   // --- MODALS ---
   const EditAuctionModal = () => {
+      // ... (Implementation unchanged for brevity, keeping existing modal logic)
       const [formData, setFormData] = useState({
           title: auction?.title || '',
           date: auction?.date || '',
@@ -298,6 +302,7 @@ const AuctionManage: React.FC = () => {
   }
 
   const AddSponsorModal = () => {
+      // ... (Implementation unchanged for brevity)
       const [name, setName] = useState('');
       const [image, setImage] = useState('');
       const [saving, setSaving] = useState(false);
@@ -339,6 +344,7 @@ const AuctionManage: React.FC = () => {
   };
 
   const AddPlayerModal = () => {
+      // ... (Implementation unchanged for brevity)
       const [pName, setPName] = useState('');
       const [pCat, setPCat] = useState('');
       const [pRole, setPRole] = useState('');
@@ -493,48 +499,192 @@ const AuctionManage: React.FC = () => {
                 </div>
             )}
 
-            {/* SPONSORS TAB */}
-            {activeTab === 'sponsors' && (
-                <div>
+            {/* REGISTRATION FORM CONFIG TAB */}
+            {activeTab === 'registration' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-lg font-bold text-gray-800">Sponsors Manager</h2>
-                        <button onClick={() => setShowSponsorModal(true)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow flex items-center">
-                            <Plus className="w-4 h-4 mr-2" /> Add Sponsor
-                        </button>
-                    </div>
-                    
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
-                        <h3 className="font-bold text-gray-700 mb-2">Display Settings</h3>
-                        <div className="flex items-center gap-6">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={sponsorConfig.showOnProjector} onChange={e => setSponsorConfig({...sponsorConfig, showOnProjector: e.target.checked})} />
-                                <span className="text-sm">Show on Projector</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={sponsorConfig.showOnOBS} onChange={e => setSponsorConfig({...sponsorConfig, showOnOBS: e.target.checked})} />
-                                <span className="text-sm">Show on OBS</span>
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-500">Loop Interval (sec):</span>
-                                <input type="number" className="border w-16 p-1 rounded" value={sponsorConfig.loopInterval} onChange={e => setSponsorConfig({...sponsorConfig, loopInterval: Number(e.target.value)})} />
-                            </div>
-                            <button onClick={handleSaveSponsorConfig} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Save Config</button>
-                        </div>
+                        <h2 className="text-lg font-bold text-gray-800">Form Configuration</h2>
+                        <button onClick={copyRegLink} className="text-blue-600 text-sm font-bold hover:underline">Copy Public Link</button>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {sponsors.map(sponsor => (
-                            <div key={sponsor.id} className="bg-white border rounded-lg p-4 relative group">
-                                <div className="h-24 flex items-center justify-center mb-2">
-                                    <img src={sponsor.imageUrl} className="max-h-full max-w-full object-contain" />
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start gap-3">
+                            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                            <p className="text-sm text-blue-800">
+                                <strong>Note:</strong> Player Name, Role, Mobile Number, Gender, DOB, and Profile Picture are collected by default. You do not need to add these fields manually. Use the section below to add <em>additional</em> fields (e.g. Jersey Size, Address).
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 accent-green-600"
+                                    checked={regConfig.isEnabled} 
+                                    onChange={(e) => setRegConfig({...regConfig, isEnabled: e.target.checked})} 
+                                />
+                                <span className="font-bold text-gray-700">Enable Registration Form</span>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 accent-blue-600"
+                                    checked={regConfig.includePayment} 
+                                    onChange={(e) => setRegConfig({...regConfig, includePayment: e.target.checked})} 
+                                />
+                                <span className="font-bold text-gray-700">Enable Payment Collection</span>
+                            </label>
+                        </div>
+
+                        {regConfig.includePayment && (
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 animate-fade-in">
+                                <h3 className="font-bold text-sm text-gray-600 uppercase">Payment Details</h3>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">Registration Fee (₹)</label>
+                                    <input type="number" className="w-full border p-2 rounded" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} />
                                 </div>
-                                <p className="text-center font-bold text-sm truncate">{sponsor.name}</p>
-                                <button onClick={() => deleteSponsor(sponsor.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Trash2 className="w-4 h-4"/>
-                                </button>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">UPI Name</label>
+                                        <input type="text" className="w-full border p-2 rounded" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} placeholder="e.g. John Doe" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">UPI ID</label>
+                                        <input type="text" className="w-full border p-2 rounded" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="e.g. 9876543210@upi" />
+                                    </div>
+                                </div>
                             </div>
-                        ))}
-                        {sponsors.length === 0 && <div className="col-span-full text-center text-gray-400 py-8 italic">No sponsors added yet.</div>}
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Terms & Conditions</label>
+                            <textarea className="w-full border p-2 rounded h-24 text-sm" value={regConfig.terms} onChange={e => setRegConfig({...regConfig, terms: e.target.value})} />
+                        </div>
+
+                        <div className="pt-4 border-t">
+                            <button 
+                                onClick={handleSaveRegConfig} 
+                                disabled={isSavingConfig}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded shadow transition-all flex items-center justify-center"
+                            >
+                                {isSavingConfig ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 mr-2"/>} Save Configuration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* REGISTRATIONS TAB (REQUESTS) */}
+            {activeTab === 'registrations' && (
+                <div>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">Pending Requests</h2>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        {registrations.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 italic">No registration requests yet.</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase font-bold">
+                                        <tr>
+                                            <th className="p-4">Photo</th>
+                                            <th className="p-4">Name</th>
+                                            <th className="p-4">Role</th>
+                                            <th className="p-4">Mobile</th>
+                                            <th className="p-4">Status</th>
+                                            <th className="p-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {registrations.map(reg => (
+                                            <React.Fragment key={reg.id}>
+                                                <tr className="hover:bg-gray-50">
+                                                    <td className="p-4"><img src={reg.profilePic} className="w-10 h-10 rounded-full object-cover border"/></td>
+                                                    <td className="p-4 font-bold text-gray-800">{reg.fullName}</td>
+                                                    <td className="p-4 text-sm">{reg.playerType}</td>
+                                                    <td className="p-4 text-sm font-mono">{reg.mobile}</td>
+                                                    <td className="p-4">
+                                                        <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${reg.status === 'APPROVED' ? 'bg-green-100 text-green-700' : reg.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                            {reg.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        {reg.status === 'PENDING' && (
+                                                            <div className="flex justify-end gap-2">
+                                                                <button 
+                                                                    onClick={() => setSelectedRegistration(selectedRegistration?.id === reg.id ? null : reg)} 
+                                                                    className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${selectedRegistration?.id === reg.id ? 'bg-gray-200 text-gray-800 border-gray-300' : 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200'}`}
+                                                                >
+                                                                    {selectedRegistration?.id === reg.id ? 'Close' : 'Review'}
+                                                                </button>
+                                                                <button onClick={() => handleRejectPlayer(reg.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 className="w-4 h-4"/></button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                                {/* INLINE APPROVAL FORM */}
+                                                {selectedRegistration?.id === reg.id && (
+                                                    <tr className="bg-blue-50/30 animate-fade-in border-b-2 border-blue-100">
+                                                        <td colSpan={6} className="p-4">
+                                                            <div className="flex flex-col md:flex-row gap-4 items-end">
+                                                                <div className="flex-1 space-y-1">
+                                                                    <label className="text-[10px] uppercase font-bold text-gray-500">Confirm Name</label>
+                                                                    <input 
+                                                                        className="w-full border p-2 rounded text-sm" 
+                                                                        value={approveName} 
+                                                                        onChange={e => setApproveName(e.target.value)} 
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1 space-y-1">
+                                                                    <label className="text-[10px] uppercase font-bold text-gray-500">Assign Role</label>
+                                                                    <select 
+                                                                        className="w-full border p-2 rounded text-sm" 
+                                                                        value={approveRole} 
+                                                                        onChange={e => setApproveRole(e.target.value)}
+                                                                    >
+                                                                        <option value="">Select Role</option>
+                                                                        {playerRoles.length > 0 ? playerRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ['Batsman','Bowler','All Rounder','Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex-1 space-y-1">
+                                                                    <label className="text-[10px] uppercase font-bold text-gray-500">Assign Category</label>
+                                                                    <select 
+                                                                        className="w-full border p-2 rounded text-sm" 
+                                                                        value={approveCategory} 
+                                                                        onChange={e => setApproveCategory(e.target.value)}
+                                                                    >
+                                                                        <option value="">Select Category</option>
+                                                                        {categories.length > 0 ? categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>) : <option value="Standard">Standard</option>}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="w-32 space-y-1">
+                                                                    <label className="text-[10px] uppercase font-bold text-gray-500">Base Price</label>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        className="w-full border p-2 rounded text-sm" 
+                                                                        value={approveBase} 
+                                                                        onChange={e => setApproveBase(Number(e.target.value))} 
+                                                                    />
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => handleApprovePlayer(reg)} 
+                                                                    disabled={isApproving} 
+                                                                    className="bg-green-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center hover:bg-green-700 disabled:opacity-50"
+                                                                >
+                                                                    {isApproving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4 mr-1"/>} Approve
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -580,6 +730,52 @@ const AuctionManage: React.FC = () => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* SPONSORS TAB */}
+            {activeTab === 'sponsors' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Sponsors Manager</h2>
+                        <button onClick={() => setShowSponsorModal(true)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow flex items-center">
+                            <Plus className="w-4 h-4 mr-2" /> Add Sponsor
+                        </button>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                        <h3 className="font-bold text-gray-700 mb-2">Display Settings</h3>
+                        <div className="flex items-center gap-6">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={sponsorConfig.showOnProjector} onChange={e => setSponsorConfig({...sponsorConfig, showOnProjector: e.target.checked})} />
+                                <span className="text-sm">Show on Projector</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={sponsorConfig.showOnOBS} onChange={e => setSponsorConfig({...sponsorConfig, showOnOBS: e.target.checked})} />
+                                <span className="text-sm">Show on OBS</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Loop Interval (sec):</span>
+                                <input type="number" className="border w-16 p-1 rounded" value={sponsorConfig.loopInterval} onChange={e => setSponsorConfig({...sponsorConfig, loopInterval: Number(e.target.value)})} />
+                            </div>
+                            <button onClick={handleSaveSponsorConfig} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Save Config</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {sponsors.map(sponsor => (
+                            <div key={sponsor.id} className="bg-white border rounded-lg p-4 relative group">
+                                <div className="h-24 flex items-center justify-center mb-2">
+                                    <img src={sponsor.imageUrl} className="max-h-full max-w-full object-contain" />
+                                </div>
+                                <p className="text-center font-bold text-sm truncate">{sponsor.name}</p>
+                                <button onClick={() => deleteSponsor(sponsor.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Trash2 className="w-4 h-4"/>
+                                </button>
+                            </div>
+                        ))}
+                        {sponsors.length === 0 && <div className="col-span-full text-center text-gray-400 py-8 italic">No sponsors added yet.</div>}
                     </div>
                 </div>
             )}

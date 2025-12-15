@@ -151,7 +151,9 @@ const PlayerRegistration: React.FC = () => {
             return;
         }
         if (!profilePic) return alert("Please upload profile picture");
-        if (!paymentScreenshot) return alert("Please upload payment screenshot");
+        
+        // Conditionally check payment screenshot
+        if (config?.includePayment && !paymentScreenshot) return alert("Please upload payment screenshot");
 
         setSubmitting(true);
         try {
@@ -159,7 +161,7 @@ const PlayerRegistration: React.FC = () => {
             const submissionData = {
                 ...formData,
                 profilePic,
-                paymentScreenshot,
+                paymentScreenshot: config?.includePayment ? paymentScreenshot : '',
                 ...customData,
                 submittedAt: Date.now(),
                 status: 'PENDING'
@@ -337,18 +339,20 @@ const PlayerRegistration: React.FC = () => {
                         </ul>
                     </div>
 
-                    {/* UPI Section */}
-                    <div className="mt-8">
-                        <p className="text-sm font-bold underline mb-4">UPI Details:</p>
-                        <p className="text-sm font-semibold">{config?.upiName}</p>
-                        <p className="text-xl font-bold mb-4">{config?.upiId}</p>
-                        {config?.qrCodeUrl && (
-                             <div className="flex justify-center">
-                                 <img src={config.qrCodeUrl} alt="UPI QR" className="w-48 h-48 object-contain border-2 border-gray-800 p-2 rounded-lg" />
-                             </div>
-                        )}
-                        <p className="text-xs font-bold mt-2 uppercase text-gray-700">{config?.upiName}</p>
-                    </div>
+                    {/* UPI Section - Conditionally Rendered */}
+                    {config?.includePayment && (
+                        <div className="mt-8">
+                            <p className="text-sm font-bold underline mb-4">UPI Details:</p>
+                            <p className="text-sm font-semibold">{config?.upiName}</p>
+                            <p className="text-xl font-bold mb-4">{config?.upiId}</p>
+                            {config?.qrCodeUrl && (
+                                <div className="flex justify-center">
+                                    <img src={config.qrCodeUrl} alt="UPI QR" className="w-48 h-48 object-contain border-2 border-gray-800 p-2 rounded-lg" />
+                                </div>
+                            )}
+                            <p className="text-xs font-bold mt-2 uppercase text-gray-700">{config?.upiName}</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Form Section */}
@@ -407,16 +411,19 @@ const PlayerRegistration: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Screenshot of Successful Payment (Rs {config?.fee}) <span className="text-red-500">*</span></label>
-                                    <div 
-                                        onClick={() => paymentInputRef.current?.click()}
-                                        className="border border-dashed border-gray-300 rounded p-3 text-center cursor-pointer hover:bg-gray-50 flex items-center justify-center text-sm text-gray-500"
-                                    >
-                                        <input ref={paymentInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'payment')} />
-                                        {paymentScreenshot ? <span className="text-green-600 font-bold flex items-center"><CheckCircle className="w-4 h-4 mr-2"/> Image Selected</span> : <span>Drag & Drop your files or <span className="underline">Browse</span></span>}
+                                {/* Conditionally Render Payment Screenshot Upload */}
+                                {config?.includePayment && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Screenshot of Successful Payment (Rs {config?.fee}) <span className="text-red-500">*</span></label>
+                                        <div 
+                                            onClick={() => paymentInputRef.current?.click()}
+                                            className="border border-dashed border-gray-300 rounded p-3 text-center cursor-pointer hover:bg-gray-50 flex items-center justify-center text-sm text-gray-500"
+                                        >
+                                            <input ref={paymentInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'payment')} />
+                                            {paymentScreenshot ? <span className="text-green-600 font-bold flex items-center"><CheckCircle className="w-4 h-4 mr-2"/> Image Selected</span> : <span>Drag & Drop your files or <span className="underline">Browse</span></span>}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
