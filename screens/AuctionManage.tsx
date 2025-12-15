@@ -2,8 +2,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab, FieldType } from '../types';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download, List } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -39,6 +39,20 @@ const AuctionManage: React.FC = () => {
       bannerUrl: '',
       customFields: []
   });
+  
+  // Custom Field State
+  const [newField, setNewField] = useState<{
+      label: string;
+      type: FieldType;
+      required: boolean;
+      options: string; // comma separated for UI
+  }>({
+      label: '',
+      type: 'text',
+      required: false,
+      options: ''
+  });
+
   const qrInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,6 +208,41 @@ const AuctionManage: React.FC = () => {
       if (!id) return;
       setIsSavingConfig(true);
       try { await db.collection('auctions').doc(id).update({ registrationConfig: regConfig }); alert("Config Saved!"); } catch (e) { alert("Failed."); } finally { setIsSavingConfig(false); }
+  };
+
+  // Custom Field Handlers
+  const handleAddCustomField = () => {
+      if (!newField.label.trim()) return alert("Field Label is required");
+      
+      const fieldId = `field_${Date.now()}`;
+      const field: FormField = {
+          id: fieldId,
+          label: newField.label,
+          type: newField.type,
+          required: newField.required,
+          placeholder: `Enter ${newField.label}`,
+          options: newField.type === 'select' ? newField.options.split(',').map(s => s.trim()).filter(s => s) : undefined
+      };
+
+      setRegConfig(prev => ({
+          ...prev,
+          customFields: [...(prev.customFields || []), field]
+      }));
+
+      // Reset form
+      setNewField({
+          label: '',
+          type: 'text',
+          required: false,
+          options: ''
+      });
+  };
+
+  const handleDeleteCustomField = (fieldId: string) => {
+      setRegConfig(prev => ({
+          ...prev,
+          customFields: prev.customFields?.filter(f => f.id !== fieldId) || []
+      }));
   };
 
   const copyRegLink = () => {
@@ -647,7 +696,104 @@ const AuctionManage: React.FC = () => {
                             </div>
                         )}
 
-                        <div>
+                        {/* CUSTOM FIELDS SECTION */}
+                        <div className="mt-4 border-t pt-6">
+                            <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                                <List className="w-4 h-4 mr-2 text-gray-600"/> Additional Fields
+                            </h3>
+                            
+                            {/* Existing Fields List */}
+                            <div className="space-y-3 mb-6">
+                                {regConfig.customFields && regConfig.customFields.length > 0 ? (
+                                    regConfig.customFields.map((field) => (
+                                        <div key={field.id} className="flex items-center justify-between bg-white p-3 rounded border border-gray-200 shadow-sm">
+                                            <div>
+                                                <p className="font-bold text-sm text-gray-800">{field.label}</p>
+                                                <p className="text-xs text-gray-500 uppercase font-semibold">
+                                                    {field.type} {field.required && <span className="text-red-500 ml-1">(Required)</span>}
+                                                </p>
+                                                {field.type === 'select' && field.options && (
+                                                    <p className="text-xs text-gray-400 truncate max-w-[200px] mt-0.5">Opt: {field.options.join(', ')}</p>
+                                                )}
+                                            </div>
+                                            <button onClick={() => handleDeleteCustomField(field.id)} className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center text-sm text-gray-400 py-2 border-2 border-dashed border-gray-200 rounded">
+                                        No custom fields added yet.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Add Field Form */}
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                <h4 className="text-xs font-bold text-blue-800 uppercase mb-3">Add New Field</h4>
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Field Label</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border p-2 rounded text-sm" 
+                                                placeholder="e.g. Jersey Size"
+                                                value={newField.label}
+                                                onChange={(e) => setNewField({...newField, label: e.target.value})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Field Type</label>
+                                            <select 
+                                                className="w-full border p-2 rounded text-sm bg-white"
+                                                value={newField.type}
+                                                onChange={(e) => setNewField({...newField, type: e.target.value as FieldType})}
+                                            >
+                                                <option value="text">Text Input</option>
+                                                <option value="number">Number Input</option>
+                                                <option value="select">Dropdown Selection</option>
+                                                <option value="date">Date Picker</option>
+                                                <option value="file">File Upload</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {newField.type === 'select' && (
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Options (Comma separated)</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border p-2 rounded text-sm" 
+                                                placeholder="e.g. Small, Medium, Large, XL"
+                                                value={newField.options}
+                                                onChange={(e) => setNewField({...newField, options: e.target.value})}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between pt-2">
+                                        <label className="flex items-center text-sm text-gray-700 cursor-pointer select-none">
+                                            <input 
+                                                type="checkbox" 
+                                                className="mr-2 accent-blue-600 w-4 h-4"
+                                                checked={newField.required}
+                                                onChange={(e) => setNewField({...newField, required: e.target.checked})}
+                                            />
+                                            Mark as Required
+                                        </label>
+                                        <button 
+                                            onClick={handleAddCustomField}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition-all active:scale-95"
+                                        >
+                                            + Add Field
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6">
                             <label className="block text-xs font-bold text-gray-500 mb-1">Terms & Conditions</label>
                             <textarea className="w-full border p-2 rounded h-24 text-sm" value={regConfig.terms} onChange={e => setRegConfig({...regConfig, terms: e.target.value})} />
                         </div>
