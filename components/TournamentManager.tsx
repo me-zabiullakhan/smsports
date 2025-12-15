@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { Tournament, Team, Player } from '../types';
-import { Plus, Trash2, Save, FileSpreadsheet, Loader2, ChevronDown, ChevronRight, UserPlus, Users, X, Image as ImageIcon, Upload } from 'lucide-react';
+import { Plus, Trash2, Save, FileSpreadsheet, Loader2, ChevronDown, ChevronRight, UserPlus, Users, X, Image as ImageIcon, Upload, Crop, ZoomIn, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAuction } from '../hooks/useAuction';
 
@@ -32,6 +32,14 @@ const TournamentManager: React.FC = () => {
     const [manualPlayerPhoto, setManualPlayerPhoto] = useState('');
     const [isAddingPlayer, setIsAddingPlayer] = useState(false);
     const photoInputRef = useRef<HTMLInputElement>(null);
+
+    // --- CROPPER STATE ---
+    const [cropImage, setCropImage] = useState<string | null>(null);
+    const [cropZoom, setCropZoom] = useState(1);
+    const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const imgRef = useRef<HTMLImageElement>(null);
 
     useEffect(() => {
         if (!userProfile?.uid) return;
@@ -191,15 +199,98 @@ const TournamentManager: React.FC = () => {
     const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 500 * 1024) {
-                alert("Image too large (Max 500KB)");
+            if (file.size > 5000 * 1024) { // 5MB limit
+                alert("Image too large (Max 5MB)");
                 return;
             }
             const reader = new FileReader();
             reader.onloadend = () => {
-                setManualPlayerPhoto(reader.result as string);
+                // Initialize Cropper
+                setCropImage(reader.result as string);
+                setCropZoom(1);
+                setCropOffset({ x: 0, y: 0 });
             };
             reader.readAsDataURL(file);
+        }
+    };
+
+    // --- CROPPER HANDLERS ---
+    const handleCropMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+        setIsDragging(true);
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        setDragStart({ x: clientX - cropOffset.x, y: clientY - cropOffset.y });
+    };
+
+    const handleCropMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDragging) return;
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        setCropOffset({
+            x: clientX - dragStart.x,
+            y: clientY - dragStart.y
+        });
+    };
+
+    const handleCropMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const performCrop = () => {
+        if (!cropImage || !imgRef.current) return;
+
+        const canvas = document.createElement('canvas');
+        const size = 300; // Final output size
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+            const img = imgRef.current;
+            
+            // Logic to map the visual crop to the canvas
+            // The container is fixed size (e.g. 250px). The image scale is applied via CSS.
+            // We need to replicate that on the canvas.
+            
+            // Container size in the DOM (approximate, hardcoded to match UI)
+            const CONTAINER_SIZE = 250; 
+            
+            // Calculate scale relative to the container
+            // We want to draw the image such that the visible area in the container is drawn 1:1 on the canvas (scaled to output size)
+            
+            // Effective scale of the image in the container
+            const scale = cropZoom; 
+            
+            // Position
+            const x = cropOffset.x;
+            const y = cropOffset.y;
+
+            // Draw logic:
+            // 1. Clear background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+
+            // 2. We want to draw the portion of the image visible in the CONTAINER_SIZE window onto the `size` canvas
+            // Ratio between output canvas and UI container
+            const ratio = size / CONTAINER_SIZE;
+
+            ctx.translate(size / 2, size / 2);
+            ctx.translate(x * ratio, y * ratio);
+            ctx.scale(scale * ratio, scale * ratio);
+            
+            // Center image drawing
+            // Determine draw size. If we fit width:
+            const drawWidth = CONTAINER_SIZE;
+            const drawHeight = (img.naturalHeight / img.naturalWidth) * CONTAINER_SIZE;
+            
+            // If the image is vertical/horizontal, we usually fit the smaller dimension or just fit width. 
+            // In the UI we usually do `width: 100%`.
+            // Let's assume `width: 100%` of container for the base image size before zoom.
+            
+            ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+
+            setManualPlayerPhoto(canvas.toDataURL('image/jpeg', 0.8));
+            setCropImage(null); // Close cropper
         }
     };
 
@@ -348,8 +439,71 @@ const TournamentManager: React.FC = () => {
             {/* Hidden Input for Excel */}
             <input ref={excelInputRef} type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelImport}/>
 
+            {/* CROPPER MODAL */}
+            {cropImage && (
+                <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-lg shadow-2xl p-4 w-full max-w-sm">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800 flex items-center"><Crop className="w-4 h-4 mr-2"/> Adjust Image</h3>
+                            <button onClick={() => setCropImage(null)} className="text-gray-500 hover:text-red-500"><X className="w-5 h-5"/></button>
+                        </div>
+                        
+                        <div 
+                            className="relative w-[250px] h-[250px] mx-auto bg-gray-100 overflow-hidden border-2 border-dashed border-gray-300 rounded-lg cursor-move"
+                            onMouseDown={handleCropMouseDown}
+                            onMouseMove={handleCropMouseMove}
+                            onMouseUp={handleCropMouseUp}
+                            onMouseLeave={handleCropMouseUp}
+                            onTouchStart={handleCropMouseDown}
+                            onTouchMove={handleCropMouseMove}
+                            onTouchEnd={handleCropMouseUp}
+                        >
+                            <img 
+                                ref={imgRef}
+                                src={cropImage} 
+                                alt="Crop Target"
+                                className="absolute max-w-none"
+                                draggable={false}
+                                style={{
+                                    width: '100%', // Fit width initially
+                                    transformOrigin: 'center',
+                                    transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                                    transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                                }}
+                            />
+                            {/* Grid Overlay */}
+                            <div className="absolute inset-0 pointer-events-none opacity-30">
+                                <div className="w-full h-full grid grid-cols-3 grid-rows-3">
+                                    {[...Array(9)].map((_,i) => <div key={i} className="border border-gray-400"></div>)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center gap-3">
+                            <ZoomIn className="w-4 h-4 text-gray-500"/>
+                            <input 
+                                type="range" 
+                                min="1" 
+                                max="3" 
+                                step="0.1" 
+                                value={cropZoom} 
+                                onChange={e => setCropZoom(Number(e.target.value))}
+                                className="flex-1 accent-blue-600"
+                            />
+                        </div>
+
+                        <div className="mt-6 flex gap-2">
+                            <button onClick={() => setCropImage(null)} className="flex-1 py-2 text-gray-600 border rounded font-bold text-sm">Cancel</button>
+                            <button onClick={performCrop} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold text-sm flex items-center justify-center">
+                                <Check className="w-4 h-4 mr-1"/> Crop & Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* MANUAL PLAYER MODAL */}
-            {showAddPlayerModal && (
+            {showAddPlayerModal && !cropImage && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-slide-up">
                         <div className="bg-gray-100 p-3 border-b border-gray-200 flex justify-between items-center">
@@ -361,7 +515,7 @@ const TournamentManager: React.FC = () => {
                             <div className="flex flex-col items-center">
                                 <div 
                                     onClick={() => photoInputRef.current?.click()}
-                                    className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative"
+                                    className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 overflow-hidden relative group"
                                 >
                                     {manualPlayerPhoto ? (
                                         <img src={manualPlayerPhoto} alt="Preview" className="w-full h-full object-cover"/>
@@ -371,7 +525,7 @@ const TournamentManager: React.FC = () => {
                                             <span className="text-[10px]">Photo</span>
                                         </div>
                                     )}
-                                    <div className="absolute bottom-0 w-full bg-black/50 text-white text-[9px] text-center py-0.5">Click to Upload</div>
+                                    <div className="absolute bottom-0 w-full bg-black/50 text-white text-[9px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Edit/Upload</div>
                                 </div>
                                 <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect}/>
                             </div>
