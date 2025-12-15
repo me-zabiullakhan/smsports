@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { AuctionSetup, Team, AuctionCategory, RegistrationConfig, FormField, RegisteredPlayer, Player, Sponsor, SponsorConfig, PlayerRole, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, X, Image as ImageIcon, AlertTriangle, FileText, Settings, Upload, Users, CheckCircle, Edit, Loader2, DollarSign, Cast, Monitor, FileSpreadsheet, UserPlus, Tag, Briefcase, Info, Save, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
 import * as XLSX from 'xlsx';
@@ -69,6 +69,9 @@ const AuctionManage: React.FC = () => {
 
   // Sponsor Modal
   const [showSponsorModal, setShowSponsorModal] = useState(false);
+
+  // Export Modal
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Real-time Listener for Auction Details
   useEffect(() => {
@@ -432,6 +435,91 @@ const AuctionManage: React.FC = () => {
       );
   };
 
+  const ExportModal = () => {
+      const standardFields = [
+          { id: 'fullName', label: 'Full Name' },
+          { id: 'mobile', label: 'Mobile' },
+          { id: 'playerType', label: 'Role' },
+          { id: 'gender', label: 'Gender' },
+          { id: 'dob', label: 'DOB' },
+          { id: 'status', label: 'Status' },
+          { id: 'submittedAt', label: 'Submitted Date' }
+      ];
+
+      // Merge Standard and Custom Fields
+      const allFields = [
+          ...standardFields,
+          ...(regConfig.customFields?.map(f => ({ id: f.id, label: f.label })) || [])
+      ];
+
+      const [selectedFields, setSelectedFields] = useState<string[]>(allFields.map(f => f.id));
+
+      const toggleField = (id: string) => {
+          setSelectedFields(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+      };
+
+      const handleExport = () => {
+          if (registrations.length === 0) return alert("No data to export");
+          
+          const exportData = registrations.map(reg => {
+              const row: any = {};
+              selectedFields.forEach(fieldId => {
+                  const fieldDef = allFields.find(f => f.id === fieldId);
+                  if (!fieldDef) return;
+
+                  let val = reg[fieldId];
+                  if (fieldId === 'submittedAt' && val) {
+                      val = new Date(val).toLocaleString();
+                  }
+                  row[fieldDef.label] = val || '';
+              });
+              return row;
+          });
+
+          const ws = XLSX.utils.json_to_sheet(exportData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Registrations");
+          XLSX.writeFile(wb, `${auction?.title || 'Auction'}_Registrations.xlsx`);
+          setShowExportModal(false);
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                  <h3 className="text-lg font-bold mb-4">Export Options</h3>
+                  <p className="text-xs text-gray-500 mb-4">Select the fields you want to include in the Excel file.</p>
+                  
+                  <div className="max-h-60 overflow-y-auto border rounded p-2 mb-4 space-y-2 custom-scrollbar">
+                      {allFields.map(field => (
+                          <label key={field.id} className="flex items-center space-x-2 cursor-pointer p-1 hover:bg-gray-50 rounded">
+                              <input 
+                                  type="checkbox" 
+                                  checked={selectedFields.includes(field.id)}
+                                  onChange={() => toggleField(field.id)}
+                                  className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700">{field.label}</span>
+                          </label>
+                      ))}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2">
+                      <div className="space-x-2">
+                          <button onClick={() => setSelectedFields(allFields.map(f => f.id))} className="text-xs text-blue-600 hover:underline">Select All</button>
+                          <button onClick={() => setSelectedFields([])} className="text-xs text-gray-500 hover:underline">Clear</button>
+                      </div>
+                      <div className="flex gap-2">
+                          <button onClick={() => setShowExportModal(false)} className="px-4 py-2 border rounded text-sm">Cancel</button>
+                          <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded text-sm font-bold flex items-center">
+                              <Download className="w-4 h-4 mr-2"/> Download
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
         <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
@@ -580,7 +668,15 @@ const AuctionManage: React.FC = () => {
             {/* REGISTRATIONS TAB (REQUESTS) */}
             {activeTab === 'registrations' && (
                 <div>
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">Pending Requests</h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-bold text-gray-800">Pending Requests</h2>
+                        <button 
+                            onClick={() => setShowExportModal(true)} 
+                            className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center"
+                        >
+                            <Download className="w-4 h-4 mr-2" /> Export Excel
+                        </button>
+                    </div>
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         {registrations.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 italic">No registration requests yet.</div>
@@ -786,6 +882,7 @@ const AuctionManage: React.FC = () => {
         {showAddPlayerModal && <AddPlayerModal />}
         {showEditAuctionModal && <EditAuctionModal />}
         {showSponsorModal && <AddSponsorModal />}
+        {showExportModal && <ExportModal />}
     </div>
   );
 };
