@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Team, UserRole } from '../types';
 import { useAuction } from '../hooks/useAuction';
@@ -19,9 +20,12 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
 
     // Next Bid Calculation
     let nextBid;
-    if (currentPrice === 0 || currentPrice < basePrice) {
-        nextBid = basePrice;
+    if (currentPrice === 0) {
+        // First bid should be Base Price. Fallback to increment if base is 0.
+        nextBid = basePrice > 0 ? basePrice : (state.bidIncrement || 100);
     } else {
+        // Increment logic (Simplified for card, ideally match context exactly or use context's nextBid if applicable)
+        // For admin panel speed, simple increment is often enough, but let's be safe:
         nextBid = currentPrice + (state.bidIncrement || 100);
     }
 
@@ -39,7 +43,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const isHighest = state.highestBidder?.id === team.id;
 
     const handleAdminBid = async () => {
-        if (canAfford && !isHighest && !isLimitReached) {
+        if (canAfford && !isHighest && !isLimitReached && nextBid > 0) {
             try {
                 await placeBid(team.id, nextBid);
             } catch (e) {
