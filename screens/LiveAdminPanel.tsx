@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
@@ -22,16 +23,23 @@ const LiveAdminPanel: React.FC = () => {
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
-      if (state.currentBid !== null) {
+      // 1. Determine Price
+      if (state.currentBid !== null && state.currentBid > 0) {
           setFinalPrice(Number(state.currentBid));
-          if (state.highestBidder) {
-              setSelectedTeamId(String(state.highestBidder.id));
-          } else if (!isSellingMode) {
-              // Only reset if not already editing
-              setSelectedTeamId('');
-          }
+      } else if (state.currentPlayerId) {
+          // Fallback to Base Price if no bids
+          const p = players.find(player => String(player.id) === String(state.currentPlayerId));
+          if (p) setFinalPrice(p.basePrice);
       }
-  }, [state.currentBid, state.highestBidder, isSellingMode]);
+
+      // 2. Determine Team
+      if (state.highestBidder) {
+          setSelectedTeamId(String(state.highestBidder.id));
+      } else if (!isSellingMode) {
+          // Reset selection only if we aren't currently editing
+          setSelectedTeamId('');
+      }
+  }, [state.currentBid, state.highestBidder, isSellingMode, state.currentPlayerId, players]);
 
   const handleStart = async (specificId?: string) => {
       if (teams.length === 0) {
@@ -112,6 +120,7 @@ const LiveAdminPanel: React.FC = () => {
           setIsSellingMode(false);
       } catch(e) {
           console.error(e);
+          alert("Failed to sell player. Check console.");
       } finally {
           setIsProcessing(false);
       }

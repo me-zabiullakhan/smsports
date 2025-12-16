@@ -244,14 +244,18 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const playerRef = auctionRef.collection('players').doc(String(player.id));
             const teamRef = auctionRef.collection('teams').doc(String(finalTeam.id));
 
+            // CRITICAL CHECK: Ensure team doc exists before reading data
+            const teamDoc = await transaction.get(teamRef);
+            if (!teamDoc.exists) {
+                throw new Error("Target team document does not exist in database");
+            }
+            const teamData = teamDoc.data() as Team;
+
             transaction.update(playerRef, {
                 status: 'SOLD',
                 soldPrice: finalPrice,
                 soldTo: finalTeam.name
             });
-
-            const teamDoc = await transaction.get(teamRef);
-            const teamData = teamDoc.data() as Team;
             
             const updatedPlayers = [...(teamData.players || []), { ...player, status: 'SOLD', soldPrice: finalPrice, soldTo: finalTeam.name }];
             const newBudget = (teamData.budget || 0) - finalPrice;

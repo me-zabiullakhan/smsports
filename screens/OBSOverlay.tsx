@@ -207,8 +207,7 @@ const OBSOverlay: React.FC = () => {
       }
   }
 
-  // ... (Existing Rendering Logic for Live/Finished/Waiting) ...
-
+  // Finished State
   if (display.status === 'FINISHED') {
       return (
           <div className="min-h-screen w-full flex flex-col items-center justify-center relative">
@@ -297,8 +296,8 @@ const OBSOverlay: React.FC = () => {
 
             {/* Right Side: Team Info */}
             <div className="flex-1 flex flex-col items-start ml-2 relative min-w-0">
-                 {/* Team Name Panel */}
-                 <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px]">
+                 {/* Team Name Panel - Added Z-index */}
+                 <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px] z-20">
                      <div className="transform skew-x-[-12deg] w-full pl-4 pr-32">
                         <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight text-left">
                             {bidder ? bidder.name : "NO BIDS YET"}
