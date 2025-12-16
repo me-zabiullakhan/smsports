@@ -188,7 +188,7 @@ const AuthScreen: React.FC = () => {
 
                 <div className="text-center mb-8">
                     <h1 className="text-5xl font-bold text-highlight mb-2">🏏 SM SPORTS</h1>
-                    <p className="text-text-secondary uppercase tracking-widest text-sm">Premier Auction League</p>
+                    <p className="text-text-secondary uppercase tracking-widest text-sm">Your Streaming Partner</p>
                 </div>
 
                 <div className="bg-secondary/80 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-accent">
