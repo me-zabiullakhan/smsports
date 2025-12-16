@@ -19,6 +19,7 @@ const LiveAdminPanel: React.FC = () => {
 
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState(''); // New search state
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
@@ -55,6 +56,7 @@ const LiveAdminPanel: React.FC = () => {
       } else {
           // Clear manual selection
           setManualPlayerId('');
+          setSearchTerm('');
       }
       setIsProcessing(false);
   }
@@ -266,18 +268,37 @@ const LiveAdminPanel: React.FC = () => {
            const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
            availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
 
+           // Filter based on search term
+           const filteredPlayers = availablePlayers.filter(p => 
+               p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               p.category.toLowerCase().includes(searchTerm.toLowerCase())
+           );
+
            return (
                <div className="space-y-3 bg-primary/20 p-3 rounded-lg border border-gray-600">
                    <div>
                        <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
+                       
+                       {/* Search Input */}
+                       <div className="relative mb-2">
+                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                           <input 
+                                type="text"
+                                className="w-full bg-gray-900 border border-gray-700 rounded p-1.5 pl-7 text-xs text-white focus:border-highlight outline-none"
+                                placeholder="Search player name..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                           />
+                       </div>
+
                        <div className="relative">
                            <select 
                                className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer"
                                value={manualPlayerId}
                                onChange={(e) => setManualPlayerId(e.target.value)}
                            >
-                               <option value="">-- Choose Player to Auction --</option>
-                               {availablePlayers.map(p => (
+                               <option value="">-- Choose Player ({filteredPlayers.length}) --</option>
+                               {filteredPlayers.map(p => (
                                    <option key={p.id} value={p.id}>
                                        {p.name} ({p.category}) - Base: {p.basePrice}
                                    </option>

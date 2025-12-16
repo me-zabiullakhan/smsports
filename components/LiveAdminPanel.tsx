@@ -1,13 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { AuctionStatus, Team } from '../types';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Monitor, Unlock, Lock, ChevronDown, Shuffle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from './TeamStatusCard';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
   const { teams, players, biddingStatus, playerSelectionMode } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -19,6 +19,7 @@ const LiveAdminPanel: React.FC = () => {
 
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState(''); // New search state
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
@@ -27,6 +28,7 @@ const LiveAdminPanel: React.FC = () => {
           if (state.highestBidder) {
               setSelectedTeamId(String(state.highestBidder.id));
           } else if (!isSellingMode) {
+              // Only reset if not already editing
               setSelectedTeamId('');
           }
       }
@@ -34,7 +36,7 @@ const LiveAdminPanel: React.FC = () => {
 
   const handleStart = async (specificId?: string) => {
       if (teams.length === 0) {
-          alert("Cannot start auction: No teams added.");
+          alert("Cannot start auction: No teams added. Please go back to Dashboard > Edit Auction > Teams to add teams.");
           return;
       }
 
@@ -52,7 +54,9 @@ const LiveAdminPanel: React.FC = () => {
               await endAuction();
           }
       } else {
+          // Clear manual selection
           setManualPlayerId('');
+          setSearchTerm('');
       }
       setIsProcessing(false);
   }
@@ -122,11 +126,62 @@ const LiveAdminPanel: React.FC = () => {
       }
   }
 
+  const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
+
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
       const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
-      
+      const unsoldCount = players.filter(p => p.status === 'UNSOLD').length;
+
+      // NEW: Finish Auction Option
+      // Show this if no players are left AND we are not currently bidding on one (isRoundActive is false)
+      if (availablePlayersCount === 0 && state.status !== AuctionStatus.NotStarted && !isRoundActive) {
+          return (
+             <div className="space-y-4 animate-fade-in">
+                 {unsoldCount > 0 && (
+                     <div className="bg-blue-900/30 border border-blue-500/50 p-4 rounded-xl text-center shadow-inner">
+                        <h3 className="text-white font-bold text-lg mb-2">Unsold Players Available</h3>
+                        <p className="text-gray-300 text-xs mb-4">There are {unsoldCount} unsold players. Do you want to bring them back into the bidding pool?</p>
+                        <button 
+                            onClick={async () => {
+                                if(window.confirm(`Bring back ${unsoldCount} unsold players to the pool?`)) {
+                                    setIsProcessing(true);
+                                    await resetUnsoldPlayers();
+                                    setIsProcessing(false);
+                                }
+                            }}
+                            disabled={isProcessing}
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                        >
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
+                            BRING BACK UNSOLD ({unsoldCount})
+                        </button>
+                     </div>
+                 )}
+                 
+                 <div className="bg-green-900/30 border border-green-500/50 p-6 rounded-xl text-center shadow-inner">
+                    <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-3 drop-shadow-lg" />
+                    <h3 className="text-white font-bold text-xl mb-2">Auction Completed!</h3>
+                    <p className="text-gray-300 text-sm mb-6">All players have been auctioned. You can now finalize the event.</p>
+                    <button 
+                        onClick={async () => {
+                            if(window.confirm("Are you sure you want to finish the auction? This will enable the summary view for all users.")) {
+                                setIsProcessing(true);
+                                await endAuction();
+                                setIsProcessing(false);
+                            }
+                        }}
+                        disabled={isProcessing}
+                        className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide"
+                    >
+                        {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : "GENERATE SUMMARY & FINISH"}
+                    </button>
+                </div>
+            </div>
+          );
+      }
+
       // 1. ACTIVE ROUND CONTROLS (SOLD / UNSOLD)
       if (isRoundActive) {
           if (isSellingMode) {
@@ -213,18 +268,37 @@ const LiveAdminPanel: React.FC = () => {
            const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
            availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
 
+           // Filter based on search term
+           const filteredPlayers = availablePlayers.filter(p => 
+               p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               p.category.toLowerCase().includes(searchTerm.toLowerCase())
+           );
+
            return (
                <div className="space-y-3 bg-primary/20 p-3 rounded-lg border border-gray-600">
                    <div>
                        <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
+                       
+                       {/* Search Input */}
+                       <div className="relative mb-2">
+                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                           <input 
+                                type="text"
+                                className="w-full bg-gray-900 border border-gray-700 rounded p-1.5 pl-7 text-xs text-white focus:border-highlight outline-none"
+                                placeholder="Search player name..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                           />
+                       </div>
+
                        <div className="relative">
                            <select 
                                className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer"
                                value={manualPlayerId}
                                onChange={(e) => setManualPlayerId(e.target.value)}
                            >
-                               <option value="">-- Choose Player to Auction --</option>
-                               {availablePlayers.map(p => (
+                               <option value="">-- Choose Player ({filteredPlayers.length}) --</option>
+                               {filteredPlayers.map(p => (
                                    <option key={p.id} value={p.id}>
                                        {p.name} ({p.category}) - Base: {p.basePrice}
                                    </option>

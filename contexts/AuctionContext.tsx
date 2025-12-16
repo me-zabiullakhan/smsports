@@ -108,25 +108,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         const unsubPlayers = db.collection('auctions').doc(activeAuctionId).collection('players').onSnapshot(snap => {
             const allPlayers = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-            
-            // Re-eval current player index
-            setState(prev => {
-                const currentId = prev.currentPlayerId;
-                const unsoldList = allPlayers.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD'); 
-                
-                let currentPlayerIndex: number | null = null;
-                if (currentId) {
-                    const idx = unsoldList.findIndex(p => String(p.id) === String(currentId));
-                    currentPlayerIndex = idx !== -1 ? idx : null;
-                }
-
-                return {
-                    ...prev,
-                    players: allPlayers,
-                    unsoldPlayers: unsoldList,
-                    currentPlayerIndex
-                };
-            });
+            setState(prev => ({ ...prev, players: allPlayers }));
         });
         
         const unsubCategories = db.collection('auctions').doc(activeAuctionId).collection('categories').onSnapshot(snap => {
@@ -158,6 +140,25 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setUserProfile(null);
         setActiveAuctionId(null);
         setState(initialState);
+    };
+
+    // --- DERIVED STATE (Fixes "Not Automatic Showing" Issue) ---
+    // Instead of setting these in the listener, we calculate them whenever players or currentId changes.
+    const derivedUnsoldPlayers = useMemo(() => {
+        return state.players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+    }, [state.players]);
+
+    const derivedCurrentPlayerIndex = useMemo(() => {
+        if (!state.currentPlayerId || derivedUnsoldPlayers.length === 0) return null;
+        const idx = derivedUnsoldPlayers.findIndex(p => String(p.id) === String(state.currentPlayerId));
+        return idx !== -1 ? idx : null;
+    }, [state.currentPlayerId, derivedUnsoldPlayers]);
+
+    // Merge derived values into the state object consumed by the app
+    const activeState = {
+        ...state,
+        unsoldPlayers: derivedUnsoldPlayers,
+        currentPlayerIndex: derivedCurrentPlayerIndex
     };
 
     // Derived State: nextBid
@@ -509,7 +510,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return (
         <AuctionContext.Provider value={{
-            state,
+            state: activeState, // Pass the state with derived values overrides
             userProfile,
             setUserProfile,
             placeBid,
