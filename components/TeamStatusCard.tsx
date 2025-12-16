@@ -9,25 +9,11 @@ interface Props {
 }
 
 const TeamStatusCard: React.FC<Props> = ({ team }) => {
-    const { state, placeBid, userProfile } = useAuction();
-    const { currentPlayerIndex, unsoldPlayers, bidIncrement, currentBid } = state;
+    const { state, placeBid, userProfile, nextBid } = useAuction();
+    const { currentPlayerIndex, unsoldPlayers } = state;
     const isAdmin = userProfile?.role === UserRole.ADMIN || userProfile?.role === UserRole.SUPER_ADMIN;
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
-
-    const currentPrice = currentBid || 0;
-    const basePrice = currentPlayer?.basePrice || 0;
-
-    // Next Bid Calculation
-    let nextBid;
-    if (currentPrice === 0) {
-        // First bid should be Base Price. Fallback to increment if base is 0.
-        nextBid = basePrice > 0 ? basePrice : (state.bidIncrement || 100);
-    } else {
-        // Increment logic (Simplified for card, ideally match context exactly or use context's nextBid if applicable)
-        // For admin panel speed, simple increment is often enough, but let's be safe:
-        nextBid = currentPrice + (state.bidIncrement || 100);
-    }
 
     // Check Category Limit
     let isLimitReached = false;

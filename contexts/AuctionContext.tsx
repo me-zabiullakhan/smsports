@@ -1,13 +1,11 @@
-import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-    AuctionContextType, AuctionState, UserProfile, UserRole, AuctionStatus, 
-    Player, Team, AuctionCategory, PlayerRole, Sponsor, SponsorConfig, 
-    AuctionLog, BiddingStatus, AdminViewOverride, BidIncrementSlab 
-} from '../types';
+
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import { AuctionContextType, AuctionState, UserProfile, Team, Player, AuctionStatus, BiddingStatus, AdminViewOverride, BidIncrementSlab, UserRole } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
-const initialAuctionState: AuctionState = {
+// Initial State
+const initialState: AuctionState = {
     players: [],
     teams: [],
     unsoldPlayers: [],
@@ -19,21 +17,24 @@ const initialAuctionState: AuctionState = {
     currentBid: null,
     highestBidder: null,
     timer: 0,
-    bidIncrement: 100,
+    bidIncrement: 0,
+    bidSlabs: [],
     auctionLog: [],
     biddingStatus: 'PAUSED',
     playerSelectionMode: 'MANUAL',
+    auctionLogoUrl: '',
+    tournamentName: '',
     sponsors: [],
     sponsorConfig: { showOnOBS: false, showOnProjector: false, loopInterval: 5 },
     projectorLayout: 'STANDARD',
     obsLayout: 'STANDARD',
-    adminViewOverride: null
+    adminViewOverride: null,
 };
 
-export const AuctionContext = createContext<AuctionContextType | undefined>(undefined);
+export const AuctionContext = createContext<AuctionContextType | null>(null);
 
 export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [state, setState] = useState<AuctionState>(initialAuctionState);
+    const [state, setState] = useState<AuctionState>(initialState);
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [activeAuctionId, setActiveAuctionId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -42,32 +43,32 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (user) {
-                let role = UserRole.VIEWER;
-                let teamId = undefined;
-                
-                const session = localStorage.getItem('sm_sports_team_session');
-                if (session) {
-                    try {
+                // Check if user is anonymous (Team Owner usually) or Google/Email (Admin)
+                if (user.isAnonymous) {
+                    // Try to recover session from localStorage if exists
+                    const session = localStorage.getItem('sm_sports_team_session');
+                    if (session) {
                         const data = JSON.parse(session);
-                        if (data.role === 'TEAM_OWNER') {
-                            role = UserRole.TEAM_OWNER;
-                            teamId = data.teamId;
-                            if(data.auctionId) setActiveAuctionId(data.auctionId);
-                        }
-                    } catch (e) { console.error("Session parse error", e); }
-                } else if (!user.isAnonymous) {
-                    role = UserRole.ADMIN;
-                    // Mock Super Admin check
-                    if (user.email === 'super@admin.com') role = UserRole.SUPER_ADMIN; 
+                        setUserProfile({
+                            uid: user.uid,
+                            email: 'team@smsports.com',
+                            role: UserRole.TEAM_OWNER,
+                            teamId: data.teamId
+                        });
+                        if (data.auctionId) joinAuction(data.auctionId);
+                    } else {
+                        // Just a viewer or lost session
+                        setUserProfile({ uid: user.uid, email: 'viewer@smsports.com', role: UserRole.VIEWER });
+                    }
+                } else {
+                    // Admin
+                    setUserProfile({
+                        uid: user.uid,
+                        email: user.email || '',
+                        name: user.displayName || '',
+                        role: user.email === 'admin@smsports.com' ? UserRole.SUPER_ADMIN : UserRole.ADMIN
+                    });
                 }
-
-                setUserProfile({
-                    uid: user.uid,
-                    email: user.email || '',
-                    name: user.displayName || 'User',
-                    role,
-                    teamId
-                });
             } else {
                 setUserProfile(null);
             }
@@ -75,293 +76,290 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return () => unsubscribe();
     }, []);
 
-    // Auction Data Listener
+    // Auction Listener
     useEffect(() => {
         if (!activeAuctionId) return;
 
-        // Listen to Auction Document (Root fields)
-        const unsubAuction = db.collection('auctions').doc(activeAuctionId).onSnapshot(doc => {
+        const unsubscribe = db.collection('auctions').doc(activeAuctionId).onSnapshot((doc) => {
             if (doc.exists) {
                 const data = doc.data();
-                setState(prev => ({
-                    ...prev,
-                    status: data?.status || AuctionStatus.NotStarted,
-                    currentPlayerId: data?.currentPlayerId || null,
-                    currentBid: data?.currentBid || null,
-                    timer: data?.timer || 0,
-                    bidIncrement: data?.bidIncrement || 100,
-                    bidSlabs: data?.slabs || [],
-                    auctionLog: data?.auctionLog || [],
-                    biddingStatus: data?.biddingStatus || 'PAUSED',
-                    playerSelectionMode: data?.playerSelectionMode || 'MANUAL',
-                    auctionLogoUrl: data?.logoUrl,
-                    tournamentName: data?.title,
-                    sponsorConfig: data?.sponsorConfig || prev.sponsorConfig,
-                    projectorLayout: data?.projectorLayout || 'STANDARD',
-                    obsLayout: data?.obsLayout || 'STANDARD',
-                    adminViewOverride: data?.adminViewOverride || null,
-                }));
+                if (data) {
+                    setState(prev => ({
+                        ...prev,
+                        ...data,
+                        // Preserve local arrays if not in root doc (handled by subcollection listeners below)
+                    }));
+                }
+            } else {
+                setError("Auction not found");
             }
-        }, err => setError(err.message));
+        }, (err) => {
+            console.error("Auction Listener Error", err);
+            setError(err.message);
+        });
 
-        // Subcollections
+        // Listen to Subcollections
         const unsubTeams = db.collection('auctions').doc(activeAuctionId).collection('teams').onSnapshot(snap => {
             const teams = snap.docs.map(d => ({ id: d.id, ...d.data() } as Team));
             setState(prev => ({ ...prev, teams }));
         });
 
         const unsubPlayers = db.collection('auctions').doc(activeAuctionId).collection('players').onSnapshot(snap => {
-            const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-            setState(prev => ({ 
-                ...prev, 
-                players,
-                unsoldPlayers: players.filter(p => p.status !== 'SOLD').sort((a,b) => a.name.localeCompare(b.name))
-            }));
-        });
+            const allPlayers = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+            
+            // Re-eval current player index
+            setState(prev => {
+                const currentId = prev.currentPlayerId;
+                const unsoldList = allPlayers.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD'); 
+                
+                let currentPlayerIndex: number | null = null;
+                if (currentId) {
+                    const idx = unsoldList.findIndex(p => String(p.id) === String(currentId));
+                    currentPlayerIndex = idx !== -1 ? idx : null;
+                }
 
-        const unsubCats = db.collection('auctions').doc(activeAuctionId).collection('categories').onSnapshot(snap => {
-            const categories = snap.docs.map(d => ({ id: d.id, ...d.data() } as AuctionCategory));
-            setState(prev => ({ ...prev, categories }));
+                return {
+                    ...prev,
+                    players: allPlayers,
+                    unsoldPlayers: unsoldList,
+                    currentPlayerIndex
+                };
+            });
         });
-
-        const unsubRoles = db.collection('auctions').doc(activeAuctionId).collection('roles').onSnapshot(snap => {
-            const roles = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRole));
-            setState(prev => ({ ...prev, roles }));
+        
+        const unsubCategories = db.collection('auctions').doc(activeAuctionId).collection('categories').onSnapshot(snap => {
+             const categories = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+             setState(prev => ({ ...prev, categories }));
         });
 
         const unsubSponsors = db.collection('auctions').doc(activeAuctionId).collection('sponsors').onSnapshot(snap => {
-            const sponsors = snap.docs.map(d => ({ id: d.id, ...d.data() } as Sponsor));
-            setState(prev => ({ ...prev, sponsors }));
+             const sponsors = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+             setState(prev => ({ ...prev, sponsors }));
         });
 
         return () => {
-            unsubAuction(); unsubTeams(); unsubPlayers(); unsubCats(); unsubRoles(); unsubSponsors();
+            unsubscribe();
+            unsubTeams();
+            unsubPlayers();
+            unsubCategories();
+            unsubSponsors();
         };
     }, [activeAuctionId]);
 
-    // Derived State Updates (Current Player Index)
-    useEffect(() => {
-        setState(prev => {
-            let currentPlayerIndex = null;
-            if (prev.currentPlayerId && prev.unsoldPlayers.length > 0) {
-                const idx = prev.unsoldPlayers.findIndex(p => String(p.id) === String(prev.currentPlayerId));
-                if (idx !== -1) currentPlayerIndex = idx;
-            }
-            return { ...prev, currentPlayerIndex };
-        });
-    }, [state.currentPlayerId, state.unsoldPlayers]);
-
-    // Highest Bidder Sync
-    useEffect(() => {
-        if (!activeAuctionId) return;
-        const unsub = db.collection('auctions').doc(activeAuctionId).onSnapshot(doc => {
-            const data = doc.data();
-            if (data && data.highestBidderId) {
-                setState(prev => {
-                    const bidder = prev.teams.find(t => String(t.id) === String(data.highestBidderId)) || null;
-                    return { ...prev, highestBidder: bidder };
-                });
-            } else {
-                setState(prev => ({ ...prev, highestBidder: null }));
-            }
-        });
-        return () => unsub();
-    }, [activeAuctionId, state.teams]);
-
-    // --- ACTIONS ---
-
-    const joinAuction = useCallback((id: string) => {
+    const joinAuction = (id: string) => {
         setActiveAuctionId(id);
-    }, []);
+    };
 
-    const logout = useCallback(() => {
-        auth.signOut();
+    const logout = async () => {
+        await auth.signOut();
         localStorage.removeItem('sm_sports_team_session');
         setUserProfile(null);
         setActiveAuctionId(null);
-        setState(initialAuctionState);
-    }, []);
+        setState(initialState);
+    };
 
-    const placeBid = useCallback(async (teamId: number | string, amount: number) => {
-        if (!activeAuctionId) return;
+    // Derived State: nextBid
+    const nextBid = useMemo(() => {
+        const { currentPlayerId, players, currentBid, bidIncrement, bidSlabs, categories } = state;
+        const currentPlayer = players.find(p => String(p.id) === String(currentPlayerId));
         
+        if (!currentPlayer) return 0;
+
+        const basePrice = Number(currentPlayer.basePrice) || 0;
+        const currentPrice = Number(currentBid) || 0;
+
+        // SCENARIO 1: No bids yet (First Bid)
+        if (currentPrice === 0) {
+            return basePrice > 0 ? basePrice : (bidIncrement || 100);
+        }
+        
+        // 1. Check Category Specific Rules First (Specific overrides General)
+        if (currentPlayer.category) {
+            const cat = categories.find(c => c.name === currentPlayer.category);
+            
+            // Category Slabs
+            if (cat && cat.slabs && cat.slabs.length > 0) {
+                 const sortedSlabs = [...cat.slabs].sort((a, b) => b.from - a.from);
+                 const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
+                 if (activeSlab) {
+                     return currentPrice + Number(activeSlab.increment);
+                 }
+            }
+            
+            // Category specific increment (without slabs)
+            if (cat && cat.bidIncrement > 0) {
+                return currentPrice + Number(cat.bidIncrement);
+            }
+        }
+
+        // 2. Check Global Slabs
+        if (bidSlabs && bidSlabs.length > 0) {
+            const sortedSlabs = [...bidSlabs].sort((a, b) => b.from - a.from);
+            const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
+            if (activeSlab) {
+                return currentPrice + Number(activeSlab.increment);
+            }
+        }
+
+        // 3. Default Global Increment
+        return currentPrice + (Number(bidIncrement) || 100);
+    }, [state.currentBid, state.currentPlayerId, state.players, state.bidIncrement, state.bidSlabs, state.categories]);
+
+    // Implementation of actions
+    const placeBid = async (teamId: string | number, amount: number) => {
+        if (!activeAuctionId) return;
         const team = state.teams.find(t => String(t.id) === String(teamId));
-        const newLog: AuctionLog = {
-            message: `Bid of ${amount} by ${team ? team.name : 'Team ' + teamId}`,
+        if (!team) throw new Error("Team not found");
+        
+        const log = {
+            message: `${team.name} bid ${amount}`,
             timestamp: Date.now(),
             type: 'BID'
         };
 
         await db.collection('auctions').doc(activeAuctionId).update({
             currentBid: amount,
-            highestBidderId: teamId,
+            highestBidder: team,
             timer: 10,
-            auctionLog: firebase.firestore.FieldValue.arrayUnion(newLog)
+            auctionLog: firebase.firestore.FieldValue.arrayUnion(log)
         });
-    }, [activeAuctionId, state.teams]);
+    };
 
-    const sellPlayer = useCallback(async (teamId?: string | number, customPrice?: number) => {
+    const sellPlayer = async (teamId?: string | number, customPrice?: number) => {
         if (!activeAuctionId || !state.currentPlayerId) return;
         
-        const price = customPrice || state.currentBid || 0;
-        const winnerId = teamId || state.highestBidder?.id;
-        
-        if (!winnerId) return;
+        const finalTeam = teamId ? state.teams.find(t => String(t.id) === String(teamId)) : state.highestBidder;
+        const finalPrice = customPrice !== undefined ? customPrice : (state.currentBid || 0);
 
-        const winner = state.teams.find(t => String(t.id) === String(winnerId));
-        if (!winner) return;
+        if (!finalTeam) throw new Error("No team selected to sell to");
 
         const player = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (!player) return;
 
-        await db.runTransaction(async (t) => {
+        await db.runTransaction(async (transaction) => {
             const auctionRef = db.collection('auctions').doc(activeAuctionId);
             const playerRef = auctionRef.collection('players').doc(String(player.id));
-            const teamRef = auctionRef.collection('teams').doc(String(winner.id));
+            const teamRef = auctionRef.collection('teams').doc(String(finalTeam.id));
 
-            const newBudget = winner.budget - price;
-            if (newBudget < 0) throw new Error("Insufficient budget");
-
-            t.update(playerRef, {
+            transaction.update(playerRef, {
                 status: 'SOLD',
-                soldPrice: price,
-                soldTo: winner.name
+                soldPrice: finalPrice,
+                soldTo: finalTeam.name
             });
 
-            // Note: In real app, reading team doc first in transaction is safer to get latest roster
-            const updatedRoster = [...winner.players, { ...player, status: 'SOLD', soldPrice: price, soldTo: winner.name }];
-            t.update(teamRef, {
+            const teamDoc = await transaction.get(teamRef);
+            const teamData = teamDoc.data() as Team;
+            
+            const updatedPlayers = [...(teamData.players || []), { ...player, status: 'SOLD', soldPrice: finalPrice, soldTo: finalTeam.name }];
+            const newBudget = (teamData.budget || 0) - finalPrice;
+
+            transaction.update(teamRef, {
                 budget: newBudget,
-                players: updatedRoster
+                players: updatedPlayers
             });
 
-            const soldLog: AuctionLog = {
-                message: `${player.name} SOLD to ${winner.name} for ${price}`,
+            const log = {
+                message: `${player.name} SOLD to ${finalTeam.name} for ${finalPrice}`,
                 timestamp: Date.now(),
                 type: 'SOLD'
             };
 
-            t.update(auctionRef, {
-                status: AuctionStatus.Sold,
-                auctionLog: firebase.firestore.FieldValue.arrayUnion(soldLog),
-                currentBid: price,
-                highestBidderId: winner.id,
-                timer: 0
+            transaction.update(auctionRef, {
+                status: AuctionStatus.Sold, 
+                auctionLog: firebase.firestore.FieldValue.arrayUnion(log),
+                currentBid: finalPrice,
+                highestBidder: finalTeam
             });
         });
-    }, [activeAuctionId, state.currentPlayerId, state.currentBid, state.highestBidder, state.teams, state.players]);
+    };
 
-    const passPlayer = useCallback(async () => {
+    const passPlayer = async () => {
         if (!activeAuctionId || !state.currentPlayerId) return;
-        
         const player = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (!player) return;
 
-        await db.runTransaction(async (t) => {
-            const auctionRef = db.collection('auctions').doc(activeAuctionId);
-            const playerRef = auctionRef.collection('players').doc(String(player.id));
-
-            t.update(playerRef, { status: 'UNSOLD' });
-
-            const log: AuctionLog = {
-                message: `${player.name} UNSOLD`,
-                timestamp: Date.now(),
-                type: 'UNSOLD'
-            };
-
-            t.update(auctionRef, {
-                status: AuctionStatus.Unsold,
-                auctionLog: firebase.firestore.FieldValue.arrayUnion(log),
-                timer: 0
-            });
+        await db.collection('auctions').doc(activeAuctionId).collection('players').doc(String(player.id)).update({
+            status: 'UNSOLD'
         });
-    }, [activeAuctionId, state.currentPlayerId, state.players]);
 
-    const startAuction = useCallback(async (specificPlayerId?: string | number): Promise<boolean> => {
-        if (!activeAuctionId) return false;
-
-        let nextPlayer: Player | undefined;
-
-        if (specificPlayerId) {
-            nextPlayer = state.players.find(p => String(p.id) === String(specificPlayerId));
-        } else {
-            const available = state.players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
-            if (available.length === 0) return false;
-            nextPlayer = available[Math.floor(Math.random() * available.length)];
-        }
-
-        if (!nextPlayer) return false;
+        const log = {
+            message: `${player.name} UNSOLD`,
+            timestamp: Date.now(),
+            type: 'UNSOLD'
+        };
 
         await db.collection('auctions').doc(activeAuctionId).update({
-            status: AuctionStatus.InProgress,
-            currentPlayerId: nextPlayer.id,
+            status: AuctionStatus.Unsold,
+            auctionLog: firebase.firestore.FieldValue.arrayUnion(log)
+        });
+    };
+
+    const startAuction = async (specificPlayerId?: string | number) => {
+        if (!activeAuctionId) return false;
+        
+        let nextPlayerId = specificPlayerId;
+        
+        if (!nextPlayerId) {
+            const available = state.players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+            if (available.length === 0) return false;
+            const next = available[Math.floor(Math.random() * available.length)];
+            nextPlayerId = next.id;
+        }
+
+        if (!nextPlayerId) return false;
+
+        const player = state.players.find(p => String(p.id) === String(nextPlayerId));
+
+        await db.collection('auctions').doc(activeAuctionId).update({
+            currentPlayerId: nextPlayerId,
             currentBid: 0,
-            highestBidderId: null,
+            highestBidder: null,
+            status: AuctionStatus.InProgress,
             timer: 10,
             auctionLog: firebase.firestore.FieldValue.arrayUnion({
-                message: `Bidding started for ${nextPlayer.name}`,
+                message: `Bidding started for ${player?.name}`,
                 timestamp: Date.now(),
                 type: 'SYSTEM'
             })
         });
-
+        
         return true;
-    }, [activeAuctionId, state.players]);
+    };
 
-    const resetCurrentPlayer = useCallback(async () => {
-        if (!activeAuctionId) return;
+    const resetCurrentPlayer = async () => {
+        if (!activeAuctionId || !state.currentPlayerId) return;
         await db.collection('auctions').doc(activeAuctionId).update({
             currentBid: 0,
-            highestBidderId: null,
+            highestBidder: null,
             timer: 10,
             status: AuctionStatus.InProgress
         });
-    }, [activeAuctionId]);
+    };
 
-    const resetAuction = useCallback(async () => {
-        if (!activeAuctionId) return;
-        
-        const batch = db.batch();
-        const auctionRef = db.collection('auctions').doc(activeAuctionId);
-        
-        batch.update(auctionRef, {
-            status: AuctionStatus.NotStarted,
-            currentPlayerId: null,
-            currentBid: 0,
-            highestBidderId: null,
-            timer: 0,
-            auctionLog: []
-        });
-
-        state.players.forEach(p => {
-            const pRef = auctionRef.collection('players').doc(String(p.id));
-            batch.update(pRef, { status: firebase.firestore.FieldValue.delete(), soldPrice: firebase.firestore.FieldValue.delete(), soldTo: firebase.firestore.FieldValue.delete() });
-        });
-
-        // Use global default purse if possible or a hardcoded value if context lost
-        const defaultPurse = 10000; 
-
-        state.teams.forEach(t => {
-            const tRef = auctionRef.collection('teams').doc(String(t.id));
-            // Ideally should fetch original budget
-            batch.update(tRef, { budget: defaultPurse, players: [] });
-        });
-
-        await batch.commit();
-    }, [activeAuctionId, state.players, state.teams]);
-
-    const endAuction = useCallback(async () => {
+    const endAuction = async () => {
         if (!activeAuctionId) return;
         await db.collection('auctions').doc(activeAuctionId).update({
             status: AuctionStatus.Finished,
             currentPlayerId: null
         });
-    }, [activeAuctionId]);
+    };
 
-    const resetUnsoldPlayers = useCallback(async () => {
+    const resetAuction = async () => {
         if (!activeAuctionId) return;
-        const batch = db.batch();
+        
+        await db.collection('auctions').doc(activeAuctionId).update({
+            status: AuctionStatus.NotStarted,
+            currentPlayerId: null,
+            currentBid: 0,
+            highestBidder: null,
+            auctionLog: []
+        });
+    };
+
+    const resetUnsoldPlayers = async () => {
+        if (!activeAuctionId) return;
         const unsold = state.players.filter(p => p.status === 'UNSOLD');
+        const batch = db.batch();
         
         unsold.forEach(p => {
             const ref = db.collection('auctions').doc(activeAuctionId).collection('players').doc(String(p.id));
@@ -369,148 +367,111 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         
         await batch.commit();
-    }, [activeAuctionId, state.players]);
+        
+        await db.collection('auctions').doc(activeAuctionId).update({
+            auctionLog: firebase.firestore.FieldValue.arrayUnion({
+                message: `${unsold.length} unsold players brought back to pool`,
+                timestamp: Date.now(),
+                type: 'SYSTEM'
+            })
+        });
+    };
 
-    const updateBiddingStatus = useCallback(async (status: BiddingStatus) => {
+    const updateBiddingStatus = async (status: BiddingStatus) => {
         if (!activeAuctionId) return;
         await db.collection('auctions').doc(activeAuctionId).update({ biddingStatus: status });
-    }, [activeAuctionId]);
+    };
 
-    const toggleSelectionMode = useCallback(async () => {
+    const toggleSelectionMode = async () => {
         if (!activeAuctionId) return;
-        const newMode = state.playerSelectionMode === 'AUTO' ? 'MANUAL' : 'AUTO';
+        const newMode = state.playerSelectionMode === 'MANUAL' ? 'AUTO' : 'MANUAL';
         await db.collection('auctions').doc(activeAuctionId).update({ playerSelectionMode: newMode });
-    }, [activeAuctionId, state.playerSelectionMode]);
+    };
 
-    const updateTheme = useCallback(async (type: 'PROJECTOR' | 'OBS', layout: string) => {
+    const updateTheme = async (type: 'PROJECTOR' | 'OBS', layout: string) => {
         if (!activeAuctionId) return;
         const field = type === 'PROJECTOR' ? 'projectorLayout' : 'obsLayout';
         await db.collection('auctions').doc(activeAuctionId).update({ [field]: layout });
-    }, [activeAuctionId]);
+    };
 
-    const setAdminView = useCallback(async (view: AdminViewOverride | null) => {
+    const setAdminView = async (view: AdminViewOverride | null) => {
         if (!activeAuctionId) return;
         await db.collection('auctions').doc(activeAuctionId).update({ adminViewOverride: view });
-    }, [activeAuctionId]);
+    };
 
-    const correctPlayerSale = useCallback(async (playerId: string, newTeamId: string | null, newPrice: number) => {
+    const correctPlayerSale = async (playerId: string, newTeamId: string | null, newPrice: number) => {
         if (!activeAuctionId) return;
         
+        const auctionRef = db.collection('auctions').doc(activeAuctionId);
+        
         await db.runTransaction(async (t) => {
-            const auctionRef = db.collection('auctions').doc(activeAuctionId);
             const playerRef = auctionRef.collection('players').doc(playerId);
             const playerDoc = await t.get(playerRef);
-            const player = playerDoc.data() as Player;
-
-            // Revert Old Sale
-            if (player.status === 'SOLD' && player.soldTo) {
-                const oldTeam = state.teams.find(team => team.name === player.soldTo);
-                if (oldTeam) {
-                    const oldTeamRef = auctionRef.collection('teams').doc(String(oldTeam.id));
-                    const refundedBudget = oldTeam.budget + (player.soldPrice || 0);
-                    const filteredPlayers = oldTeam.players.filter(p => String(p.id) !== playerId);
-                    t.update(oldTeamRef, { budget: refundedBudget, players: filteredPlayers });
+            const playerData = playerDoc.data() as Player;
+            
+            // 1. Revert previous sale if applicable
+            if (playerData.status === 'SOLD' && playerData.soldTo) {
+                const prevTeam = state.teams.find(tm => tm.name === playerData.soldTo);
+                if (prevTeam) {
+                    const prevTeamRef = auctionRef.collection('teams').doc(String(prevTeam.id));
+                    const prevTeamDoc = await t.get(prevTeamRef);
+                    if (prevTeamDoc.exists) {
+                        const ptData = prevTeamDoc.data() as Team;
+                        const refund = playerData.soldPrice || 0;
+                        const newBudget = (ptData.budget || 0) + refund;
+                        const newPlayers = (ptData.players || []).filter(p => String(p.id) !== playerId);
+                        
+                        t.update(prevTeamRef, { budget: newBudget, players: newPlayers });
+                    }
                 }
             }
-
-            // Apply New Sale
+            
+            // 2. Apply new sale if newTeamId provided
             if (newTeamId) {
-                const newTeam = state.teams.find(team => String(team.id) === String(newTeamId));
-                if (!newTeam) throw new Error("New team not found");
-                
-                const newTeamRef = auctionRef.collection('teams').doc(String(newTeamId));
-                // We assume client state is somewhat fresh or this op is done in isolation
-                // For perfect accuracy, we should read team doc in transaction, but doing so for finding team by ID is fine.
-                // However, calculating budget based on client state `newTeam.budget` inside transaction mixed with reads is unsafe if concurrent.
-                // But for this app's scale, we rely on single admin flow mostly.
-                
-                // Better approach: Read doc
+                const newTeamRef = auctionRef.collection('teams').doc(newTeamId);
                 const newTeamDoc = await t.get(newTeamRef);
                 const newTeamData = newTeamDoc.data() as Team;
                 
-                // Adjust budget. If oldTeam == newTeam, the refund above logic might conflict if we use stale client state vs DB read.
-                // Since we just updated oldTeamRef in transaction, we can't read it back easily in client SDK transaction.
-                // We will assume separate teams for simplicity or user must refresh if complex.
+                const newBudget = (newTeamData.budget || 0) - newPrice;
+                const updatedPlayerObj = { ...playerData, status: 'SOLD', soldPrice: newPrice, soldTo: newTeamData.name };
+                const newPlayers = [...(newTeamData.players || []), updatedPlayerObj];
                 
-                const updatedBudget = newTeamData.budget - newPrice;
-                if (updatedBudget < 0) throw new Error("Insufficient budget");
-                
-                const playersList = newTeamData.players || [];
-                t.update(newTeamRef, {
-                    budget: updatedBudget,
-                    players: [...playersList, { ...player, status: 'SOLD', soldPrice: newPrice, soldTo: newTeamData.name }]
-                });
-                
-                t.update(playerRef, { status: 'SOLD', soldTo: newTeamData.name, soldPrice: newPrice });
+                t.update(newTeamRef, { budget: newBudget, players: newPlayers });
+                t.update(playerRef, { status: 'SOLD', soldPrice: newPrice, soldTo: newTeamData.name });
             } else {
-                // Unsell
-                t.update(playerRef, { status: firebase.firestore.FieldValue.delete(), soldTo: firebase.firestore.FieldValue.delete(), soldPrice: firebase.firestore.FieldValue.delete() });
+                t.update(playerRef, { 
+                    status: firebase.firestore.FieldValue.delete(), 
+                    soldPrice: firebase.firestore.FieldValue.delete(),
+                    soldTo: firebase.firestore.FieldValue.delete()
+                });
             }
         });
-    }, [activeAuctionId, state.teams]);
-
-    const nextBid = useMemo(() => {
-        const currentPlayer = state.currentPlayerIndex !== null ? state.unsoldPlayers[state.currentPlayerIndex] : null;
-        const basePrice = currentPlayer?.basePrice || 0;
-        const currentBid = state.currentBid || 0;
-
-        if (currentBid === 0) {
-            return basePrice > 0 ? basePrice : (state.bidIncrement || 100);
-        }
-        
-        const currentPrice = currentBid;
-        
-        if (state.bidSlabs && state.bidSlabs.length > 0) {
-            const sortedSlabs = [...state.bidSlabs].sort((a, b) => b.from - a.from);
-            const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
-            if (activeSlab) {
-                return currentPrice + activeSlab.increment;
-            }
-        }
-        
-        if (currentPlayer && currentPlayer.category) {
-            const cat = state.categories.find(c => c.name === currentPlayer.category);
-            if (cat && cat.slabs && cat.slabs.length > 0) {
-                 const sortedSlabs = [...cat.slabs].sort((a, b) => b.from - a.from);
-                 const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
-                 if (activeSlab) {
-                     return currentPrice + activeSlab.increment;
-                 }
-            }
-            if (cat && cat.bidIncrement > 0) {
-                return currentPrice + cat.bidIncrement;
-            }
-        }
-
-        return currentPrice + (state.bidIncrement || 100);
-    }, [state.currentBid, state.currentPlayerIndex, state.unsoldPlayers, state.bidIncrement, state.bidSlabs, state.categories]);
-
-    const value: AuctionContextType = {
-        state,
-        userProfile,
-        setUserProfile,
-        placeBid,
-        sellPlayer,
-        passPlayer,
-        correctPlayerSale,
-        startAuction,
-        endAuction,
-        resetAuction,
-        resetCurrentPlayer,
-        resetUnsoldPlayers,
-        updateBiddingStatus,
-        toggleSelectionMode,
-        updateTheme,
-        setAdminView,
-        logout,
-        error,
-        joinAuction,
-        activeAuctionId,
-        nextBid
     };
 
     return (
-        <AuctionContext.Provider value={value}>
+        <AuctionContext.Provider value={{
+            state,
+            userProfile,
+            setUserProfile,
+            placeBid,
+            sellPlayer,
+            passPlayer,
+            correctPlayerSale,
+            startAuction,
+            endAuction,
+            resetAuction,
+            resetCurrentPlayer,
+            resetUnsoldPlayers,
+            updateBiddingStatus,
+            toggleSelectionMode,
+            updateTheme,
+            setAdminView,
+            logout,
+            error,
+            joinAuction,
+            activeAuctionId,
+            nextBid
+        }}>
             {children}
         </AuctionContext.Provider>
     );
