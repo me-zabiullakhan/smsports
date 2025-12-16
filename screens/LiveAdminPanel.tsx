@@ -1,14 +1,13 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
   const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
-  const { teams, players, biddingStatus, playerSelectionMode } = state;
+  const { teams, players, biddingStatus, playerSelectionMode, categories } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -126,7 +125,27 @@ const LiveAdminPanel: React.FC = () => {
       }
   }
 
+  const handleQuickBid = async (teamId: string | number) => {
+      try {
+          await placeBid(teamId, nextBid);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
+  const currentPlayer = state.currentPlayerIndex !== null ? state.unsoldPlayers[state.currentPlayerIndex] : null;
+
+  // Helper to check category limits
+  const isTeamLimitReached = (team: Team) => {
+      if (!currentPlayer || !currentPlayer.category) return false;
+      const catConfig = categories.find(c => c.name === currentPlayer.category);
+      if (catConfig && catConfig.maxPerTeam > 0) {
+          const count = team.players.filter(p => p.category === currentPlayer.category).length;
+          return count >= catConfig.maxPerTeam;
+      }
+      return false;
+  };
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
@@ -468,6 +487,49 @@ const LiveAdminPanel: React.FC = () => {
              </div>
          )}
       </div>
+
+      {/* QUICK BID BAR */}
+      {state.status === AuctionStatus.InProgress && currentPlayer && (
+          <div className="mb-4 animate-slide-up">
+              <h3 className="text-xs font-bold text-text-secondary uppercase mb-2 flex items-center">
+                  <Gavel className="w-3 h-3 mr-1 text-yellow-400" /> Quick Bid
+              </h3>
+              <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar snap-x">
+                  {teams.map(team => {
+                      const isLimitReached = isTeamLimitReached(team);
+                      const isHighest = state.highestBidder?.id === team.id;
+                      const canAfford = team.budget >= nextBid;
+                      const disabled = isLimitReached || isHighest || !canAfford;
+
+                      return (
+                          <button
+                              key={team.id}
+                              onClick={() => handleQuickBid(team.id)}
+                              disabled={disabled}
+                              className={`
+                                  flex-shrink-0 w-24 flex flex-col items-center p-2 rounded-lg border-2 transition-all active:scale-95 snap-start
+                                  ${isHighest 
+                                      ? 'bg-green-600 border-green-400 shadow-[0_0_10px_rgba(22,163,74,0.5)]' 
+                                      : disabled 
+                                          ? 'bg-gray-800 border-gray-700 opacity-50 cursor-not-allowed' 
+                                          : 'bg-primary border-gray-600 hover:border-highlight hover:bg-gray-800'}
+                              `}
+                          >
+                              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center mb-1 overflow-hidden">
+                                  {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain"/> : <span className="text-black font-bold text-xs">{team.name.charAt(0)}</span>}
+                              </div>
+                              <div className="text-[10px] font-bold text-white truncate w-full text-center mb-0.5">{team.name}</div>
+                              <div className={`text-[10px] font-mono ${canAfford ? 'text-green-400' : 'text-red-400'}`}>{team.budget}</div>
+                              
+                              <div className={`mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded w-full text-center ${isHighest ? 'bg-white text-green-700' : disabled ? 'text-gray-500' : 'bg-highlight text-primary'}`}>
+                                  {isHighest ? 'LEADING' : isLimitReached ? 'FULL' : `+${nextBid - (Number(state.currentBid) || 0)}`}
+                              </div>
+                          </button>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
 
       <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase Teams Overview">Teams Overview</h3>
       <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar">
