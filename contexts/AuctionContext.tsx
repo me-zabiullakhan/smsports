@@ -87,6 +87,8 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     setState(prev => ({
                         ...prev,
                         ...data,
+                        // Explicitly map 'slabs' from DB to 'bidSlabs' in state
+                        bidSlabs: data.slabs || [],
                         // Preserve local arrays if not in root doc (handled by subcollection listeners below)
                     }));
                 }
@@ -347,13 +349,70 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const resetAuction = async () => {
         if (!activeAuctionId) return;
         
-        await db.collection('auctions').doc(activeAuctionId).update({
-            status: AuctionStatus.NotStarted,
-            currentPlayerId: null,
-            currentBid: 0,
-            highestBidder: null,
-            auctionLog: []
-        });
+        const auctionRef = db.collection('auctions').doc(activeAuctionId);
+        
+        // 1. Fetch Default Purse from Auction Config
+        const auctionSnap = await auctionRef.get();
+        if (!auctionSnap.exists) return;
+        const defaultPurse = auctionSnap.data()?.purseValue || 10000;
+
+        // 2. Fetch all Teams and Players to reset
+        const playersSnap = await auctionRef.collection('players').get();
+        const teamsSnap = await auctionRef.collection('teams').get();
+
+        // 3. Batched Updates (Handling chunks of 450 to stay under 500 limit)
+        const batchSize = 450;
+        const allDocs = [
+            ...playersSnap.docs.map(d => ({ type: 'PLAYER', ref: d.ref })),
+            ...teamsSnap.docs.map(d => ({ type: 'TEAM', ref: d.ref }))
+        ];
+
+        // Process in chunks
+        for (let i = 0; i < allDocs.length; i += batchSize) {
+            const batch = db.batch();
+            const chunk = allDocs.slice(i, i + batchSize);
+            
+            chunk.forEach(item => {
+                if (item.type === 'PLAYER') {
+                    batch.update(item.ref, {
+                        status: firebase.firestore.FieldValue.delete(),
+                        soldPrice: firebase.firestore.FieldValue.delete(),
+                        soldTo: firebase.firestore.FieldValue.delete()
+                    });
+                } else {
+                    batch.update(item.ref, {
+                        budget: defaultPurse,
+                        players: []
+                    });
+                }
+            });
+            
+            // Only update root auction doc in the first batch
+            if (i === 0) {
+                batch.update(auctionRef, {
+                    status: AuctionStatus.NotStarted,
+                    currentPlayerId: null,
+                    currentBid: 0,
+                    highestBidder: null,
+                    auctionLog: [],
+                    timer: 0
+                });
+            }
+            
+            await batch.commit();
+        }
+        
+        // If there were no sub-docs, we still need to reset the auction status
+        if (allDocs.length === 0) {
+             await auctionRef.update({
+                status: AuctionStatus.NotStarted,
+                currentPlayerId: null,
+                currentBid: 0,
+                highestBidder: null,
+                auctionLog: [],
+                timer: 0
+            });
+        }
     };
 
     const resetUnsoldPlayers = async () => {

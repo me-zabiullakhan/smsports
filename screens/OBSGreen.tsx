@@ -474,14 +474,45 @@ const ProjectorScreen: React.FC = () => {
   };
 
   const RenderStandard = () => (
-    <div className="h-screen w-full bg-gray-100 p-4 pb-16 flex flex-col font-sans overflow-hidden relative">
-        <TournamentLogo />
-        <SponsorLoop />
+    <div className="h-screen w-full bg-gray-100 flex flex-col font-sans overflow-hidden relative">
         
-        {/* Main Content Area - Increased Top Margin to prevent overlap */}
-        <div className="flex-1 flex gap-4 mt-40 min-h-0 relative z-10">
+        {/* Top Header Bar */}
+        <div className="h-24 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-8 z-50 shrink-0 relative">
+            
+            {/* Left: Tournament Logo */}
+            <div className="w-48 h-20 flex items-center justify-start">
+                {state.auctionLogoUrl ? (
+                    <img src={state.auctionLogoUrl} className="max-h-full max-w-full object-contain drop-shadow-sm" alt="Tournament Logo" />
+                ) : (
+                    <div className="text-gray-300 font-bold text-xs uppercase border-2 border-dashed border-gray-300 p-2 rounded">No Logo</div>
+                )}
+            </div>
+
+            {/* Center: Tournament Name */}
+            <div className="flex-1 flex flex-col items-center justify-center px-4">
+                <h1 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest drop-shadow-sm text-center truncate w-full">
+                    {state.tournamentName || "AUCTION 2025"}
+                </h1>
+            </div>
+
+            {/* Right: Sponsors */}
+            <div className="w-48 h-20 flex items-center justify-end">
+                {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
+                    <div className="h-full w-full flex items-center justify-end">
+                        <img 
+                            src={state.sponsors[currentSponsorIndex]?.imageUrl} 
+                            className="max-h-16 max-w-full object-contain transition-opacity duration-500"
+                            alt="Sponsor"
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+        
+        {/* Main Content Area */}
+        <div className="flex-1 flex gap-4 p-4 pb-16 min-h-0 relative z-10 items-center justify-center">
             {/* Player Image */}
-            <div className="w-[30%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+            <div className="w-[30%] bg-white rounded-3xl shadow-2xl overflow-hidden relative border-4 border-white flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 h-[65vh]">
                 <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg shadow-lg border border-gray-200">
                     <span className="font-bold text-xl text-gray-800 uppercase tracking-wide">{player?.category}</span>
@@ -489,17 +520,17 @@ const ProjectorScreen: React.FC = () => {
             </div>
 
             {/* Right Column */}
-            <div className="flex-1 flex flex-col gap-4 min-h-0">
+            <div className="flex-1 flex flex-col gap-4 min-h-0 h-[65vh]">
                 {/* Info Card */}
-                <div className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 flex justify-between items-start shrink-0">
+                <div className="bg-white rounded-3xl p-8 shadow-xl border border-gray-100 flex justify-between items-start shrink-0">
                     <div>
-                        <div className="flex items-center gap-2 mb-1 text-gray-500 font-bold tracking-widest uppercase text-sm"><Globe className="w-4 h-4" /> {player?.nationality}</div>
-                        <h1 className="text-5xl lg:text-6xl font-black text-gray-900 leading-tight mb-1 truncate max-w-[60vw]">{player?.name}</h1>
-                        <p className="text-xl text-highlight font-bold flex items-center"><User className="w-5 h-5 mr-2"/> {player?.speciality || player?.category}</p>
+                        <div className="flex items-center gap-2 mb-2 text-gray-500 font-bold tracking-widest uppercase text-sm"><Globe className="w-4 h-4" /> {player?.nationality}</div>
+                        <h1 className="text-6xl lg:text-7xl font-black text-gray-900 leading-none mb-2 truncate max-w-[50vw]">{player?.name}</h1>
+                        <p className="text-2xl text-highlight font-bold flex items-center mt-2"><User className="w-6 h-6 mr-2"/> {player?.speciality || player?.category}</p>
                     </div>
-                    <div className="text-right whitespace-nowrap">
+                    <div className="text-right whitespace-nowrap bg-gray-50 p-4 rounded-xl border border-gray-200">
                         <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Base Price</p>
-                        <p className="text-3xl font-bold text-gray-700">{player?.basePrice}</p>
+                        <p className="text-4xl font-bold text-gray-700 font-mono">{player?.basePrice}</p>
                     </div>
                 </div>
 
@@ -510,16 +541,16 @@ const ProjectorScreen: React.FC = () => {
                     {status === 'SOLD' && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"><div className="flex flex-col items-center"><div className="bg-green-600 text-white font-black text-7xl lg:text-8xl px-12 py-4 border-8 border-white -rotate-12 shadow-[0_0_50px_rgba(22,163,74,0.6)] animate-bounce-in tracking-widest uppercase mb-8">SOLD</div>{bidder && <div className="bg-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slide-up"><div className="text-right"><p className="text-xs text-gray-400 font-bold uppercase">Sold To</p><p className="text-3xl font-black text-gray-800">{bidder.name}</p></div>{bidder.logoUrl ? <img src={bidder.logoUrl} className="w-16 h-16 rounded-full border border-gray-200 object-contain" /> : <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center font-bold text-xl">{bidder.name.charAt(0)}</div>}</div>}</div></div>}
                     {status === 'UNSOLD' && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"><div className="bg-red-600 text-white font-black text-8xl px-12 py-4 border-8 border-white -rotate-12 shadow-[0_0_50px_rgba(220,38,38,0.6)] animate-bounce-in tracking-widest uppercase">UNSOLD</div></div>}
                     
-                    <p className="text-highlight font-bold text-lg lg:text-xl uppercase tracking-[0.5em] mb-2 relative z-10">Current Bid Amount</p>
+                    <p className="text-highlight font-bold text-lg lg:text-xl uppercase tracking-[0.5em] mb-4 relative z-10">Current Bid Amount</p>
                     <div className="text-[12vh] lg:text-[18vh] leading-none font-black text-white tabular-nums drop-shadow-2xl relative z-10">{bid.toLocaleString()}</div>
                     
                     {status === 'LIVE' && bidder && (
-                        <div className="mt-4 bg-gray-800 px-6 py-2 rounded-full flex items-center gap-4 border border-gray-700 relative z-10">
+                        <div className="mt-6 bg-gray-800 px-8 py-3 rounded-full flex items-center gap-6 border border-gray-700 relative z-10 shadow-lg">
                             <div className="text-right">
-                                <p className="text-[10px] text-gray-400 font-bold uppercase">Highest Bidder</p>
-                                <p className="text-xl font-bold text-white">{bidder.name}</p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Highest Bidder</p>
+                                <p className="text-2xl font-bold text-white">{bidder.name}</p>
                             </div>
-                            {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-10 h-10 rounded-full bg-white p-0.5" /> : <div className="w-10 h-10 bg-gray-600 rounded-full" />}
+                            {bidder.logoUrl ? <img src={bidder.logoUrl} className="w-12 h-12 rounded-full bg-white p-0.5" /> : <div className="w-12 h-12 bg-gray-600 rounded-full" />}
                         </div>
                     )}
                 </div>
@@ -527,7 +558,7 @@ const ProjectorScreen: React.FC = () => {
         </div>
 
         {/* Bottom Activity Section */}
-        <div className="mt-4 flex gap-4 h-[15vh] relative z-20 bg-gray-100 shrink-0">
+        <div className="mt-auto flex gap-4 h-[15vh] relative z-20 bg-gray-100 shrink-0 p-4 pt-0">
             <div className="w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 p-4 flex flex-col justify-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-2 h-full bg-highlight"></div>
                 <h3 className="text-gray-400 font-bold uppercase text-xs tracking-widest mb-1 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> Recent Activity</h3>
