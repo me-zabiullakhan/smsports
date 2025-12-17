@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
-import TeamStatusCard from './TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Clock } from 'lucide-react';
+import TeamStatusCard from '../components/TeamStatusCard';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
   const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, updateSponsorConfig } = useAuction();
-  const { teams, players, biddingStatus, playerSelectionMode, categories } = state;
+  const { teams, players, biddingStatus, playerSelectionMode, categories, maxPlayersPerTeam } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -21,7 +21,7 @@ const LiveAdminPanel: React.FC = () => {
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState(''); // New search state
 
-  // Sponsor Config Local State
+  // Sponsor Config Local State (debounce or immediate)
   const [sponsorLoop, setSponsorLoop] = useState(state.sponsorConfig?.loopInterval || 5);
 
   // Auto-fill price and leader when entering sell mode or when bid updates
@@ -44,7 +44,7 @@ const LiveAdminPanel: React.FC = () => {
       }
   }, [state.currentBid, state.highestBidder, isSellingMode, state.currentPlayerId, players]);
 
-  // Sync sponsor loop state from DB
+  // Sync sponsor loop state
   useEffect(() => {
       if(state.sponsorConfig?.loopInterval) setSponsorLoop(state.sponsorConfig.loopInterval);
   }, [state.sponsorConfig]);
@@ -147,10 +147,10 @@ const LiveAdminPanel: React.FC = () => {
           await placeBid(teamId, nextBid);
       } catch (e) {
           console.error(e);
+          // Optional: Show toast error
       }
   };
 
-  // --- NEW: Sponsor & Display Controls ---
   const updateSponsorVisibility = (target: 'OBS' | 'PROJECTOR') => {
       const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 };
       const newConfig = {
@@ -173,17 +173,6 @@ const LiveAdminPanel: React.FC = () => {
 
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
   const currentPlayer = state.currentPlayerIndex !== null ? state.unsoldPlayers[state.currentPlayerIndex] : null;
-
-  // Helper to check category limits
-  const isTeamLimitReached = (team: Team) => {
-      if (!currentPlayer || !currentPlayer.category) return false;
-      const catConfig = categories.find(c => c.name === currentPlayer.category);
-      if (catConfig && catConfig.maxPerTeam > 0) {
-          const count = team.players.filter(p => p.category === currentPlayer.category).length;
-          return count >= catConfig.maxPerTeam;
-      }
-      return false;
-  };
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
@@ -398,6 +387,98 @@ const LiveAdminPanel: React.FC = () => {
       );
   }
 
+  // --- RENDER QUICK BID BUTTONS ---
+  const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
+  const renderQuickBidButtons = () => {
+        if (!isRoundActive || isSellingMode) return null;
+
+        return (
+            <div className="mb-4">
+                <h3 className="text-xs font-bold text-text-secondary uppercase mb-2 flex items-center">
+                    <Zap className="w-3 h-3 mr-1 text-yellow-400" /> Quick Bids (Next: {nextBid})
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                    {teams.map(team => {
+                        // Logic Check
+                        let allowed = true;
+                        let reason = '';
+                        
+                        // 1. Budget
+                        if (team.budget < nextBid) { allowed = false; reason = 'NO FUNDS'; }
+                        // 2. Highest
+                        else if (state.highestBidder?.id === team.id) { allowed = false; reason = 'LEADING'; }
+                        // 3. Squad Full
+                        else if (team.players.length >= (maxPlayersPerTeam || 25)) { allowed = false; reason = 'FULL'; }
+                        
+                        // 4. Bid Limit & Category
+                        else if (currentPlayer) {
+                            if (currentPlayer.category) {
+                                const catConfig = categories.find(c => c.name === currentPlayer.category);
+                                if (catConfig && catConfig.maxPerTeam > 0) {
+                                    const count = team.players.filter(p => p.category === currentPlayer.category).length;
+                                    if (count >= catConfig.maxPerTeam) { allowed = false; reason = 'CAT LIMIT'; }
+                                }
+                            }
+                            if (allowed) {
+                                let reservedBudget = 0;
+                                categories.forEach(cat => {
+                                    if (cat.maxPerTeam > 0) {
+                                        const playersInCat = team.players.filter(p => p.category === cat.name).length;
+                                        let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
+                                        if (currentPlayer.category === cat.name) {
+                                            slotsToFill = Math.max(0, slotsToFill - 1);
+                                        }
+                                        reservedBudget += slotsToFill * cat.basePrice;
+                                    }
+                                });
+                                const maxAllowedBid = team.budget - reservedBudget;
+                                if (nextBid > maxAllowedBid) { allowed = false; reason = 'MAX BID'; }
+                            }
+                        }
+
+                        return (
+                            <button
+                                key={team.id}
+                                onClick={() => handleQuickBid(team.id)}
+                                disabled={!allowed || isProcessing}
+                                className={`
+                                    flex items-center justify-between px-2 py-2 rounded border text-left transition-all relative group
+                                    ${allowed 
+                                        ? 'bg-white border-gray-300 hover:border-green-500 hover:shadow-md active:scale-95' 
+                                        : 'bg-gray-200 border-transparent opacity-60 cursor-not-allowed'}
+                                `}
+                            >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    {team.logoUrl ? (
+                                        <img src={team.logoUrl} className="w-6 h-6 rounded-full object-contain bg-gray-100 flex-shrink-0" />
+                                    ) : (
+                                        <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-[10px] font-bold text-gray-600 flex-shrink-0">
+                                            {team.name.charAt(0)}
+                                        </div>
+                                    )}
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-xs font-bold text-gray-800 truncate leading-none">{team.name}</span>
+                                        <span className="text-[9px] text-gray-500 font-mono leading-none mt-0.5">{team.budget}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-shrink-0 ml-1">
+                                    {!allowed ? (
+                                        <span className="text-[8px] font-black text-red-500 uppercase bg-red-100 px-1 rounded">{reason}</span>
+                                    ) : (
+                                        <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                            +{nextBid}
+                                        </span>
+                                    )}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+  };
+
   return (
     <div className="bg-secondary p-4 rounded-lg shadow-lg h-full flex flex-col border border-gray-700 relative">
       
@@ -535,6 +616,8 @@ const LiveAdminPanel: React.FC = () => {
       <div className="mb-6 space-y-3">
          {getControlButtons()}
          
+         {renderQuickBidButtons()}
+
          {!isSellingMode && (
              <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-accent/30">
                  <button 
@@ -559,7 +642,7 @@ const LiveAdminPanel: React.FC = () => {
          )}
       </div>
 
-      <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase Teams Overview">Teams Overview</h3>
+      <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase">Teams Overview</h3>
       <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar">
         {teams.map((team: Team) => (
           <TeamStatusCard key={team.id} team={team} />
