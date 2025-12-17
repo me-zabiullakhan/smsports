@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
-import { AuctionContextType, AuctionState, UserProfile, Team, Player, AuctionStatus, BiddingStatus, AdminViewOverride, BidIncrementSlab, UserRole } from '../types';
+import { AuctionContextType, AuctionState, UserProfile, Team, Player, AuctionStatus, BiddingStatus, AdminViewOverride, BidIncrementSlab, UserRole, SponsorConfig } from '../types';
 import { db, auth } from '../firebase';
 import firebase from 'firebase/compat/app';
 
@@ -446,6 +446,11 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         await db.collection('auctions').doc(activeAuctionId).update({ biddingStatus: status });
     };
 
+    const updateSponsorConfig = async (config: SponsorConfig) => {
+        if (!activeAuctionId) return;
+        await db.collection('auctions').doc(activeAuctionId).update({ sponsorConfig: config });
+    };
+
     const toggleSelectionMode = async () => {
         if (!activeAuctionId) return;
         const newMode = state.playerSelectionMode === 'MANUAL' ? 'AUTO' : 'MANUAL';
@@ -527,6 +532,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             resetCurrentPlayer,
             resetUnsoldPlayers,
             updateBiddingStatus,
+            updateSponsorConfig,
             toggleSelectionMode,
             updateTheme,
             setAdminView,

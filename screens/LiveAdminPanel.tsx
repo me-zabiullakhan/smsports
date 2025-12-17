@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, updateSponsorConfig } = useAuction();
   const { teams, players, biddingStatus, playerSelectionMode, categories } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +20,9 @@ const LiveAdminPanel: React.FC = () => {
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState(''); // New search state
+
+  // Sponsor Config Local State (debounce or immediate)
+  const [sponsorLoop, setSponsorLoop] = useState(state.sponsorConfig?.loopInterval || 5);
 
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
@@ -40,6 +43,11 @@ const LiveAdminPanel: React.FC = () => {
           setSelectedTeamId('');
       }
   }, [state.currentBid, state.highestBidder, isSellingMode, state.currentPlayerId, players]);
+
+  // Sync sponsor loop state
+  useEffect(() => {
+      if(state.sponsorConfig?.loopInterval) setSponsorLoop(state.sponsorConfig.loopInterval);
+  }, [state.sponsorConfig]);
 
   const handleStart = async (specificId?: string) => {
       if (teams.length === 0) {
@@ -140,6 +148,26 @@ const LiveAdminPanel: React.FC = () => {
       } catch (e) {
           console.error(e);
       }
+  };
+
+  const updateSponsorVisibility = (target: 'OBS' | 'PROJECTOR') => {
+      const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 };
+      const newConfig = {
+          ...current,
+          showOnOBS: target === 'OBS' ? !current.showOnOBS : current.showOnOBS,
+          showOnProjector: target === 'PROJECTOR' ? !current.showOnProjector : current.showOnProjector
+      };
+      updateSponsorConfig(newConfig);
+  };
+
+  const handleSponsorLoopChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = Number(e.target.value);
+      setSponsorLoop(val);
+  };
+
+  const saveSponsorLoop = () => {
+      const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 };
+      updateSponsorConfig({ ...current, loopInterval: sponsorLoop });
   };
 
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
@@ -381,7 +409,7 @@ const LiveAdminPanel: React.FC = () => {
                 </button>
               </div>
               
-              {/* Quick Actions & Theme Selectors */}
+              {/* Quick Actions */}
               <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full">
                   <div className="flex items-center gap-1">
                     <button 
@@ -417,34 +445,67 @@ const LiveAdminPanel: React.FC = () => {
                         </div>
                     </div>
                   </div>
+              </div>
 
-                  <div className="w-px h-6 bg-gray-600 mx-1"></div>
-
-                  {/* Theme Selectors with Clearer Labels */}
-                  <div className="flex flex-1 gap-2">
-                      <div className="flex-1">
+              {/* Display & Sponsors Toolbar */}
+              <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full mt-1 border-t border-gray-700">
+                  <div className="flex items-center gap-2 flex-grow">
+                      <div className="w-24">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
                           <select 
                             value={state.projectorLayout || 'STANDARD'} 
                             onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
                           >
                               <option value="STANDARD">Standard</option>
                               <option value="IPL">Gold/Blue</option>
                               <option value="MODERN">Modern</option>
                           </select>
                       </div>
-                      <div className="flex-1">
+                      <div className="w-24">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
                           <select 
                             value={state.obsLayout || 'STANDARD'} 
                             onChange={(e) => updateTheme('OBS', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
                           >
                               <option value="STANDARD">Standard</option>
                               <option value="MINIMAL">Minimal</option>
                               <option value="VERTICAL">Vertical</option>
                           </select>
+                      </div>
+                  </div>
+
+                  <div className="w-px h-8 bg-gray-600 mx-1"></div>
+
+                  <div className="flex flex-col gap-1 items-end">
+                      <span className="text-[9px] text-gray-400 font-bold uppercase">Sponsors</span>
+                      <div className="flex items-center gap-1">
+                          <button 
+                              onClick={() => updateSponsorVisibility('PROJECTOR')}
+                              className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showOnProjector ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
+                              title="Toggle on Projector"
+                          >
+                              <Monitor className="w-3 h-3"/> Proj
+                          </button>
+                          <button 
+                              onClick={() => updateSponsorVisibility('OBS')}
+                              className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showOnOBS ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
+                              title="Toggle on OBS"
+                          >
+                              <Cast className="w-3 h-3"/> OBS
+                          </button>
+                          <div className="relative group w-10">
+                              <input 
+                                  type="number" 
+                                  className="w-full bg-gray-800 text-white text-[9px] p-1 rounded border border-gray-600 text-center outline-none" 
+                                  value={sponsorLoop}
+                                  onChange={handleSponsorLoopChange}
+                                  onBlur={saveSponsorLoop}
+                                  title="Loop Interval (Sec)"
+                              />
+                              <Clock className="w-2 h-2 absolute top-0.5 right-0.5 text-gray-500 pointer-events-none"/>
+                          </div>
                       </div>
                   </div>
               </div>
@@ -496,49 +557,6 @@ const LiveAdminPanel: React.FC = () => {
              </div>
          )}
       </div>
-
-      {/* QUICK BID BAR */}
-      {state.status === AuctionStatus.InProgress && currentPlayer && (
-          <div className="mb-4 animate-slide-up">
-              <h3 className="text-xs font-bold text-text-secondary uppercase mb-2 flex items-center">
-                  <Gavel className="w-3 h-3 mr-1 text-yellow-400" /> Quick Bid
-              </h3>
-              <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar snap-x">
-                  {teams.map(team => {
-                      const isLimitReached = isTeamLimitReached(team);
-                      const isHighest = state.highestBidder?.id === team.id;
-                      const canAfford = team.budget >= nextBid;
-                      const disabled = isLimitReached || isHighest || !canAfford;
-
-                      return (
-                          <button
-                              key={team.id}
-                              onClick={() => handleQuickBid(team.id)}
-                              disabled={disabled}
-                              className={`
-                                  flex-shrink-0 w-24 flex flex-col items-center p-2 rounded-lg border-2 transition-all active:scale-95 snap-start
-                                  ${isHighest 
-                                      ? 'bg-green-600 border-green-400 shadow-[0_0_10px_rgba(22,163,74,0.5)]' 
-                                      : disabled 
-                                          ? 'bg-gray-800 border-gray-700 opacity-50 cursor-not-allowed' 
-                                          : 'bg-primary border-gray-600 hover:border-highlight hover:bg-gray-800'}
-                              `}
-                          >
-                              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center mb-1 overflow-hidden">
-                                  {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain"/> : <span className="text-black font-bold text-xs">{team.name.charAt(0)}</span>}
-                              </div>
-                              <div className="text-[10px] font-bold text-white truncate w-full text-center mb-0.5">{team.name}</div>
-                              <div className={`text-[10px] font-mono ${canAfford ? 'text-green-400' : 'text-red-400'}`}>{team.budget}</div>
-                              
-                              <div className={`mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded w-full text-center ${isHighest ? 'bg-white text-green-700' : disabled ? 'text-gray-500' : 'bg-highlight text-primary'}`}>
-                                  {isHighest ? 'LEADING' : isLimitReached ? 'FULL' : `+${nextBid - (Number(state.currentBid) || 0)}`}
-                              </div>
-                          </button>
-                      );
-                  })}
-              </div>
-          </div>
-      )}
 
       <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase Teams Overview">Teams Overview</h3>
       <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar">

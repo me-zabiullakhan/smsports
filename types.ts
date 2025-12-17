@@ -229,6 +229,7 @@ export interface AuctionContextType {
     resetCurrentPlayer: () => Promise<void>;
     resetUnsoldPlayers: () => Promise<void>;
     updateBiddingStatus: (status: BiddingStatus) => Promise<void>; // Updated from toggleBidding
+    updateSponsorConfig: (config: SponsorConfig) => Promise<void>; // Added
     toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
     updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
     setAdminView: (view: AdminViewOverride | null) => Promise<void>;
