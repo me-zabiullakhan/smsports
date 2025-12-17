@@ -89,7 +89,11 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...data,
                         // Explicitly map 'slabs' from DB to 'bidSlabs' in state
                         bidSlabs: data.slabs || [],
-                        // Preserve local arrays if not in root doc (handled by subcollection listeners below)
+                        // Explicitly map Title and Logo for display
+                        tournamentName: data.title || prev.tournamentName,
+                        auctionLogoUrl: data.logoUrl || prev.auctionLogoUrl,
+                        // Ensure sponsorConfig has defaults
+                        sponsorConfig: data.sponsorConfig || prev.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 }
                     }));
                 }
             } else {

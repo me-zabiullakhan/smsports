@@ -480,26 +480,25 @@ const ProjectorScreen: React.FC = () => {
         {/* Top Header Bar */}
         <div className="h-24 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-8 z-50 shrink-0 relative">
             
-            {/* Left: Tournament Logo */}
-            <div className="w-48 h-20 flex items-center justify-start">
-                {state.auctionLogoUrl ? (
-                    <img src={state.auctionLogoUrl} className="max-h-full max-w-full object-contain drop-shadow-sm" alt="Tournament Logo" />
-                ) : (
-                    <div className="text-gray-300 font-bold text-xs uppercase border-2 border-dashed border-gray-300 p-2 rounded">No Logo</div>
-                )}
-            </div>
-
-            {/* Center: Tournament Name */}
-            <div className="flex-1 flex flex-col items-center justify-center px-4">
-                <h1 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest drop-shadow-sm text-center truncate w-full">
+            {/* Left: Tournament Logo & Name */}
+            <div className="flex items-center gap-6 flex-1 min-w-0">
+                <div className="h-20 flex items-center justify-start shrink-0">
+                    {state.auctionLogoUrl ? (
+                        <img src={state.auctionLogoUrl} className="max-h-16 max-w-[200px] object-contain drop-shadow-sm" alt="Tournament Logo" />
+                    ) : (
+                        <div className="text-gray-300 font-bold text-xs uppercase border-2 border-dashed border-gray-300 p-2 rounded">No Logo</div>
+                    )}
+                </div>
+                <h1 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest drop-shadow-sm truncate">
                     {state.tournamentName || "AUCTION 2025"}
                 </h1>
             </div>
 
             {/* Right: Sponsors */}
-            <div className="w-48 h-20 flex items-center justify-end">
+            <div className="w-64 h-20 flex items-center justify-end shrink-0">
                 {state.sponsorConfig?.showOnProjector && state.sponsors.length > 0 && (
                     <div className="h-full w-full flex items-center justify-end">
+                        <span className="text-xs text-gray-400 font-bold uppercase mr-3 tracking-widest">Sponsors</span>
                         <img 
                             src={state.sponsors[currentSponsorIndex]?.imageUrl} 
                             className="max-h-16 max-w-full object-contain transition-opacity duration-500"
