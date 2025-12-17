@@ -3,12 +3,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from './TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid } = useAuction();
-  const { teams, players, biddingStatus, playerSelectionMode } = state;
+  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, updateSponsorConfig } = useAuction();
+  const { teams, players, biddingStatus, playerSelectionMode, categories } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -21,18 +21,33 @@ const LiveAdminPanel: React.FC = () => {
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState(''); // New search state
 
+  // Sponsor Config Local State
+  const [sponsorLoop, setSponsorLoop] = useState(state.sponsorConfig?.loopInterval || 5);
+
   // Auto-fill price and leader when entering sell mode or when bid updates
   useEffect(() => {
-      if (state.currentBid !== null) {
+      // 1. Determine Price
+      if (state.currentBid !== null && state.currentBid > 0) {
           setFinalPrice(Number(state.currentBid));
-          if (state.highestBidder) {
-              setSelectedTeamId(String(state.highestBidder.id));
-          } else if (!isSellingMode) {
-              // Only reset if not already editing
-              setSelectedTeamId('');
-          }
+      } else if (state.currentPlayerId) {
+          // Fallback to Base Price if no bids
+          const p = players.find(player => String(player.id) === String(state.currentPlayerId));
+          if (p) setFinalPrice(p.basePrice);
       }
-  }, [state.currentBid, state.highestBidder, isSellingMode]);
+
+      // 2. Determine Team
+      if (state.highestBidder) {
+          setSelectedTeamId(String(state.highestBidder.id));
+      } else if (!isSellingMode) {
+          // Reset selection only if we aren't currently editing
+          setSelectedTeamId('');
+      }
+  }, [state.currentBid, state.highestBidder, isSellingMode, state.currentPlayerId, players]);
+
+  // Sync sponsor loop state from DB
+  useEffect(() => {
+      if(state.sponsorConfig?.loopInterval) setSponsorLoop(state.sponsorConfig.loopInterval);
+  }, [state.sponsorConfig]);
 
   const handleStart = async (specificId?: string) => {
       if (teams.length === 0) {
@@ -113,6 +128,7 @@ const LiveAdminPanel: React.FC = () => {
           setIsSellingMode(false);
       } catch(e) {
           console.error(e);
+          alert("Failed to sell player. Check console.");
       } finally {
           setIsProcessing(false);
       }
@@ -126,7 +142,48 @@ const LiveAdminPanel: React.FC = () => {
       }
   }
 
+  const handleQuickBid = async (teamId: string | number) => {
+      try {
+          await placeBid(teamId, nextBid);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  // --- NEW: Sponsor & Display Controls ---
+  const updateSponsorVisibility = (target: 'OBS' | 'PROJECTOR') => {
+      const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 };
+      const newConfig = {
+          ...current,
+          showOnOBS: target === 'OBS' ? !current.showOnOBS : current.showOnOBS,
+          showOnProjector: target === 'PROJECTOR' ? !current.showOnProjector : current.showOnProjector
+      };
+      updateSponsorConfig(newConfig);
+  };
+
+  const handleSponsorLoopChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = Number(e.target.value);
+      setSponsorLoop(val);
+  };
+
+  const saveSponsorLoop = () => {
+      const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 };
+      updateSponsorConfig({ ...current, loopInterval: sponsorLoop });
+  };
+
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
+  const currentPlayer = state.currentPlayerIndex !== null ? state.unsoldPlayers[state.currentPlayerIndex] : null;
+
+  // Helper to check category limits
+  const isTeamLimitReached = (team: Team) => {
+      if (!currentPlayer || !currentPlayer.category) return false;
+      const catConfig = categories.find(c => c.name === currentPlayer.category);
+      if (catConfig && catConfig.maxPerTeam > 0) {
+          const count = team.players.filter(p => p.category === currentPlayer.category).length;
+          return count >= catConfig.maxPerTeam;
+      }
+      return false;
+  };
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
@@ -389,34 +446,67 @@ const LiveAdminPanel: React.FC = () => {
                         </div>
                     </div>
                   </div>
+              </div>
 
-                  <div className="w-px h-6 bg-gray-600 mx-1"></div>
-
-                  {/* Theme Selectors with Clearer Labels */}
-                  <div className="flex flex-1 gap-2">
-                      <div className="flex-1">
+              {/* Display & Sponsors Toolbar */}
+              <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full mt-1 border-t border-gray-700">
+                  <div className="flex items-center gap-2 flex-grow">
+                      <div className="w-24">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
                           <select 
                             value={state.projectorLayout || 'STANDARD'} 
                             onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
                           >
                               <option value="STANDARD">Standard</option>
                               <option value="IPL">Gold/Blue</option>
                               <option value="MODERN">Modern</option>
                           </select>
                       </div>
-                      <div className="flex-1">
+                      <div className="w-24">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
                           <select 
                             value={state.obsLayout || 'STANDARD'} 
                             onChange={(e) => updateTheme('OBS', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-xs p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
+                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
                           >
                               <option value="STANDARD">Standard</option>
                               <option value="MINIMAL">Minimal</option>
                               <option value="VERTICAL">Vertical</option>
                           </select>
+                      </div>
+                  </div>
+
+                  <div className="w-px h-8 bg-gray-600 mx-1"></div>
+
+                  <div className="flex flex-col gap-1 items-end">
+                      <span className="text-[9px] text-gray-400 font-bold uppercase">Sponsors</span>
+                      <div className="flex items-center gap-1">
+                          <button 
+                              onClick={() => updateSponsorVisibility('PROJECTOR')}
+                              className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showOnProjector ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
+                              title="Toggle on Projector"
+                          >
+                              <Monitor className="w-3 h-3"/> Proj
+                          </button>
+                          <button 
+                              onClick={() => updateSponsorVisibility('OBS')}
+                              className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showOnOBS ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
+                              title="Toggle on OBS"
+                          >
+                              <Cast className="w-3 h-3"/> OBS
+                          </button>
+                          <div className="relative group w-10">
+                              <input 
+                                  type="number" 
+                                  className="w-full bg-gray-800 text-white text-[9px] p-1 rounded border border-gray-600 text-center outline-none" 
+                                  value={sponsorLoop}
+                                  onChange={handleSponsorLoopChange}
+                                  onBlur={saveSponsorLoop}
+                                  title="Loop Interval (Sec)"
+                              />
+                              <Clock className="w-2 h-2 absolute top-0.5 right-0.5 text-gray-500 pointer-events-none"/>
+                          </div>
                       </div>
                   </div>
               </div>
