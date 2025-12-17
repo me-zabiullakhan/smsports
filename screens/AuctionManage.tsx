@@ -58,7 +58,7 @@ const DEFAULT_REG_CONFIG: RegistrationConfig = {
 const AuctionManage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'SPONSORS' | 'ROLES' | 'REGISTRATION'>('TEAMS');
+    const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'SPONSORS' | 'ROLES' | 'REGISTRATION'>('SETTINGS');
     const [loading, setLoading] = useState(true);
     const [auction, setAuction] = useState<AuctionSetup | null>(null);
 

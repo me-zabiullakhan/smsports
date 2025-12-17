@@ -242,49 +242,42 @@ const OBSOverlay: React.FC = () => {
   // --- LAYOUTS ---
 
   const RenderStandard = () => {
-    // 1. SOLD STATE - SHOW "SOLD CARD" ONLY (Hide Lower Third)
+    // 1. SOLD STATE - SHOW "SOLD CARD" ONLY (Redesigned without patch)
     if (status === 'SOLD' && player && bidder) {
         return (
             <div className="min-h-screen w-full relative font-sans p-10 flex items-center justify-end animate-slide-in-right">
                  <SponsorLogo />
-                 <div className="w-[400px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 relative mr-10 mt-20">
+                 <div className="w-[420px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 relative mr-10 mt-20">
                       {/* Top Name Bar */}
                       <div className="bg-indigo-900 p-4 text-center border-b border-white/10">
                           <h2 className="text-2xl font-black text-white uppercase tracking-wider leading-none">{player.name}</h2>
                           <p className="text-indigo-300 text-xs font-bold uppercase tracking-[0.2em] mt-1">{player.category}</p>
                       </div>
 
-                      {/* Photo Container */}
-                      <div className="h-[280px] w-full bg-gray-800 relative overflow-hidden">
+                      {/* Photo Container - Expanded height */}
+                      <div className="h-[360px] w-full bg-gray-800 relative overflow-hidden">
                           <img src={player.photoUrl} className="w-full h-full object-cover object-top" alt={player.name} />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
                       </div>
 
-                      {/* NEW: Price Display Below Image */}
-                      <div className="bg-slate-800 py-3 text-center border-t border-white/10 relative z-10">
-                          <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-0.5">Purchased For</p>
-                          <p className="text-5xl font-black text-green-400 drop-shadow-md tracking-tighter">{bid.toLocaleString()}</p>
-                      </div>
+                      {/* Unified Bottom Bar (Price + Logo + Sold Text) */}
+                      <div className="bg-green-600 h-24 flex items-center px-6 relative overflow-visible">
+                          <div className="flex flex-col z-10">
+                              <div className="flex items-center gap-2 mb-0">
+                                  <span className="text-green-900/80 font-black text-lg italic uppercase bg-white/20 px-2 rounded leading-none">SOLD</span>
+                                  <span className="text-green-100 text-[10px] font-bold uppercase tracking-widest">To {bidder.name}</span>
+                              </div>
+                              <p className="text-6xl font-black text-white drop-shadow-md tracking-tighter leading-none mt-1">{bid.toLocaleString()}</p>
+                          </div>
 
-                      {/* Bottom Team Bar */}
-                      <div className="bg-green-600 h-16 flex items-center px-6 relative">
-                          <p className="text-white/90 font-black text-4xl italic tracking-tighter">SOLD</p>
-                      </div>
-
-                      {/* Team Logo Badge (Overlaying Bottom Bar) - Corrected Fit */}
-                      <div className="absolute bottom-2 right-4 flex flex-col items-end">
-                          <div className="w-24 h-24 bg-white rounded-full p-1 shadow-2xl border-4 border-green-500 mb-2 transform hover:scale-105 transition-transform flex items-center justify-center overflow-hidden">
+                          {/* Team Logo Badge - Overlapping Top & Adjusted Padding */}
+                          <div className="absolute -top-8 right-6 w-32 h-32 bg-white rounded-full p-2 shadow-2xl border-4 border-green-600 flex items-center justify-center overflow-hidden z-20">
                               {bidder.logoUrl ? (
-                                  <img src={bidder.logoUrl} className="w-full h-full object-contain" alt={bidder.name} />
+                                  <img src={bidder.logoUrl} className="w-full h-full object-contain p-1" alt={bidder.name} />
                               ) : (
-                                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-gray-400">{bidder.name.charAt(0)}</div>
+                                  <div className="w-full h-full flex items-center justify-center font-bold text-3xl text-gray-400">{bidder.name.charAt(0)}</div>
                               )}
                           </div>
-                      </div>
-                      
-                      {/* Team Name Tag */}
-                      <div className="absolute bottom-1 right-4">
-                          <span className="text-[10px] font-bold text-white bg-black/50 px-2 py-0.5 rounded uppercase tracking-wider">{bidder.name}</span>
                       </div>
                  </div>
             </div>
@@ -367,7 +360,7 @@ const OBSOverlay: React.FC = () => {
 
                      {/* Team Logo - Corrected Fit */}
                      <div className="absolute bottom-6 right-8 z-30">
-                          <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-1 flex items-center justify-center transform hover:scale-105 transition-transform overflow-hidden">
+                          <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-2 flex items-center justify-center transform hover:scale-105 transition-transform overflow-hidden">
                               {bidder?.logoUrl ? (
                                   <img src={bidder.logoUrl} className="w-full h-full object-contain" alt={bidder.name}/>
                               ) : (
