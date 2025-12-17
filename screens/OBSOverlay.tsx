@@ -255,25 +255,25 @@ const OBSOverlay: React.FC = () => {
                       </div>
 
                       {/* Photo Container */}
-                      <div className="h-[350px] w-full bg-gray-800 relative overflow-hidden">
+                      <div className="h-[280px] w-full bg-gray-800 relative overflow-hidden">
                           <img src={player.photoUrl} className="w-full h-full object-cover object-top" alt={player.name} />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-                          
-                          {/* Price Overlay */}
-                          <div className="absolute bottom-24 w-full text-center z-10">
-                              <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-0.5">Purchased For</p>
-                              <p className="text-5xl font-black text-green-400 drop-shadow-md tracking-tighter">{bid.toLocaleString()}</p>
-                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                      </div>
+
+                      {/* NEW: Price Display Below Image */}
+                      <div className="bg-slate-800 py-3 text-center border-t border-white/10 relative z-10">
+                          <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-0.5">Purchased For</p>
+                          <p className="text-5xl font-black text-green-400 drop-shadow-md tracking-tighter">{bid.toLocaleString()}</p>
                       </div>
 
                       {/* Bottom Team Bar */}
-                      <div className="bg-green-600 h-20 flex items-center px-6 relative">
+                      <div className="bg-green-600 h-16 flex items-center px-6 relative">
                           <p className="text-white/90 font-black text-4xl italic tracking-tighter">SOLD</p>
                       </div>
 
-                      {/* Team Logo Badge (Overlaying Bottom Bar) */}
+                      {/* Team Logo Badge (Overlaying Bottom Bar) - Corrected Fit */}
                       <div className="absolute bottom-2 right-4 flex flex-col items-end">
-                          <div className="w-24 h-24 bg-white rounded-full p-2 shadow-2xl border-4 border-green-500 mb-2 transform hover:scale-105 transition-transform">
+                          <div className="w-24 h-24 bg-white rounded-full p-1 shadow-2xl border-4 border-green-500 mb-2 transform hover:scale-105 transition-transform flex items-center justify-center overflow-hidden">
                               {bidder.logoUrl ? (
                                   <img src={bidder.logoUrl} className="w-full h-full object-contain" alt={bidder.name} />
                               ) : (
@@ -365,11 +365,11 @@ const OBSOverlay: React.FC = () => {
                           </div>
                      </div>
 
-                     {/* Team Logo */}
+                     {/* Team Logo - Corrected Fit */}
                      <div className="absolute bottom-6 right-8 z-30">
-                          <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-2 flex items-center justify-center transform hover:scale-105 transition-transform">
+                          <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-1 flex items-center justify-center transform hover:scale-105 transition-transform overflow-hidden">
                               {bidder?.logoUrl ? (
-                                  <img src={bidder.logoUrl} className="max-w-full max-h-full object-contain" />
+                                  <img src={bidder.logoUrl} className="w-full h-full object-contain" alt={bidder.name}/>
                               ) : (
                                   <span className="text-4xl font-bold text-gray-300">?</span>
                               )}
