@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Search, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Search, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -58,7 +58,7 @@ const DEFAULT_REG_CONFIG: RegistrationConfig = {
 const AuctionManage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'SPONSORS' | 'ROLES' | 'REGISTRATION'>('TEAMS');
+    const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'SPONSORS' | 'ROLES' | 'REGISTRATION'>('TEAMS');
     const [loading, setLoading] = useState(true);
     const [auction, setAuction] = useState<AuctionSetup | null>(null);
 
@@ -76,6 +76,19 @@ const AuctionManage: React.FC = () => {
 
     // Registration State (Local copy for editing)
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
+
+    // Settings State
+    const [settingsForm, setSettingsForm] = useState({
+        title: '',
+        date: '',
+        sport: '',
+        purseValue: 0,
+        basePrice: 0,
+        bidIncrement: 0,
+        playersPerTeam: 0
+    });
+    const [settingsLogo, setSettingsLogo] = useState('');
+    const settingsLogoRef = useRef<HTMLInputElement>(null);
 
     // Edit/Create States
     const [isEditing, setIsEditing] = useState(false);
@@ -98,6 +111,18 @@ const AuctionManage: React.FC = () => {
                     const data = aucDoc.data() as AuctionSetup;
                     setAuction(data);
                     if (data.registrationConfig) setRegConfig(data.registrationConfig);
+                    
+                    // Init Settings Form
+                    setSettingsForm({
+                        title: data.title || '',
+                        date: data.date || '',
+                        sport: data.sport || '',
+                        purseValue: data.purseValue || 0,
+                        basePrice: data.basePrice || 0,
+                        bidIncrement: data.bidIncrement || 0,
+                        playersPerTeam: data.playersPerTeam || 0
+                    });
+                    setSettingsLogo(data.logoUrl || '');
                 }
 
                 const teamsSnap = await db.collection('auctions').doc(id).collection('teams').get();
@@ -283,6 +308,23 @@ const AuctionManage: React.FC = () => {
         }
     };
 
+    // --- NEW: Handle Auction Settings Save ---
+    const handleSaveSettings = async () => {
+        if (!id || !auction) return;
+        try {
+            const updates = {
+                ...settingsForm,
+                logoUrl: settingsLogo
+            };
+            await db.collection('auctions').doc(id).update(updates);
+            setAuction({ ...auction, ...updates }); // Optimistic update
+            alert("Auction Details Updated!");
+        } catch (e: any) {
+            console.error(e);
+            alert("Failed to update settings: " + e.message);
+        }
+    };
+
     const handleApproveRequest = async (reg: RegisteredPlayer) => {
         if (!id || !window.confirm(`Approve ${reg.fullName} and add to auction pool?`)) return;
         try {
@@ -364,6 +406,13 @@ const AuctionManage: React.FC = () => {
         }
     };
 
+    const handleSettingsLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const base64 = await compressImage(e.target.files[0]);
+            setSettingsLogo(base64);
+        }
+    };
+
     const addCustomField = () => {
         if (!newField.label) return alert("Enter Field Label");
         const fieldId = newField.label.toLowerCase().replace(/\s+/g, '_');
@@ -409,7 +458,7 @@ const AuctionManage: React.FC = () => {
                         <h1 className="text-lg font-bold text-gray-700 truncate">{auction?.title || 'Manage Auction'}</h1>
                     </div>
                     <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto w-full md:w-auto custom-scrollbar">
-                        {['TEAMS', 'PLAYERS', 'REQUESTS', 'CATEGORIES', 'ROLES', 'SPONSORS', 'REGISTRATION'].map((tab) => (
+                        {['SETTINGS', 'TEAMS', 'PLAYERS', 'REQUESTS', 'CATEGORIES', 'ROLES', 'SPONSORS', 'REGISTRATION'].map((tab) => (
                             <button 
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)} 
@@ -424,6 +473,82 @@ const AuctionManage: React.FC = () => {
 
             <main className="container mx-auto px-4 py-6">
                 
+                {/* SETTINGS TAB */}
+                {activeTab === 'SETTINGS' && (
+                    <div className="max-w-4xl mx-auto bg-white rounded shadow p-6">
+                        <h2 className="text-lg font-bold mb-6 flex items-center border-b pb-2"><Settings className="w-5 h-5 mr-2"/> Auction Settings</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* General Info */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">Auction Title</label>
+                                    <input type="text" className="w-full border rounded p-2" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">Sport</label>
+                                        <select className="w-full border rounded p-2 bg-white" value={settingsForm.sport} onChange={e => setSettingsForm({...settingsForm, sport: e.target.value})}>
+                                            <option value="Cricket">Cricket</option>
+                                            <option value="Football">Football</option>
+                                            <option value="Kabaddi">Kabaddi</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">Date</label>
+                                        <input type="date" className="w-full border rounded p-2" value={settingsForm.date} onChange={e => setSettingsForm({...settingsForm, date: e.target.value})} />
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">Auction Logo</label>
+                                    <div className="border border-dashed p-4 rounded flex items-center justify-center cursor-pointer hover:bg-gray-50" onClick={() => settingsLogoRef.current?.click()}>
+                                        {settingsLogo ? (
+                                            <img src={settingsLogo} className="h-24 object-contain" />
+                                        ) : (
+                                            <div className="text-center text-gray-400 text-sm">
+                                                <ImageIcon className="w-8 h-8 mx-auto mb-1" />
+                                                Click to Upload
+                                            </div>
+                                        )}
+                                        <input ref={settingsLogoRef} type="file" accept="image/*" className="hidden" onChange={handleSettingsLogoChange} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Rules & Budget */}
+                            <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <h3 className="font-bold text-sm text-gray-500 uppercase">Auction Rules</h3>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">Default Team Purse</label>
+                                    <input type="number" className="w-full border rounded p-2" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
+                                    <p className="text-xs text-gray-400 mt-1">Changes here affect new teams or resets only.</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">Base Price</label>
+                                        <input type="number" className="w-full border rounded p-2" value={settingsForm.basePrice} onChange={e => setSettingsForm({...settingsForm, basePrice: Number(e.target.value)})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">Bid Increment</label>
+                                        <input type="number" className="w-full border rounded p-2" value={settingsForm.bidIncrement} onChange={e => setSettingsForm({...settingsForm, bidIncrement: Number(e.target.value)})} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-600 mb-1">Max Players Per Team</label>
+                                    <input type="number" className="w-full border rounded p-2" value={settingsForm.playersPerTeam} onChange={e => setSettingsForm({...settingsForm, playersPerTeam: Number(e.target.value)})} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 pt-4 border-t flex justify-end">
+                            <button onClick={handleSaveSettings} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow flex items-center">
+                                <Save className="w-4 h-4 mr-2"/> Save Changes
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* TEAMS TAB */}
                 {activeTab === 'TEAMS' && (
                     <div className="bg-white rounded shadow p-4">
