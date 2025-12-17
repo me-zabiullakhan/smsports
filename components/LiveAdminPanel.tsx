@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap, Undo2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
-  const { state, sellPlayer, passPlayer, startAuction, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, updateSponsorConfig } = useAuction();
+  const { state, sellPlayer, passPlayer, startAuction, undoPlayerSelection, endAuction, resetAuction, resetCurrentPlayer, resetUnsoldPlayers, updateBiddingStatus, toggleSelectionMode, updateTheme, activeAuctionId, placeBid, nextBid, updateSponsorConfig, correctPlayerSale } = useAuction();
   const { teams, players, biddingStatus, playerSelectionMode, categories, maxPlayersPerTeam } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +20,10 @@ const LiveAdminPanel: React.FC = () => {
   // Manual Player Selection State
   const [manualPlayerId, setManualPlayerId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState(''); // New search state
+  const [showUnsold, setShowUnsold] = useState(false); // Toggle to include unsold players
+
+  // Undo State
+  const [lastAction, setLastAction] = useState<{playerId: string, type: 'SOLD' | 'UNSOLD', name: string} | null>(null);
 
   // Sponsor Config Local State (debounce or immediate)
   const [sponsorLoop, setSponsorLoop] = useState(state.sponsorConfig?.loopInterval || 5);
@@ -56,15 +60,16 @@ const LiveAdminPanel: React.FC = () => {
       }
 
       const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
-      if (availablePlayers.length === 0) {
+      if (availablePlayers.length === 0 && !showUnsold) {
           alert("Cannot start auction: No more players available.");
           return;
       }
 
       setIsProcessing(true);
+      // If restarting an unsold player, specificId will be passed.
       const hasNextPlayer = await startAuction(specificId);
       
-      if (!hasNextPlayer) {
+      if (!hasNextPlayer && !showUnsold) {
           if (window.confirm("No more players available in the pool.\n\nDo you want to MARK AUCTION AS COMPLETED?")) {
               await endAuction();
           }
@@ -88,6 +93,44 @@ const LiveAdminPanel: React.FC = () => {
       setIsProcessing(true);
       await resetCurrentPlayer();
       setIsProcessing(false);
+  }
+
+  const handleCancelSelection = async () => {
+      if(!window.confirm("Change Player? This will cancel the current round and allow you to select a different player.")) return;
+      setIsProcessing(true);
+      await undoPlayerSelection();
+      setIsProcessing(false);
+  }
+
+  const handleUndoLastAction = async () => {
+      if (!lastAction) return;
+      if (!window.confirm(`Undo ${lastAction.type} status for ${lastAction.name}? This will return them to the pool.`)) return;
+      
+      setIsProcessing(true);
+      try {
+          await correctPlayerSale(lastAction.playerId, null, 0); // null team, 0 price = reset to pool
+          setLastAction(null);
+      } catch (e) {
+          console.error(e);
+          alert("Failed to undo action.");
+      } finally {
+          setIsProcessing(false);
+      }
+  }
+
+  const handleResetSingleUnsold = async (playerId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!window.confirm("Bring this player back to pool (remove UNSOLD status)?")) return;
+      
+      setIsProcessing(true);
+      try {
+          await correctPlayerSale(playerId, null, 0);
+          // If this player was selected in manual dropdown, they will now appear as normal available player
+      } catch (e) {
+          alert("Failed to reset player.");
+      } finally {
+          setIsProcessing(false);
+      }
   }
   
   const copyOBSLink = (type: 'transparent' | 'green') => {
@@ -123,8 +166,12 @@ const LiveAdminPanel: React.FC = () => {
       }
 
       setIsProcessing(true);
+      const pid = state.currentPlayerId ? String(state.currentPlayerId) : '';
+      const pName = players.find(p => String(p.id) === pid)?.name || 'Player';
+
       try {
           await sellPlayer(selectedTeamId, finalPrice);
+          setLastAction({ playerId: pid, type: 'SOLD', name: pName });
           setIsSellingMode(false);
       } catch(e) {
           console.error(e);
@@ -137,7 +184,11 @@ const LiveAdminPanel: React.FC = () => {
   const handlePass = async () => {
       if (window.confirm("Confirm UNSOLD?")) {
           setIsProcessing(true);
+          const pid = state.currentPlayerId ? String(state.currentPlayerId) : '';
+          const pName = players.find(p => String(p.id) === pid)?.name || 'Player';
+
           await passPlayer();
+          setLastAction({ playerId: pid, type: 'UNSOLD', name: pName });
           setIsProcessing(false);
       }
   }
@@ -172,7 +223,7 @@ const LiveAdminPanel: React.FC = () => {
   };
 
   const selectedPlayerObj = players.find(p => p.id === manualPlayerId);
-  const currentPlayer = state.currentPlayerIndex !== null ? state.unsoldPlayers[state.currentPlayerIndex] : null;
+  const currentPlayer = state.currentPlayerId ? state.players.find(p => String(p.id) === String(state.currentPlayerId)) : null;
 
   const getControlButtons = () => {
       const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
@@ -288,22 +339,32 @@ const LiveAdminPanel: React.FC = () => {
           }
 
           return (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={handleSellClick}
+                        disabled={isProcessing}
+                        className="flex flex-col items-center justify-center bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
+                      >
+                          {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <Check className="mb-1 h-6 w-6"/>}
+                          {isProcessing ? 'SELLING...' : 'SOLD'}
+                      </button>
+                      <button 
+                        onClick={handlePass}
+                        disabled={isProcessing}
+                        className="flex flex-col items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
+                      >
+                          {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <X className="mb-1 h-6 w-6"/>}
+                          UNSOLD
+                      </button>
+                  </div>
+                  {/* Cancel / Change Player Button */}
                   <button 
-                    onClick={handleSellClick}
+                    onClick={handleCancelSelection} 
                     disabled={isProcessing}
-                    className="flex flex-col items-center justify-center bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
+                    className="w-full mt-3 flex items-center justify-center border-2 border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm active:scale-95 uppercase tracking-wide"
                   >
-                      {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <Check className="mb-1 h-6 w-6"/>}
-                      {isProcessing ? 'SELLING...' : 'SOLD'}
-                  </button>
-                  <button 
-                    onClick={handlePass}
-                    disabled={isProcessing}
-                    className="flex flex-col items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
-                  >
-                      {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <X className="mb-1 h-6 w-6"/>}
-                      UNSOLD
+                      <Undo2 className="w-5 h-5 mr-2" /> Change Player (Cancel Round)
                   </button>
               </div>
           );
@@ -311,10 +372,15 @@ const LiveAdminPanel: React.FC = () => {
 
       // 2. NEXT PLAYER SELECTION (Based on Mode)
       if (playerSelectionMode === 'MANUAL') {
-           const availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+           // Filter based on search term and unsold toggle
+           let availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
+           if (showUnsold) {
+               const unsoldList = players.filter(p => p.status === 'UNSOLD');
+               availablePlayers = [...availablePlayers, ...unsoldList];
+           }
+           
            availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
 
-           // Filter based on search term
            const filteredPlayers = availablePlayers.filter(p => 
                p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                p.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -323,7 +389,13 @@ const LiveAdminPanel: React.FC = () => {
            return (
                <div className="space-y-3 bg-primary/20 p-3 rounded-lg border border-gray-600">
                    <div>
-                       <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Select Next Player</label>
+                       <div className="flex justify-between items-center mb-1">
+                           <label className="block text-[10px] text-text-secondary uppercase font-bold">Select Next Player</label>
+                           <label className="flex items-center text-[10px] text-yellow-400 cursor-pointer">
+                               <input type="checkbox" checked={showUnsold} onChange={(e) => setShowUnsold(e.target.checked)} className="mr-1 accent-yellow-500" />
+                               Include Unsold
+                           </label>
+                       </div>
                        
                        {/* Search Input */}
                        <div className="relative mb-2">
@@ -337,21 +409,46 @@ const LiveAdminPanel: React.FC = () => {
                            />
                        </div>
 
-                       <div className="relative">
-                           <select 
-                               className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer"
-                               value={manualPlayerId}
-                               onChange={(e) => setManualPlayerId(e.target.value)}
-                           >
-                               <option value="">-- Choose Player ({filteredPlayers.length}) --</option>
-                               {filteredPlayers.map(p => (
-                                   <option key={p.id} value={p.id}>
-                                       {p.name} ({p.category}) - Base: {p.basePrice}
-                                   </option>
-                               ))}
-                           </select>
-                           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                       <div className="relative flex gap-1">
+                           <div className="relative flex-grow">
+                               <select 
+                                   className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer pr-8"
+                                   value={manualPlayerId}
+                                   onChange={(e) => setManualPlayerId(e.target.value)}
+                               >
+                                   <option value="">-- Choose Player ({filteredPlayers.length}) --</option>
+                                   {filteredPlayers.map(p => (
+                                       <option key={p.id} value={p.id} className={p.status === 'UNSOLD' ? 'text-red-400 font-bold' : ''}>
+                                           {p.name} ({p.category}) {p.status === 'UNSOLD' ? '[UNSOLD]' : ''} - Base: {p.basePrice}
+                                       </option>
+                                   ))}
+                               </select>
+                               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                           </div>
                        </div>
+                       
+                       {/* UNSOLD ACTION BLOCK */}
+                       {manualPlayerId && players.find(p => p.id === manualPlayerId)?.status === 'UNSOLD' && (
+                           <div className="mt-3 bg-red-900/20 border border-red-500/50 rounded-lg p-3 animate-fade-in">
+                               <h4 className="text-red-400 text-[10px] uppercase font-bold mb-2 flex items-center">
+                                   <AlertOctagon className="w-3 h-3 mr-1" /> Unsold Player Actions
+                               </h4>
+                               <div className="grid grid-cols-2 gap-2">
+                                   <button 
+                                       onClick={(e) => handleResetSingleUnsold(manualPlayerId, e)}
+                                       className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded flex items-center justify-center shadow-lg transition-colors active:scale-95"
+                                   >
+                                       <RefreshCw className="w-3 h-3 mr-1"/> Reset to Pool
+                                   </button>
+                                   <button 
+                                       onClick={() => handleStart(manualPlayerId)}
+                                       className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-2 rounded flex items-center justify-center shadow-lg transition-colors active:scale-95"
+                                   >
+                                       <Play className="w-3 h-3 mr-1"/> Re-Auction
+                                   </button>
+                               </div>
+                           </div>
+                       )}
                    </div>
 
                    <button 
@@ -364,7 +461,7 @@ const LiveAdminPanel: React.FC = () => {
                      }
                    >
                        {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
-                       Start Bidding
+                       {manualPlayerId && players.find(p => p.id === manualPlayerId)?.status === 'UNSOLD' ? 'Re-Auction Player' : 'Start Bidding'}
                    </button>
                </div>
            );
@@ -614,6 +711,26 @@ const LiveAdminPanel: React.FC = () => {
       </div>
 
       <div className="mb-6 space-y-3">
+         {/* UNDO BANNER */}
+         {lastAction && (
+             <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-3 rounded shadow-md flex justify-between items-center animate-fade-in mb-4">
+                 <div className="flex items-center text-xs">
+                     <AlertOctagon className="w-4 h-4 mr-2" />
+                     <span>Just marked <b>{lastAction.name}</b> as <b>{lastAction.type}</b></span>
+                 </div>
+                 <div className="flex gap-2">
+                     <button 
+                        onClick={handleUndoLastAction}
+                        disabled={isProcessing}
+                        className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded flex items-center transition-colors"
+                     >
+                         <Undo2 className="w-3 h-3 mr-1"/> Undo
+                     </button>
+                     <button onClick={() => setLastAction(null)} className="text-amber-500 hover:text-amber-800"><X className="w-4 h-4"/></button>
+                 </div>
+             </div>
+         )}
+
          {getControlButtons()}
          
          {renderQuickBidButtons()}

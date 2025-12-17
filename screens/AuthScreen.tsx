@@ -49,8 +49,11 @@ const AuthScreen: React.FC = () => {
                 return "Client-side sign-up is disabled.";
             }
         }
-        if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-            return "Incorrect Email or Password.";
+        if (code === 'auth/invalid-credential') {
+            return "Invalid Credentials. If you are logging in, check your password. If you are new, please Register first.";
+        }
+        if (code === 'auth/wrong-password') {
+            return "Incorrect Password.";
         }
         if (code === 'auth/user-not-found') {
             return "User not found. Please register first.";
@@ -106,7 +109,10 @@ const AuthScreen: React.FC = () => {
         setIsLoading(true);
 
         try {
-            await auth.signOut();
+            // Force clean slate before attempting login/register
+            if (auth.currentUser) {
+                await auth.signOut();
+            }
 
             if (isAdminRegister) {
                 if (!adminName.trim()) {
@@ -167,7 +173,11 @@ const AuthScreen: React.FC = () => {
             };
             localStorage.setItem('sm_sports_team_session', JSON.stringify(sessionData));
 
-            await auth.signOut();
+            // Force clean slate
+            if (auth.currentUser) {
+                await auth.signOut();
+            }
+            
             await auth.signInAnonymously();
             navigate(`/auction/${auctionId}`);
 
@@ -265,7 +275,7 @@ const AuthScreen: React.FC = () => {
                                 />
                             </div>
 
-                            {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded">{error}</p>}
+                            {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded border border-red-500/20">{error}</p>}
 
                             <button
                                 type="submit"
@@ -290,7 +300,7 @@ const AuthScreen: React.FC = () => {
                                 />
                             </div>
 
-                            {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded">{error}</p>}
+                            {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded border border-red-500/20">{error}</p>}
 
                             <button
                                 type="submit"
@@ -376,7 +386,7 @@ const AuthScreen: React.FC = () => {
                                     )}
                                 </div>
 
-                                {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded">{error}</p>}
+                                {error && !isConfigError && <p className="text-red-400 text-sm text-center bg-red-400/10 py-2 rounded border border-red-500/20">{error}</p>}
 
                                 <button
                                     type="submit"

@@ -180,25 +180,25 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // SCENARIO 1: No bids yet (First Bid)
         if (currentPrice === 0) {
-            return basePrice > 0 ? basePrice : (bidIncrement || 100);
+            return basePrice > 0 ? basePrice : (Number(bidIncrement) || 100);
         }
         
         // Priority 1: Category Specific Slabs
         if (currentPlayer.category) {
             const cat = categories.find(c => c.name === currentPlayer.category);
             if (cat && cat.slabs && cat.slabs.length > 0) {
-                 const sortedSlabs = [...cat.slabs].sort((a, b) => b.from - a.from);
-                 const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
+                 const sortedSlabs = [...cat.slabs].sort((a, b) => Number(b.from) - Number(a.from));
+                 const activeSlab = sortedSlabs.find(s => currentPrice >= Number(s.from));
                  if (activeSlab) {
                      return currentPrice + Number(activeSlab.increment);
                  }
             }
         }
 
-        // Priority 2: Global Slabs (Moved UP to ensure price-based increments work over default flat category increments)
+        // Priority 2: Global Slabs
         if (bidSlabs && bidSlabs.length > 0) {
-            const sortedSlabs = [...bidSlabs].sort((a, b) => b.from - a.from);
-            const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
+            const sortedSlabs = [...bidSlabs].sort((a, b) => Number(b.from) - Number(a.from));
+            const activeSlab = sortedSlabs.find(s => currentPrice >= Number(s.from));
             if (activeSlab) {
                 return currentPrice + Number(activeSlab.increment);
             }
@@ -366,6 +366,16 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         
         return true;
+    };
+
+    const undoPlayerSelection = async () => {
+        if (!activeAuctionId) return;
+        await db.collection('auctions').doc(activeAuctionId).update({
+            currentPlayerId: null,
+            currentBid: 0,
+            highestBidder: null,
+            status: AuctionStatus.NotStarted
+        });
     };
 
     const resetCurrentPlayer = async () => {
@@ -576,6 +586,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             passPlayer,
             correctPlayerSale,
             startAuction,
+            undoPlayerSelection, // Export new function
             endAuction,
             resetAuction,
             resetCurrentPlayer,
