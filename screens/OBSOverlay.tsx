@@ -241,94 +241,146 @@ const OBSOverlay: React.FC = () => {
 
   // --- LAYOUTS ---
 
-  const RenderStandard = () => (
-    <div className="min-h-screen w-full relative font-sans overflow-hidden">
-        <SponsorLogo />
-        
-        {/* Main Lower Third Container - Fit to Width */}
-        <div className="absolute bottom-10 w-full px-2 md:px-6 flex items-end justify-between gap-4 animate-slide-up">
-            
-            {/* Left Side: Player Info */}
-            <div className="flex-1 flex flex-col items-end mr-2 min-w-0">
-                 {/* Name Panel */}
-                 <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-l-lg border-l-8 border-cyan-400 shadow-2xl transform skew-x-[-12deg] origin-bottom-right flex items-center justify-end">
-                     <div className="transform skew-x-[12deg] text-right truncate w-full">
-                        <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight">
-                            {player?.name}
-                        </h1>
-                     </div>
-                 </div>
-                 {/* Category/Role Panel */}
-                 <div className="bg-cyan-500 text-black py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] mr-8 transform skew-x-[-12deg] border-b-2 border-white z-10">
-                      <div className="transform skew-x-[12deg] text-center font-extrabold text-xl uppercase tracking-widest">
-                          {player?.category}
+  const RenderStandard = () => {
+    // 1. SOLD STATE - SHOW "SOLD CARD" ONLY (Hide Lower Third)
+    if (status === 'SOLD' && player && bidder) {
+        return (
+            <div className="min-h-screen w-full relative font-sans p-10 flex items-center justify-end animate-slide-in-right">
+                 <SponsorLogo />
+                 <div className="w-[400px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 relative mr-10 mt-20">
+                      {/* Top Name Bar */}
+                      <div className="bg-indigo-900 p-4 text-center border-b border-white/10">
+                          <h2 className="text-2xl font-black text-white uppercase tracking-wider leading-none">{player.name}</h2>
+                          <p className="text-indigo-300 text-xs font-bold uppercase tracking-[0.2em] mt-1">{player.category}</p>
                       </div>
-                 </div>
-            </div>
 
-            {/* Center: Photo & Bid */}
-            <div className="shrink-0 flex flex-col items-center relative z-20 -mb-4 mx-2">
-                 {/* Photo Circle */}
-                 <div className="w-56 h-56 rounded-full border-[6px] border-white bg-slate-200 shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 bg-gradient-to-b from-gray-100 to-gray-300">
-                      <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
-                      
-                      {/* Status Overlay */}
-                      {status !== 'LIVE' && (
-                          <div className={`absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]`}>
-                              <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl ${status === 'SOLD' ? 'text-green-400 border-green-400' : 'text-red-500 border-red-500'}`}>
-                                  {status}
-                              </span>
+                      {/* Photo Container */}
+                      <div className="h-[350px] w-full bg-gray-800 relative overflow-hidden">
+                          <img src={player.photoUrl} className="w-full h-full object-cover object-top" alt={player.name} />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
+                          
+                          {/* Price Overlay */}
+                          <div className="absolute bottom-24 w-full text-center z-10">
+                              <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-0.5">Purchased For</p>
+                              <p className="text-5xl font-black text-green-400 drop-shadow-md tracking-tighter">{bid.toLocaleString()}</p>
                           </div>
-                      )}
-                 </div>
-                 
-                 {/* Bid Capsule */}
-                 <div className="relative z-30 -mt-12">
-                     <div className="flex items-stretch shadow-2xl rounded-full overflow-hidden border-4 border-white min-w-[280px] transform hover:scale-105 transition-transform">
-                         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-center border-r border-gray-700">
-                             <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">Current Bid</span>
-                         </div>
-                         <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-2 flex items-center justify-center flex-grow">
-                             <span className="text-5xl font-black text-white leading-none tabular-nums drop-shadow-sm">{bid.toLocaleString()}</span>
-                         </div>
-                     </div>
-                 </div>
-            </div>
+                      </div>
 
-            {/* Right Side: Team Info */}
-            <div className="flex-1 flex flex-col items-start ml-2 relative min-w-0">
-                 {/* Team Name Panel - Added Z-index */}
-                 <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px] z-20">
-                     <div className="transform skew-x-[-12deg] w-full pl-4 pr-32">
-                        <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight text-left">
-                            {bidder ? bidder.name : "NO BIDS YET"}
-                        </h2>
-                     </div>
-                 </div>
-                 
-                 {/* Balance Panel */}
-                 <div className="bg-white text-indigo-900 py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] ml-8 transform skew-x-[12deg] border-b-2 border-cyan-500 z-10 min-w-[220px]">
-                      <div className="transform skew-x-[-12deg] flex items-center gap-3">
-                         <span className="font-bold text-sm uppercase text-gray-500">Balance:</span>
-                         <span className="font-extrabold text-2xl">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
+                      {/* Bottom Team Bar */}
+                      <div className="bg-green-600 h-20 flex items-center px-6 relative">
+                          <p className="text-white/90 font-black text-4xl italic tracking-tighter">SOLD</p>
+                      </div>
+
+                      {/* Team Logo Badge (Overlaying Bottom Bar) */}
+                      <div className="absolute bottom-2 right-4 flex flex-col items-end">
+                          <div className="w-24 h-24 bg-white rounded-full p-2 shadow-2xl border-4 border-green-500 mb-2 transform hover:scale-105 transition-transform">
+                              {bidder.logoUrl ? (
+                                  <img src={bidder.logoUrl} className="w-full h-full object-contain" alt={bidder.name} />
+                              ) : (
+                                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-gray-400">{bidder.name.charAt(0)}</div>
+                              )}
+                          </div>
+                      </div>
+                      
+                      {/* Team Name Tag */}
+                      <div className="absolute bottom-1 right-4">
+                          <span className="text-[10px] font-bold text-white bg-black/50 px-2 py-0.5 rounded uppercase tracking-wider">{bidder.name}</span>
                       </div>
                  </div>
+            </div>
+        );
+    }
 
-                 {/* Team Logo - Overlapping the bar on the right */}
-                 <div className="absolute bottom-6 right-8 z-30">
-                      <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-2 flex items-center justify-center transform hover:scale-105 transition-transform">
-                          {bidder?.logoUrl ? (
-                              <img src={bidder.logoUrl} className="max-w-full max-h-full object-contain" />
-                          ) : (
-                              <span className="text-4xl font-bold text-gray-300">?</span>
+    // 2. LIVE / UNSOLD STATE - SHOW LOWER THIRD (Standard)
+    return (
+        <div className="min-h-screen w-full relative font-sans overflow-hidden">
+            <SponsorLogo />
+            
+            {/* Main Lower Third Container - Fit to Width */}
+            <div className="absolute bottom-10 w-full px-2 md:px-6 flex items-end justify-between gap-4 animate-slide-up">
+                
+                {/* Left Side: Player Info */}
+                <div className="flex-1 flex flex-col items-end mr-2 min-w-0">
+                     {/* Name Panel */}
+                     <div className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-l-lg border-l-8 border-cyan-400 shadow-2xl transform skew-x-[-12deg] origin-bottom-right flex items-center justify-end">
+                         <div className="transform skew-x-[12deg] text-right truncate w-full">
+                            <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight">
+                                {player?.name}
+                            </h1>
+                         </div>
+                     </div>
+                     {/* Category/Role Panel */}
+                     <div className="bg-cyan-500 text-black py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] mr-8 transform skew-x-[-12deg] border-b-2 border-white z-10">
+                          <div className="transform skew-x-[12deg] text-center font-extrabold text-xl uppercase tracking-widest">
+                              {player?.category}
+                          </div>
+                     </div>
+                </div>
+
+                {/* Center: Photo & Bid */}
+                <div className="shrink-0 flex flex-col items-center relative z-20 -mb-4 mx-2">
+                     {/* Photo Circle */}
+                     <div className="w-56 h-56 rounded-full border-[6px] border-white bg-slate-200 shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 bg-gradient-to-b from-gray-100 to-gray-300">
+                          <img src={player?.photoUrl} alt={player?.name} className="w-full h-full object-cover object-top" />
+                          
+                          {/* UNSOLD Overlay Only - Sold is handled by the Card Layout above */}
+                          {status === 'UNSOLD' && (
+                              <div className={`absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]`}>
+                                  <span className={`font-black text-3xl uppercase -rotate-12 border-4 px-3 py-1 tracking-wider shadow-xl text-red-500 border-red-500`}>
+                                      UNSOLD
+                                  </span>
+                              </div>
                           )}
-                      </div>
-                 </div>
-            </div>
+                     </div>
+                     
+                     {/* Bid Capsule */}
+                     <div className="relative z-30 -mt-12">
+                         <div className="flex items-stretch shadow-2xl rounded-full overflow-hidden border-4 border-white min-w-[280px] transform hover:scale-105 transition-transform">
+                             <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-center border-r border-gray-700">
+                                 <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">Current Bid</span>
+                             </div>
+                             <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-2 flex items-center justify-center flex-grow">
+                                 <span className="text-5xl font-black text-white leading-none tabular-nums drop-shadow-sm">{bid.toLocaleString()}</span>
+                             </div>
+                         </div>
+                     </div>
+                </div>
 
+                {/* Right Side: Team Info */}
+                <div className="flex-1 flex flex-col items-start ml-2 relative min-w-0">
+                     {/* Team Name Panel */}
+                     <div className="w-full bg-gradient-to-l from-blue-900 via-indigo-900 to-indigo-800 text-white py-4 px-6 rounded-r-lg border-r-8 border-cyan-400 shadow-2xl transform skew-x-[12deg] origin-bottom-left flex items-center relative h-[88px] z-20">
+                         <div className="transform skew-x-[-12deg] w-full pl-4 pr-32">
+                            <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight truncate drop-shadow-md leading-tight text-left">
+                                {bidder ? bidder.name : "NO BIDS YET"}
+                            </h2>
+                         </div>
+                     </div>
+                     
+                     {/* Balance Panel */}
+                     <div className="bg-white text-indigo-900 py-1.5 px-8 rounded-b-lg shadow-lg mt-[-4px] ml-8 transform skew-x-[12deg] border-b-2 border-cyan-500 z-10 min-w-[220px]">
+                          <div className="transform skew-x-[-12deg] flex items-center gap-3">
+                             <span className="font-bold text-sm uppercase text-gray-500">Balance:</span>
+                             <span className="font-extrabold text-2xl">{bidder ? bidder.budget.toLocaleString() : "-"}</span>
+                          </div>
+                     </div>
+
+                     {/* Team Logo */}
+                     <div className="absolute bottom-6 right-8 z-30">
+                          <div className="w-28 h-28 bg-white rounded-full shadow-2xl border-4 border-cyan-400 p-2 flex items-center justify-center transform hover:scale-105 transition-transform">
+                              {bidder?.logoUrl ? (
+                                  <img src={bidder.logoUrl} className="max-w-full max-h-full object-contain" />
+                              ) : (
+                                  <span className="text-4xl font-bold text-gray-300">?</span>
+                              )}
+                          </div>
+                     </div>
+                </div>
+
+            </div>
         </div>
-    </div>
-  );
+    );
+  };
 
   const RenderMinimal = () => (
       <div className="min-h-screen w-full relative">

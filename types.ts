@@ -142,6 +142,7 @@ export interface AuctionState {
   projectorLayout: ProjectorLayout;
   obsLayout: OBSLayout;
   adminViewOverride: AdminViewOverride | null;
+  maxPlayersPerTeam?: number; // Global Squad Limit
 }
 
 export enum UserRole {

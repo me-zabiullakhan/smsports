@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Player } from '../types';
-import { Search, Filter, X, Clock, CheckCircle, Users } from 'lucide-react';
+import { Search, Filter, X, Clock, CheckCircle, Users, Ban } from 'lucide-react';
 import { db } from '../firebase';
 
-type PlayerStatus = 'upcoming' | 'sold' | 'teams';
+type PlayerStatus = 'upcoming' | 'sold' | 'unsold' | 'teams';
 
 const PlayerPool: React.FC = () => {
   const { state, activeAuctionId } = useAuction();
@@ -38,6 +38,9 @@ const PlayerPool: React.FC = () => {
                 list.push({ ...player, status: 'sold' as PlayerStatus, soldTo: team.name, teamLogo: team.logoUrl });
             });
         });
+    } else if (activeTab === 'unsold') {
+        // Filter players specifically marked as UNSOLD in the main players list
+        list = players.filter(p => p.status === 'UNSOLD').map(p => ({ ...p, status: 'unsold' as PlayerStatus }));
     }
 
     if (selectedRole !== 'All' && activeTab !== 'teams') {
@@ -55,9 +58,9 @@ const PlayerPool: React.FC = () => {
   const TabButton: React.FC<{tab: PlayerStatus, label: string, icon: React.ReactNode}> = ({tab, label, icon}) => (
       <button 
         onClick={() => setActiveTab(tab)}
-        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all duration-300 border-b-2 ${activeTab === tab ? 'border-highlight text-highlight bg-highlight/5' : 'border-transparent text-text-secondary hover:text-white hover:bg-white/5'}`}
+        className={`flex-1 py-3 text-xs md:text-sm font-bold flex items-center justify-center gap-1 md:gap-2 transition-all duration-300 border-b-2 ${activeTab === tab ? 'border-highlight text-highlight bg-highlight/5' : 'border-transparent text-text-secondary hover:text-white hover:bg-white/5'}`}
       >
-          {icon} {label}
+          {icon} <span className="hidden md:inline">{label}</span><span className="md:hidden">{label.slice(0,4)}</span>
       </button>
   );
 
@@ -93,6 +96,7 @@ const PlayerPool: React.FC = () => {
       <div className="flex border-b border-gray-700 bg-primary/20">
         <TabButton tab="upcoming" label="Upcoming" icon={<Clock className="w-4 h-4"/>} />
         <TabButton tab="sold" label="Sold" icon={<CheckCircle className="w-4 h-4"/>} />
+        <TabButton tab="unsold" label="Unsold" icon={<Ban className="w-4 h-4"/>} />
         <TabButton tab="teams" label="Teams" icon={<Users className="w-4 h-4"/>} />
       </div>
 
@@ -133,6 +137,8 @@ const PlayerPool: React.FC = () => {
                         <div className="text-right">
                             {player.status === 'upcoming' ? (
                                 <span className="inline-block px-2 py-1 bg-gray-700 rounded text-xs text-gray-300 font-mono">{player.basePrice}</span>
+                            ) : player.status === 'unsold' ? (
+                                <span className="inline-block px-2 py-1 bg-red-900/50 text-red-300 rounded text-[10px] font-bold uppercase border border-red-800">UNSOLD</span>
                             ) : (
                                 <div className="flex flex-col items-end">
                                     <span className="text-[10px] text-gray-500 uppercase tracking-wider">Sold To</span>

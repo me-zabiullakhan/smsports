@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Team, UserRole } from '../types';
 import { useAuction } from '../hooks/useAuction';
 import { Wallet, Users, Gavel } from 'lucide-react';
@@ -10,18 +10,51 @@ interface Props {
 
 const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const { state, placeBid, userProfile, nextBid } = useAuction();
-    const { currentPlayerIndex, unsoldPlayers } = state;
+    const { currentPlayerIndex, unsoldPlayers, maxPlayersPerTeam, categories } = state;
     const isAdmin = userProfile?.role === UserRole.ADMIN || userProfile?.role === UserRole.SUPER_ADMIN;
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
 
     // Check Category Limit
     let isLimitReached = false;
-    if (currentPlayer && currentPlayer.category) {
-        const catConfig = state.categories.find(c => c.name === currentPlayer.category);
+    let limitReason = "";
+
+    // 1. Check Global Squad Limit
+    const squadLimit = maxPlayersPerTeam || 25;
+    if (team.players.length >= squadLimit) {
+        isLimitReached = true;
+        limitReason = "Squad Full";
+    }
+
+    // 2. Check Category Specific Limit (only if global not hit)
+    if (!isLimitReached && currentPlayer && currentPlayer.category) {
+        const catConfig = categories.find(c => c.name === currentPlayer.category);
         if (catConfig && catConfig.maxPerTeam > 0) {
             const count = team.players.filter(p => p.category === currentPlayer.category).length;
-            if (count >= catConfig.maxPerTeam) isLimitReached = true;
+            if (count >= catConfig.maxPerTeam) {
+                isLimitReached = true;
+                limitReason = "Cat. Limit";
+            }
+        }
+    }
+
+    // 3. Check Bid Limit Rule (Category-wise Squad Protection)
+    let reservedBudget = 0;
+    if (!isLimitReached && currentPlayer) {
+        categories.forEach(cat => {
+            if (cat.maxPerTeam > 0) {
+                const playersInCat = team.players.filter(p => p.category === cat.name).length;
+                let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
+                if (currentPlayer.category === cat.name) {
+                    slotsToFill = Math.max(0, slotsToFill - 1);
+                }
+                reservedBudget += slotsToFill * cat.basePrice;
+            }
+        });
+        const maxAllowedBid = team.budget - reservedBudget;
+        if (nextBid > maxAllowedBid) {
+            isLimitReached = true;
+            limitReason = "Max Bid Limit";
         }
     }
 
@@ -33,7 +66,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
             try {
                 await placeBid(team.id, nextBid);
             } catch (e) {
-                // alert handled in context
+                alert((e as Error).message);
             }
         }
     };
@@ -63,7 +96,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                 </p>
                 <p className="flex items-center text-text-secondary">
                     <Users className="w-4 h-4 mr-2 text-blue-400" />
-                    Players: <span className="font-semibold text-white ml-1">{team.players.length}</span>
+                    Players: <span className={`font-semibold ml-1 ${team.players.length >= squadLimit ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {squadLimit}</span>
                 </p>
             </div>
 
@@ -85,7 +118,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                         {isHighest ? (
                             <>Leading</>
                         ) : isLimitReached ? (
-                            <>Limit Reached</>
+                            <>{limitReason}</>
                         ) : !canAfford ? (
                             <>No Funds</>
                         ) : (

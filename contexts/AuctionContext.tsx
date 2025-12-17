@@ -29,6 +29,7 @@ const initialState: AuctionState = {
     projectorLayout: 'STANDARD',
     obsLayout: 'STANDARD',
     adminViewOverride: null,
+    maxPlayersPerTeam: 25 // Default
 };
 
 export const AuctionContext = createContext<AuctionContextType | null>(null);
@@ -93,7 +94,9 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         tournamentName: data.title || prev.tournamentName,
                         auctionLogoUrl: data.logoUrl || prev.auctionLogoUrl,
                         // Ensure sponsorConfig has defaults
-                        sponsorConfig: data.sponsorConfig || prev.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 }
+                        sponsorConfig: data.sponsorConfig || prev.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 },
+                        // Map Squad Limit
+                        maxPlayersPerTeam: data.playersPerTeam || 25
                     }));
                 }
             } else {
@@ -218,6 +221,32 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const team = state.teams.find(t => String(t.id) === String(teamId));
         if (!team) throw new Error("Team not found");
         
+        const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
+        
+        // --- BID LIMIT RULE VALIDATION ---
+        if (currentPlayer) {
+            let reservedBudget = 0;
+            state.categories.forEach(cat => {
+                if (cat.maxPerTeam > 0) {
+                    const playersInCat = team.players.filter(p => p.category === cat.name).length;
+                    let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
+                    
+                    // If current player belongs to this category, we count this bid as filling one slot (so don't reserve for it)
+                    if (currentPlayer.category === cat.name) {
+                        slotsToFill = Math.max(0, slotsToFill - 1);
+                    }
+                    
+                    reservedBudget += slotsToFill * cat.basePrice;
+                }
+            });
+
+            const maxAllowedBid = team.budget - reservedBudget;
+            if (amount > maxAllowedBid) {
+                throw new Error(`Bid Limit Reached! Max allowable bid is ${maxAllowedBid} to ensure squad completion.`);
+            }
+        }
+        // ---------------------------------
+
         const log = {
             message: `${team.name} bid ${amount}`,
             timestamp: Date.now(),
@@ -369,14 +398,20 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const playersSnap = await auctionRef.collection('players').get();
         const teamsSnap = await auctionRef.collection('teams').get();
 
-        // 3. Batched Updates (Handling chunks of 450 to stay under 500 limit)
-        const batchSize = 450;
+        // OPTIMIZATION: Only reset players that have been modified to reduce write volume
+        const modifiedPlayers = playersSnap.docs.filter(d => {
+            const data = d.data();
+            return data.status !== undefined || data.soldPrice !== undefined || data.soldTo !== undefined;
+        });
+
+        // 3. Batched Updates (Chunks of 300 to prevent Write Stream Exhaustion)
+        const batchSize = 300;
         const allDocs = [
-            ...playersSnap.docs.map(d => ({ type: 'PLAYER', ref: d.ref })),
+            ...modifiedPlayers.map(d => ({ type: 'PLAYER', ref: d.ref })),
             ...teamsSnap.docs.map(d => ({ type: 'TEAM', ref: d.ref }))
         ];
 
-        // Process in chunks
+        // Process in chunks with delay
         for (let i = 0; i < allDocs.length; i += batchSize) {
             const batch = db.batch();
             const chunk = allDocs.slice(i, i + batchSize);
@@ -409,6 +444,8 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             
             await batch.commit();
+            // Throttling: Wait 200ms between batches to clear write stream buffer
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
         
         // If there were no sub-docs, we still need to reset the auction status
@@ -427,14 +464,20 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const resetUnsoldPlayers = async () => {
         if (!activeAuctionId) return;
         const unsold = state.players.filter(p => p.status === 'UNSOLD');
-        const batch = db.batch();
         
-        unsold.forEach(p => {
-            const ref = db.collection('auctions').doc(activeAuctionId).collection('players').doc(String(p.id));
-            batch.update(ref, { status: firebase.firestore.FieldValue.delete() });
-        });
-        
-        await batch.commit();
+        // Batching for Unsold Reset (prevent exhaustion if > 500 unsold)
+        const batchSize = 300;
+        for (let i = 0; i < unsold.length; i += batchSize) {
+             const batch = db.batch();
+             const chunk = unsold.slice(i, i + batchSize);
+             chunk.forEach(p => {
+                 const ref = db.collection('auctions').doc(activeAuctionId).collection('players').doc(String(p.id));
+                 batch.update(ref, { status: firebase.firestore.FieldValue.delete() });
+             });
+             await batch.commit();
+             // Throttling
+             await new Promise(r => setTimeout(r, 100));
+        }
         
         await db.collection('auctions').doc(activeAuctionId).update({
             auctionLog: firebase.firestore.FieldValue.arrayUnion({
