@@ -49,7 +49,10 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                             {team.name.charAt(0)}
                         </div>
                     )}
-                    <h4 className="font-bold text-white text-md truncate max-w-[120px]">{team.name}</h4>
+                    <div>
+                        <h4 className="font-bold text-white text-md truncate max-w-[120px] leading-none">{team.name}</h4>
+                        <p className="text-[10px] text-gray-400 font-mono mt-0.5 select-all">ID: {team.id}</p>
+                    </div>
                 </div>
             </div>
             

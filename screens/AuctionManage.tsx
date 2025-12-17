@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -415,6 +416,7 @@ const AuctionManage: React.FC = () => {
                                     <img src={t.logoUrl || 'https://via.placeholder.com/50'} className="w-12 h-12 object-contain bg-gray-100 rounded-full" />
                                     <div>
                                         <h3 className="font-bold text-gray-800">{t.name}</h3>
+                                        <p className="text-xs text-gray-500 font-mono mb-0.5">ID: <span className="select-all font-bold">{t.id}</span></p>
                                         <p className="text-xs text-gray-500">Budget: {t.budget}</p>
                                     </div>
                                     <div className="absolute top-2 right-2 hidden group-hover:flex gap-1">
