@@ -146,15 +146,36 @@ const AuctionManage: React.FC = () => {
         };
         try {
             if (editItem.id) {
+                // Update Existing
                 await db.collection('auctions').doc(id).collection('teams').doc(editItem.id).update(teamData);
                 setTeams(prev => prev.map(t => t.id === editItem.id ? { ...t, ...teamData } : t));
             } else {
-                const newRef = db.collection('auctions').doc(id).collection('teams').doc();
-                await newRef.set({ id: newRef.id, ...teamData });
-                setTeams(prev => [...prev, { id: newRef.id, ...teamData } as Team]);
+                // Create New - Use Global Counter for T001, T002...
+                const newTeamResult = await db.runTransaction(async (transaction) => {
+                    const counterRef = db.collection('appConfig').doc('globalCounters');
+                    const counterDoc = await transaction.get(counterRef);
+                    
+                    let nextNum = 1;
+                    if (counterDoc.exists) {
+                        nextNum = (counterDoc.data()?.teamCount || 0) + 1;
+                    }
+                    
+                    const newId = `T${String(nextNum).padStart(3, '0')}`;
+                    const newTeamRef = db.collection('auctions').doc(id).collection('teams').doc(newId);
+                    
+                    transaction.set(counterRef, { teamCount: nextNum }, { merge: true });
+                    transaction.set(newTeamRef, { id: newId, ...teamData });
+                    
+                    return { id: newId, ...teamData };
+                });
+                
+                setTeams(prev => [...prev, newTeamResult as Team]);
             }
             closeModal();
-        } catch (err) { alert("Error saving team"); }
+        } catch (err: any) { 
+            console.error(err);
+            alert("Error saving team: " + err.message); 
+        }
     };
 
     const handleSavePlayer = async (e: React.FormEvent) => {
