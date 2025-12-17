@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer } from '../types';
+import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
 import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Search, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
@@ -87,6 +87,9 @@ const AuctionManage: React.FC = () => {
         bidIncrement: 0,
         playersPerTeam: 0
     });
+    const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]); // New Slabs State
+    const [newSlab, setNewSlab] = useState<{from: string, increment: string}>({from: '', increment: ''});
+
     const [settingsLogo, setSettingsLogo] = useState('');
     const settingsLogoRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +126,7 @@ const AuctionManage: React.FC = () => {
                         playersPerTeam: data.playersPerTeam || 0
                     });
                     setSettingsLogo(data.logoUrl || '');
+                    if (data.slabs) setSlabs(data.slabs);
                 }
 
                 const teamsSnap = await db.collection('auctions').doc(id).collection('teams').get();
@@ -158,6 +162,19 @@ const AuctionManage: React.FC = () => {
                 });
         }
     }, [id, activeTab]);
+
+    const addSlab = () => {
+        const fromVal = Number(newSlab.from);
+        const incVal = Number(newSlab.increment);
+        if (fromVal >= 0 && incVal > 0) {
+            setSlabs(prev => [...prev, { from: fromVal, increment: incVal }]);
+            setNewSlab({ from: '', increment: '' });
+        }
+    };
+
+    const removeSlab = (index: number) => {
+        setSlabs(prev => prev.filter((_, i) => i !== index));
+    };
 
     const handleSaveTeam = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -314,7 +331,8 @@ const AuctionManage: React.FC = () => {
         try {
             const updates = {
                 ...settingsForm,
-                logoUrl: settingsLogo
+                logoUrl: settingsLogo,
+                slabs: slabs // Save slabs as well
             };
             await db.collection('auctions').doc(id).update(updates);
             setAuction({ ...auction, ...updates }); // Optimistic update
@@ -530,13 +548,50 @@ const AuctionManage: React.FC = () => {
                                         <input type="number" className="w-full border rounded p-2" value={settingsForm.basePrice} onChange={e => setSettingsForm({...settingsForm, basePrice: Number(e.target.value)})} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-600 mb-1">Bid Increment</label>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">Bid Increment (Default)</label>
                                         <input type="number" className="w-full border rounded p-2" value={settingsForm.bidIncrement} onChange={e => setSettingsForm({...settingsForm, bidIncrement: Number(e.target.value)})} />
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-600 mb-1">Max Players Per Team</label>
                                     <input type="number" className="w-full border rounded p-2" value={settingsForm.playersPerTeam} onChange={e => setSettingsForm({...settingsForm, playersPerTeam: Number(e.target.value)})} />
+                                </div>
+
+                                {/* SLAB EDITOR */}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-2">Global Bid Slabs</label>
+                                    <div className="bg-white p-3 rounded border border-gray-300">
+                                         {slabs.length === 0 && <p className="text-xs text-gray-400 italic text-center mb-2">No slabs defined. Using default increment.</p>}
+                                         {slabs.map((slab, idx) => (
+                                             <div key={idx} className="flex justify-between items-center text-sm mb-2 bg-gray-50 p-2 rounded">
+                                                 <span>From <b>{slab.from}</b>: Increase <b>+{slab.increment}</b></span>
+                                                 <button type="button" onClick={() => removeSlab(idx)} className="text-red-500 hover:text-red-700">
+                                                     <Trash2 className="w-4 h-4"/>
+                                                 </button>
+                                             </div>
+                                         ))}
+                                         
+                                         <div className="grid grid-cols-2 gap-2 mt-2">
+                                             <input 
+                                                type="number" 
+                                                placeholder="Price >=" 
+                                                className="border p-2 rounded text-sm w-full" 
+                                                value={newSlab.from} 
+                                                onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
+                                             />
+                                             <input 
+                                                type="number" 
+                                                placeholder="+ Increment" 
+                                                className="border p-2 rounded text-sm w-full" 
+                                                value={newSlab.increment} 
+                                                onChange={e => setNewSlab({...newSlab, increment: e.target.value})} 
+                                             />
+                                         </div>
+                                         <button type="button" onClick={addSlab} className="mt-2 w-full py-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-bold rounded hover:bg-green-100 flex items-center justify-center">
+                                             <Plus className="w-3 h-3 mr-1"/> Add Rule
+                                         </button>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">Example: From 20000: Increase +2000</p>
                                 </div>
                             </div>
                         </div>
