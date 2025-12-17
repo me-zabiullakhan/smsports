@@ -183,11 +183,9 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return basePrice > 0 ? basePrice : (bidIncrement || 100);
         }
         
-        // 1. Check Category Specific Rules First (Specific overrides General)
+        // Priority 1: Category Specific Slabs
         if (currentPlayer.category) {
             const cat = categories.find(c => c.name === currentPlayer.category);
-            
-            // Category Slabs
             if (cat && cat.slabs && cat.slabs.length > 0) {
                  const sortedSlabs = [...cat.slabs].sort((a, b) => b.from - a.from);
                  const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
@@ -195,14 +193,9 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                      return currentPrice + Number(activeSlab.increment);
                  }
             }
-            
-            // Category specific increment (without slabs)
-            if (cat && cat.bidIncrement > 0) {
-                return currentPrice + Number(cat.bidIncrement);
-            }
         }
 
-        // 2. Check Global Slabs
+        // Priority 2: Global Slabs (Moved UP to ensure price-based increments work over default flat category increments)
         if (bidSlabs && bidSlabs.length > 0) {
             const sortedSlabs = [...bidSlabs].sort((a, b) => b.from - a.from);
             const activeSlab = sortedSlabs.find(s => currentPrice >= s.from);
@@ -211,7 +204,16 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         }
 
-        // 3. Default Global Increment
+        // Priority 3: Category Specific Flat Increment (Only if no slabs matched)
+        if (currentPlayer.category) {
+            const cat = categories.find(c => c.name === currentPlayer.category);
+            // Only apply if strictly defined and > 0.
+            if (cat && cat.bidIncrement > 0) {
+                return currentPrice + Number(cat.bidIncrement);
+            }
+        }
+
+        // Priority 4: Default Global Increment
         return currentPrice + (Number(bidIncrement) || 100);
     }, [state.currentBid, state.currentPlayerId, state.players, state.bidIncrement, state.bidSlabs, state.categories]);
 
