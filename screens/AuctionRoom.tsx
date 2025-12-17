@@ -10,9 +10,9 @@ import BiddingPanel from '../components/BiddingPanel';
 
 const AuctionRoom: React.FC = () => {
   const { state, userProfile } = useAuction();
-  const { currentPlayerIndex, unsoldPlayers } = state;
-
-  const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+  // Find player by ID from full list to persist display after sale, instead of relying on unsold pool index
+  const currentPlayer = state.currentPlayerId ? state.players.find(p => String(p.id) === String(state.currentPlayerId)) : null;
+  
   const isTeamOwner = userProfile?.role === UserRole.TEAM_OWNER;
 
   return (

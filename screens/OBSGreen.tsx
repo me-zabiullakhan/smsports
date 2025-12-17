@@ -109,8 +109,9 @@ const ProjectorScreen: React.FC = () => {
 
   // Sync State
   useEffect(() => {
-      const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams, auctionLog } = state;
-      const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+      const { currentPlayerId, players, currentBid, highestBidder, status, teams, auctionLog } = state;
+      // Use ID lookup to persist display even when player is moved out of unsold array (SOLD state)
+      const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
       // Check for Finished State
       if (status === AuctionStatus.Finished) {

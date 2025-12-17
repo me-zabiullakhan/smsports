@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Gavel, Lock, AlertCircle } from 'lucide-react';
 
 const BiddingPanel: React.FC = () => {
     const { state, userProfile, placeBid, nextBid } = useAuction();
-    const { teams, highestBidder, biddingStatus, currentBid } = state;
+    const { teams, highestBidder, biddingStatus, currentBid, currentPlayerId, players, status, categories } = state;
     const [isBidding, setIsBidding] = useState(false);
 
     if (!userProfile || !userProfile.teamId) return null;
@@ -13,8 +14,19 @@ const BiddingPanel: React.FC = () => {
     const userTeam = teams.find(t => String(t.id) === String(userProfile.teamId));
     if (!userTeam) return null;
 
-    const { currentPlayerIndex, unsoldPlayers, categories } = state;
-    const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+    // If auction is not in progress (e.g. SOLD), hide the bidding controls or show status
+    if (status !== 'IN_PROGRESS') {
+        return (
+            <div className="bg-secondary rounded-xl shadow-xl p-4 border border-gray-700 text-center">
+                <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">
+                    {status === 'SOLD' ? 'LOT SOLD' : status === 'UNSOLD' ? 'LOT UNSOLD' : 'BIDDING CLOSED'}
+                </p>
+            </div>
+        );
+    }
+
+    // Resolve current player using ID from full list (consistent with other views)
+    const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
     // Check Category Limit
     let isCategoryLimitReached = false;
@@ -38,9 +50,6 @@ const BiddingPanel: React.FC = () => {
     // Status Helpers
     const isPaused = biddingStatus === 'PAUSED';
     const isActive = biddingStatus === 'ON';
-
-    // Sorted teams by budget for display
-    const sortedTeams = [...teams].sort((a,b) => b.budget - a.budget);
 
     const handleBid = async () => {
         // Strict Client-Side Check
@@ -108,11 +117,6 @@ const BiddingPanel: React.FC = () => {
             {isCategoryLimitReached && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> {categoryLimitMsg}</p>}
             {!canAfford && isActive && !isCategoryLimitReached && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold"><AlertCircle className="w-3 h-3 mr-1"/> Insufficient Budget</p>}
             {!isActive && <p className="hidden sm:flex text-red-300 text-xs mt-2 items-center justify-center sm:justify-start font-bold uppercase tracking-wide"><Lock className="w-3 h-3 mr-1"/> Bidding Paused by Admin</p>}
-
-            {/* Opponent Purses Toggle */}
-            <div className="mt-4 pt-3 border-t border-gray-700">
-                 {/* Logic to show other teams could go here if needed */}
-            </div>
         </div>
     );
 };

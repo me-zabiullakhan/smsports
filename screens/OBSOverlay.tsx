@@ -57,8 +57,9 @@ const OBSOverlay: React.FC = () => {
 
   // --- SYNC LOGIC ---
   useEffect(() => {
-      const { currentPlayerIndex, unsoldPlayers, currentBid, highestBidder, status, teams } = state;
-      const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+      const { currentPlayerId, players, currentBid, highestBidder, status, teams } = state;
+      // Look up in full player list to support showing SOLD players (who are removed from unsoldPlayers)
+      const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
       if (status === AuctionStatus.Finished) {
            setDisplay({ player: null, bid: 0, bidder: null, status: 'FINISHED' });
