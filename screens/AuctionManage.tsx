@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Search, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -896,7 +896,16 @@ const AuctionManage: React.FC = () => {
                         {/* Custom Fields Column */}
                         <div className="lg:col-span-1">
                             <div className="bg-white rounded shadow p-6 h-full flex flex-col">
-                                <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 flex items-center"><AlignLeft className="w-5 h-5 mr-2"/> Custom Fields</h3>
+                                <h3 className="font-bold text-gray-800 border-b pb-2 mb-2 flex items-center"><AlignLeft className="w-5 h-5 mr-2"/> Custom Fields</h3>
+                                
+                                {/* NOTE FOR ADMIN */}
+                                <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
+                                    <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] md:text-xs text-blue-800 leading-tight">
+                                        <b>Note:</b> Standard details like <b>Full Name, DOB, Mobile (WhatsApp), Player Type, Gender,</b> and <b>Profile Picture</b> are collected by default. Add only additional required fields here.
+                                    </p>
+                                </div>
+
                                 <div className="flex-1 overflow-y-auto mb-4 space-y-2">
                                     {regConfig.customFields.map((field, idx) => (
                                         <div key={idx} className="bg-gray-50 p-2 rounded border flex justify-between items-center text-sm">
