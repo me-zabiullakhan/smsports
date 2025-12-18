@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap, Undo2, RefreshCw } from 'lucide-react';
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap, Undo2, RefreshCw, LayoutList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
@@ -210,6 +210,11 @@ const LiveAdminPanel: React.FC = () => {
           showOnProjector: target === 'PROJECTOR' ? !current.showOnProjector : current.showOnProjector
       };
       updateSponsorConfig(newConfig);
+  };
+
+  const toggleHighlights = () => {
+    const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5, showHighlights: false };
+    updateSponsorConfig({ ...current, showHighlights: !current.showHighlights });
   };
 
   const handleSponsorLoopChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -658,8 +663,15 @@ const LiveAdminPanel: React.FC = () => {
                   <div className="w-px h-8 bg-gray-600 mx-1"></div>
 
                   <div className="flex flex-col gap-1 items-end">
-                      <span className="text-[9px] text-gray-400 font-bold uppercase">Sponsors</span>
+                      <span className="text-[9px] text-gray-400 font-bold uppercase">Sponsors & Ticker</span>
                       <div className="flex items-center gap-1">
+                          <button 
+                              onClick={() => toggleHighlights()}
+                              className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showHighlights ? 'bg-orange-600 border-orange-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}
+                              title="Toggle Ticker Highlights"
+                          >
+                              <LayoutList className="w-3 h-3"/> Ticker
+                          </button>
                           <button 
                               onClick={() => updateSponsorVisibility('PROJECTOR')}
                               className={`p-1 rounded flex items-center gap-1 text-[9px] font-bold border transition-colors ${state.sponsorConfig?.showOnProjector ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'}`}

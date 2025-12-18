@@ -79,6 +79,19 @@ const ProjectorScreen: React.FC = () => {
        const items = ["WELCOME TO AUCTION"];
        if (tName) items.push(tName);
        
+       // Add Highlights if enabled
+       if (state.sponsorConfig?.showHighlights) {
+           const soldPlayers = state.teams.flatMap(t => t.players).sort((a, b) => (b.soldPrice || 0) - (a.soldPrice || 0));
+           if (soldPlayers.length > 0) {
+               items.push(`RECORD BUY: ${soldPlayers[0].name.toUpperCase()} SOLD FOR ${soldPlayers[0].soldPrice} TO ${soldPlayers[0].soldTo?.toUpperCase()}`);
+           }
+           
+           const purseLeader = [...state.teams].sort((a,b) => b.budget - a.budget)[0];
+           if (purseLeader) {
+               items.push(`HIGHEST PURSE: ${purseLeader.name.toUpperCase()} WITH ${purseLeader.budget.toLocaleString()}`);
+           }
+       }
+
        if (state.sponsors.length > 0) {
            items.push("SPONSORS:"); // Explicit label added
            state.sponsors.forEach(s => {
@@ -86,7 +99,7 @@ const ProjectorScreen: React.FC = () => {
            });
        }
        return items;
-  }, [state.sponsors, state.tournamentName]);
+  }, [state.sponsors, state.tournamentName, state.sponsorConfig?.showHighlights, state.teams]);
 
   // Force Background Colors based on theme
   useEffect(() => {
@@ -453,6 +466,7 @@ const ProjectorScreen: React.FC = () => {
                      Thank You For Watching
                  </p>
              </div>
+             <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
         </div>
     );
   };
@@ -470,6 +484,7 @@ const ProjectorScreen: React.FC = () => {
               <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>{title}</h1>
               <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>{subtitle}</p>
           </div>
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
       </div>
     );
   };
@@ -577,6 +592,7 @@ const ProjectorScreen: React.FC = () => {
                 </div>
             </div>
         </div>
+        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
     </div>
   );
 
@@ -640,7 +656,7 @@ const ProjectorScreen: React.FC = () => {
             </div>
 
             {/* Bottom Team Purses */}
-            <div className="w-full mt-6 px-4 overflow-x-auto flex gap-4 pb-2 shrink-0">
+            <div className="w-full mt-6 px-4 overflow-x-auto flex gap-4 pb-2 shrink-0 text-white">
                 {state.teams.map(team => (
                     <div key={team.id} className="min-w-[150px] bg-slate-800 border-t-4 border-slate-600 p-3 flex flex-col items-center shadow-lg">
                         <span className="text-xs font-bold text-slate-400 mb-1 truncate w-full text-center">{team.name}</span>
@@ -649,11 +665,12 @@ const ProjectorScreen: React.FC = () => {
                 ))}
             </div>
         </div>
+        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
     </div>
   );
 
   const RenderModern = () => (
-      <div className="h-screen w-full bg-black text-white font-sans overflow-hidden relative p-8 pb-16 flex flex-col">
+      <div className="h-screen w-full bg-black text-white font-sans overflow-hidden relative p-8 pb-20 flex flex-col">
           <TournamentLogo />
           <SponsorLoop />
           
@@ -701,6 +718,7 @@ const ProjectorScreen: React.FC = () => {
                   </div>
               </div>
           </div>
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
       </div>
   );
 

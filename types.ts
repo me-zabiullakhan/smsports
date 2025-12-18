@@ -103,6 +103,7 @@ export interface Sponsor {
 export interface SponsorConfig {
     showOnOBS: boolean;
     showOnProjector: boolean;
+    showHighlights?: boolean; // New: Toggle for news ticker highlights
     loopInterval: number; // seconds
 }
 

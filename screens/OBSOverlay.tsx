@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
 import { User, Gavel, DollarSign } from 'lucide-react';
@@ -12,6 +12,40 @@ interface OverlayState {
     bidder: Team | null;
     status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED';
 }
+
+const Marquee = React.memo(({ content, show }: { content: string[], show: boolean }) => {
+    if (!show || content.length === 0) return null;
+    return (
+          <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-md text-white py-1.5 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-2 border-cyan-500/50">
+              <div className="flex animate-marquee w-max will-change-transform">
+                  <div className="flex shrink-0 items-center">
+                    {content.map((text, i) => (
+                        <span key={i} className="mx-12 font-bold text-xl tracking-wider flex items-center uppercase">
+                            <span className="text-cyan-400 mr-4 text-base opacity-80">◆</span> {text}
+                        </span>
+                    ))}
+                  </div>
+                  {/* Duplicate for seamless loop */}
+                  <div className="flex shrink-0 items-center">
+                    {content.map((text, i) => (
+                        <span key={`dup-${i}`} className="mx-12 font-bold text-xl tracking-wider flex items-center uppercase">
+                            <span className="text-cyan-400 mr-4 text-base opacity-80">◆</span> {text}
+                        </span>
+                    ))}
+                  </div>
+              </div>
+              <style>{`
+                  @keyframes marquee {
+                      0% { transform: translateX(0); }
+                      100% { transform: translateX(-50%); }
+                  }
+                  .animate-marquee {
+                      animation: marquee 35s linear infinite;
+                  }
+              `}</style>
+          </div>
+    );
+});
 
 const OBSOverlay: React.FC = () => {
   const { state, joinAuction } = useAuction();
@@ -38,6 +72,40 @@ const OBSOverlay: React.FC = () => {
   }, [sponsorsLength, loopInterval]);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Marquee Content Generation
+  const marqueeContent = useMemo(() => {
+    if (!state.sponsorConfig?.showHighlights) return [];
+
+    const items: string[] = [`WELCOME TO ${state.tournamentName?.toUpperCase() || 'AUCTION'}`];
+
+    // Highlight 1: Most Expensive Player
+    const soldPlayers = state.teams.flatMap(t => t.players).sort((a, b) => (b.soldPrice || 0) - (a.soldPrice || 0));
+    if (soldPlayers.length > 0) {
+        const topBuy = soldPlayers[0];
+        items.push(`RECORD BUY: ${topBuy.name.toUpperCase()} SOLD FOR ${topBuy.soldPrice?.toLocaleString()} TO ${topBuy.soldTo?.toUpperCase()}`);
+    }
+
+    // Highlight 2: Recent Activity
+    const soldLogs = state.auctionLog.filter(l => l.type === 'SOLD').reverse();
+    if (soldLogs.length > 0) {
+        items.push(`RECENT: ${soldLogs[0].message.toUpperCase()}`);
+    }
+
+    // Highlight 3: Purse Leader
+    const purseLeader = [...state.teams].sort((a,b) => b.budget - a.budget)[0];
+    if (purseLeader) {
+        items.push(`MAX BUDGET: ${purseLeader.name.toUpperCase()} HAS ${purseLeader.budget.toLocaleString()} REMAINING`);
+    }
+
+    // Sponsors
+    if (state.sponsors.length > 0) {
+        const sponsorNames = state.sponsors.map(s => s.name.toUpperCase()).join(" | ");
+        items.push(`PARTNERS: ${sponsorNames}`);
+    }
+
+    return items;
+  }, [state.sponsorConfig?.showHighlights, state.teams, state.auctionLog, state.tournamentName, state.sponsors]);
 
   // Force Transparency on Mount
   useEffect(() => {
@@ -137,6 +205,7 @@ const OBSOverlay: React.FC = () => {
                       {children}
                   </div>
               </div>
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
           </div>
       );
 
@@ -217,6 +286,7 @@ const OBSOverlay: React.FC = () => {
                   <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-green-400 mb-2">AUCTION</h1>
                   <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-white">COMPLETED</h1>
               </div>
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
           </div>
       );
   }
@@ -229,9 +299,10 @@ const OBSOverlay: React.FC = () => {
       return (
           <div className="min-h-screen w-full flex flex-col items-center justify-end pb-20 relative">
               <SponsorLogo />
-              <div className="bg-slate-900/90 text-white px-12 py-4 rounded-full border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse">
+              <div className="bg-slate-900/90 text-white px-12 py-4 rounded-full border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse mb-10">
                   <h1 className="text-2xl font-bold tracking-[0.5em] uppercase text-cyan-400">{waitingText}</h1>
               </div>
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
           </div>
       );
   }
@@ -280,6 +351,7 @@ const OBSOverlay: React.FC = () => {
                           </div>
                       </div>
                  </div>
+                 <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
             </div>
         );
     }
@@ -290,7 +362,7 @@ const OBSOverlay: React.FC = () => {
             <SponsorLogo />
             
             {/* Main Lower Third Container - Fit to Width */}
-            <div className="absolute bottom-10 w-full px-2 md:px-6 flex items-end justify-between gap-4 animate-slide-up">
+            <div className="absolute bottom-16 w-full px-2 md:px-6 flex items-end justify-between gap-4 animate-slide-up">
                 
                 {/* Left Side: Player Info */}
                 <div className="flex-1 flex flex-col items-end mr-2 min-w-0">
@@ -371,6 +443,7 @@ const OBSOverlay: React.FC = () => {
                 </div>
 
             </div>
+            <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
         </div>
     );
   };
@@ -378,7 +451,7 @@ const OBSOverlay: React.FC = () => {
   const RenderMinimal = () => (
       <div className="min-h-screen w-full relative">
           <SponsorLogo />
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+          <div className="absolute bottom-12 left-0 right-0 flex justify-center">
               <div className="bg-gradient-to-r from-indigo-900 to-blue-900 backdrop-blur-md rounded-full px-6 py-2 flex items-center gap-6 border-2 border-cyan-500 shadow-xl">
                   <div className="flex items-center gap-3">
                       <img src={player?.photoUrl} className="w-12 h-12 rounded-full border-2 border-white object-cover" />
@@ -408,6 +481,7 @@ const OBSOverlay: React.FC = () => {
                   )}
               </div>
           </div>
+          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
       </div>
   );
 
@@ -442,6 +516,7 @@ const OBSOverlay: React.FC = () => {
                    {status === 'UNSOLD' && <div className="bg-red-600 text-white text-center py-2 font-black text-xl rounded uppercase shadow-lg">UNSOLD</div>}
                </div>
           </div>
+          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
       </div>
   );
 
