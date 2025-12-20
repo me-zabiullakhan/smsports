@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { useParams } from 'react-router-dom';
 import { Globe, User, TrendingUp, Wallet, Trophy, Star, AlertTriangle, Users } from 'lucide-react';
-import { Team, Player, AuctionStatus } from '../types';
+import { Team, Player, AuctionStatus, ProjectorLayout } from '../types';
 
 interface DisplayState {
     player: Player | null;
@@ -12,10 +12,17 @@ interface DisplayState {
     status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED';
 }
 
-const Marquee = React.memo(({ content, show }: { content: string[], show: boolean }) => {
+const Marquee = React.memo(({ content, show, layout }: { content: string[], show: boolean, layout?: ProjectorLayout }) => {
     if (!show || content.length === 0) return null;
+
+    // Dynamic background based on layout theme
+    let bgClass = "bg-black";
+    if (layout === 'IPL') bgClass = "bg-slate-900";
+    if (layout === 'MODERN') bgClass = "bg-zinc-950";
+    if (layout === 'STANDARD') bgClass = "bg-gray-800";
+
     return (
-          <div className="fixed bottom-0 left-0 w-full bg-black text-white py-2 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight">
+          <div className={`fixed bottom-0 left-0 w-full ${bgClass} text-white py-2 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-4 border-highlight`}>
               <div className="flex animate-marquee w-max will-change-transform">
                   <div className="flex shrink-0 items-center">
                     {content.map((text, i) => (
@@ -466,7 +473,7 @@ const ProjectorScreen: React.FC = () => {
                      Thank You For Watching
                  </p>
              </div>
-             <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+             <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
         </div>
     );
   };
@@ -484,7 +491,7 @@ const ProjectorScreen: React.FC = () => {
               <h1 className={`text-5xl font-bold tracking-wider mb-4 ${state.projectorLayout === 'IPL' ? 'text-yellow-400' : 'text-gray-800'}`}>{title}</h1>
               <p className={`${state.projectorLayout === 'IPL' ? 'text-slate-400' : 'text-gray-500'} text-xl animate-pulse`}>{subtitle}</p>
           </div>
-          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
       </div>
     );
   };
@@ -592,7 +599,7 @@ const ProjectorScreen: React.FC = () => {
                 </div>
             </div>
         </div>
-        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
     </div>
   );
 
@@ -665,7 +672,7 @@ const ProjectorScreen: React.FC = () => {
                 ))}
             </div>
         </div>
-        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+        <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
     </div>
   );
 
@@ -718,7 +725,7 @@ const ProjectorScreen: React.FC = () => {
                   </div>
               </div>
           </div>
-          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
       </div>
   );
 
@@ -729,7 +736,7 @@ const ProjectorScreen: React.FC = () => {
           {display.status !== 'FINISHED' && display.player && layout === 'STANDARD' && <RenderStandard />}
           {display.status !== 'FINISHED' && display.player && layout === 'IPL' && <RenderIPL />}
           {display.status !== 'FINISHED' && display.player && layout === 'MODERN' && <RenderModern />}
-          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} />
+          <Marquee show={!!(state.sponsorConfig?.showOnProjector && state.sponsors.length > 0)} content={marqueeContent} layout={state.projectorLayout} />
       </>
   );
 };

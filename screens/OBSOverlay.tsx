@@ -13,10 +13,15 @@ interface OverlayState {
     status: 'WAITING' | 'LIVE' | 'SOLD' | 'UNSOLD' | 'FINISHED';
 }
 
-const Marquee = React.memo(({ content, show }: { content: string[], show: boolean }) => {
+const Marquee = React.memo(({ content, show, layout }: { content: string[], show: boolean, layout?: string }) => {
     if (!show || content.length === 0) return null;
+
+    // Matching background colors with the overlay theme
+    const bgClass = "bg-gradient-to-r from-blue-950/90 via-indigo-950/90 to-blue-950/90";
+    const borderClass = "border-t-2 border-cyan-500/50";
+
     return (
-          <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-md text-white py-1.5 overflow-hidden whitespace-nowrap z-50 shadow-2xl border-t-2 border-cyan-500/50">
+          <div className={`fixed bottom-0 left-0 w-full ${bgClass} backdrop-blur-md text-white py-1.5 overflow-hidden whitespace-nowrap z-50 shadow-2xl ${borderClass}`}>
               <div className="flex animate-marquee w-max will-change-transform">
                   <div className="flex shrink-0 items-center">
                     {content.map((text, i) => (
@@ -205,7 +210,7 @@ const OBSOverlay: React.FC = () => {
                       {children}
                   </div>
               </div>
-              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
           </div>
       );
 
@@ -286,7 +291,7 @@ const OBSOverlay: React.FC = () => {
                   <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-green-400 mb-2">AUCTION</h1>
                   <h1 className="text-4xl md:text-6xl font-black tracking-widest uppercase text-white">COMPLETED</h1>
               </div>
-              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
           </div>
       );
   }
@@ -302,7 +307,7 @@ const OBSOverlay: React.FC = () => {
               <div className="bg-slate-900/90 text-white px-12 py-4 rounded-full border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse mb-10">
                   <h1 className="text-2xl font-bold tracking-[0.5em] uppercase text-cyan-400">{waitingText}</h1>
               </div>
-              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+              <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
           </div>
       );
   }
@@ -351,7 +356,7 @@ const OBSOverlay: React.FC = () => {
                           </div>
                       </div>
                  </div>
-                 <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+                 <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
             </div>
         );
     }
@@ -443,7 +448,7 @@ const OBSOverlay: React.FC = () => {
                 </div>
 
             </div>
-            <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+            <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
         </div>
     );
   };
@@ -481,7 +486,7 @@ const OBSOverlay: React.FC = () => {
                   )}
               </div>
           </div>
-          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
       </div>
   );
 
@@ -516,7 +521,7 @@ const OBSOverlay: React.FC = () => {
                    {status === 'UNSOLD' && <div className="bg-red-600 text-white text-center py-2 font-black text-xl rounded uppercase shadow-lg">UNSOLD</div>}
                </div>
           </div>
-          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} />
+          <Marquee show={!!state.sponsorConfig?.showHighlights} content={marqueeContent} layout={state.obsLayout} />
       </div>
   );
 
