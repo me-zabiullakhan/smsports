@@ -314,12 +314,15 @@ export interface InningsState {
 }
 
 export type OverlayView = 'DEFAULT' | 'B1' | 'B2' | 'BOWLER' | 'SUMMARY' | 'TARGET' | 'DECISION' | 'ANIMATION' | 'FOW' | 'PARTNERSHIP' | 'TEAMS_PLAYERS' | 'PLAYER_STATS' | 'POINTS_TABLE' | 'TOP_BATTERS' | 'TOP_BOWLERS' | 'TOP_STRIKERS' | 'MOM' | 'I1BAT' | 'I1BALL' | 'I2BAT' | 'I2BALL' | 'CUSTOM';
+
+export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'DEFAULT';
+
 export type DecisionStatus = 'PENDING' | 'OUT' | 'NOT_OUT' | 'NONE';
 export type OverlayAnimation = 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT' | 'HAT_TRICK' | 'TOUR_BOUNDARIES' | 'NONE';
 
 export interface OverlayState {
     currentView: OverlayView; 
-    theme?: 'DEFAULT' | 'CWC2023'; 
+    theme: ScoreboardTheme; 
     animation: OverlayAnimation; 
     customMessage?: string;
     decision?: DecisionStatus;

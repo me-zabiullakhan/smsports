@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team, Player } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle, XCircle, UserMinus } from 'lucide-react';
+import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team, Player, ScoreboardTheme } from '../types';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle, XCircle, UserMinus, Layout } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 
 const MatchScorer: React.FC = () => {
@@ -107,7 +107,7 @@ const MatchScorer: React.FC = () => {
             battingTeamId: battingId, bowlingTeamId: bowlingId, totalRuns: 0, wickets: 0, overs: 0, ballsInCurrentOver: 0, currentRunRate: 0, extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null, batsmen: {}, bowlers: {}, recentBalls: []
         };
         await db.collection('matches').doc(match.id).update({
-            tossWinnerId: tossWinner, tossChoice: tossChoice, status: 'LIVE', [`innings.1`]: newInnings, overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'DEFAULT', decision: 'NONE' }
+            tossWinnerId: tossWinner, tossChoice: tossChoice, status: 'LIVE', [`innings.1`]: newInnings, overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'ICC_T20_2024', decision: 'NONE' }
         });
         setProcessing(false);
     };
@@ -399,6 +399,33 @@ const MatchScorer: React.FC = () => {
 
             <div className="max-w-xl mx-auto p-4 space-y-4">
                 
+                {/* Theme Selection Section */}
+                <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/5">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-blue-400 mb-4 flex items-center justify-center gap-2">
+                        <Palette className="w-3 h-3"/> Scoreboard Theme
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                         {[
+                             { id: 'ICC_T20_2010', label: 'T20 2010' },
+                             { id: 'ICC_T20_2012', label: 'T20 2012' },
+                             { id: 'ICC_T20_2014', label: 'T20 2014' },
+                             { id: 'ICC_T20_2016', label: 'T20 2016' },
+                             { id: 'ICC_T20_2021', label: 'T20 2021' },
+                             { id: 'ICC_T20_2022', label: 'T20 2022' },
+                             { id: 'ICC_T20_2024', label: 'T20 2024' },
+                             { id: 'DEFAULT', label: 'Modern' },
+                         ].map(t => (
+                             <button 
+                                key={t.id}
+                                onClick={() => updateOverlay({ theme: t.id as ScoreboardTheme })}
+                                className={`py-2 rounded text-[10px] font-black uppercase border transition-all ${match.overlay?.theme === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-700 border-white/5 text-slate-400 hover:text-white'}`}
+                             >
+                                 {t.label}
+                             </button>
+                         ))}
+                    </div>
+                </div>
+
                 {/* Main Controller Section */}
                 <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
