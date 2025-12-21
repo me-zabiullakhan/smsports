@@ -62,12 +62,14 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         setUserProfile({ uid: user.uid, email: 'viewer@smsports.com', role: UserRole.VIEWER });
                     }
                 } else {
-                    // Admin
+                    // Detect Super Admin by specific email provided by user
+                    const isSuperAdminAccount = user.email === 'mezabiullakhan@gmail.com';
+                    
                     setUserProfile({
                         uid: user.uid,
                         email: user.email || '',
                         name: user.displayName || '',
-                        role: user.email === 'admin@smsports.com' ? UserRole.SUPER_ADMIN : UserRole.ADMIN
+                        role: isSuperAdminAccount ? UserRole.SUPER_ADMIN : UserRole.ADMIN
                     });
                 }
             } else {
@@ -88,14 +90,10 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     setState(prev => ({
                         ...prev,
                         ...data,
-                        // Explicitly map 'slabs' from DB to 'bidSlabs' in state
                         bidSlabs: data.slabs || [],
-                        // Explicitly map Title and Logo for display
                         tournamentName: data.title || prev.tournamentName,
                         auctionLogoUrl: data.logoUrl || prev.auctionLogoUrl,
-                        // Ensure sponsorConfig has defaults
                         sponsorConfig: data.sponsorConfig || prev.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5 },
-                        // Map Squad Limit
                         maxPlayersPerTeam: data.playersPerTeam || 25
                     }));
                 }
@@ -149,8 +147,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setState(initialState);
     };
 
-    // --- DERIVED STATE (Fixes "Not Automatic Showing" Issue) ---
-    // Instead of setting these in the listener, we calculate them whenever players or currentId changes.
+    // --- DERIVED STATE ---
     const derivedUnsoldPlayers = useMemo(() => {
         return state.players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
     }, [state.players]);
@@ -161,14 +158,12 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return idx !== -1 ? idx : null;
     }, [state.currentPlayerId, derivedUnsoldPlayers]);
 
-    // Merge derived values into the state object consumed by the app
     const activeState = {
         ...state,
         unsoldPlayers: derivedUnsoldPlayers,
         currentPlayerIndex: derivedCurrentPlayerIndex
     };
 
-    // Derived State: nextBid
     const nextBid = useMemo(() => {
         const { currentPlayerId, players, currentBid, bidIncrement, bidSlabs, categories } = state;
         const currentPlayer = players.find(p => String(p.id) === String(currentPlayerId));
@@ -178,12 +173,10 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const basePrice = Number(currentPlayer.basePrice) || 0;
         const currentPrice = Number(currentBid) || 0;
 
-        // SCENARIO 1: No bids yet (First Bid)
         if (currentPrice === 0) {
             return basePrice > 0 ? basePrice : (Number(bidIncrement) || 100);
         }
         
-        // Priority 1: Category Specific Slabs
         if (currentPlayer.category) {
             const cat = categories.find(c => c.name === currentPlayer.category);
             if (cat && cat.slabs && cat.slabs.length > 0) {
@@ -195,7 +188,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         }
 
-        // Priority 2: Global Slabs
         if (bidSlabs && bidSlabs.length > 0) {
             const sortedSlabs = [...bidSlabs].sort((a, b) => Number(b.from) - Number(a.from));
             const activeSlab = sortedSlabs.find(s => currentPrice >= Number(s.from));
@@ -204,20 +196,16 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         }
 
-        // Priority 3: Category Specific Flat Increment (Only if no slabs matched)
         if (currentPlayer.category) {
             const cat = categories.find(c => c.name === currentPlayer.category);
-            // Only apply if strictly defined and > 0.
             if (cat && cat.bidIncrement > 0) {
                 return currentPrice + Number(cat.bidIncrement);
             }
         }
 
-        // Priority 4: Default Global Increment
         return currentPrice + (Number(bidIncrement) || 100);
     }, [state.currentBid, state.currentPlayerId, state.players, state.bidIncrement, state.bidSlabs, state.categories]);
 
-    // Implementation of actions
     const placeBid = async (teamId: string | number, amount: number) => {
         if (!activeAuctionId) return;
         const team = state.teams.find(t => String(t.id) === String(teamId));
@@ -225,19 +213,15 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         
-        // --- BID LIMIT RULE VALIDATION ---
         if (currentPlayer) {
             let reservedBudget = 0;
             state.categories.forEach(cat => {
                 if (cat.maxPerTeam > 0) {
                     const playersInCat = team.players.filter(p => p.category === cat.name).length;
                     let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
-                    
-                    // If current player belongs to this category, we count this bid as filling one slot (so don't reserve for it)
                     if (currentPlayer.category === cat.name) {
                         slotsToFill = Math.max(0, slotsToFill - 1);
                     }
-                    
                     reservedBudget += slotsToFill * cat.basePrice;
                 }
             });
@@ -247,7 +231,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(`Bid Limit Reached! Max allowable bid is ${maxAllowedBid} to ensure squad completion.`);
             }
         }
-        // ---------------------------------
 
         const log = {
             message: `${team.name} bid ${amount}`,
@@ -279,7 +262,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const playerRef = auctionRef.collection('players').doc(String(player.id));
             const teamRef = auctionRef.collection('teams').doc(String(finalTeam.id));
 
-            // CRITICAL CHECK: Ensure team doc exists before reading data
             const teamDoc = await transaction.get(teamRef);
             if (!teamDoc.exists) {
                 throw new Error("Target team document does not exist in database");
@@ -401,29 +383,24 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         const auctionRef = db.collection('auctions').doc(activeAuctionId);
         
-        // 1. Fetch Default Purse from Auction Config
         const auctionSnap = await auctionRef.get();
         if (!auctionSnap.exists) return;
         const defaultPurse = auctionSnap.data()?.purseValue || 10000;
 
-        // 2. Fetch all Teams and Players to reset
         const playersSnap = await auctionRef.collection('players').get();
         const teamsSnap = await auctionRef.collection('teams').get();
 
-        // OPTIMIZATION: Only reset players that have been modified to reduce write volume
         const modifiedPlayers = playersSnap.docs.filter(d => {
             const data = d.data();
             return data.status !== undefined || data.soldPrice !== undefined || data.soldTo !== undefined;
         });
 
-        // 3. Batched Updates (Chunks of 300 to prevent Write Stream Exhaustion)
         const batchSize = 300;
         const allDocs = [
             ...modifiedPlayers.map(d => ({ type: 'PLAYER', ref: d.ref })),
             ...teamsSnap.docs.map(d => ({ type: 'TEAM', ref: d.ref }))
         ];
 
-        // Process in chunks with delay
         for (let i = 0; i < allDocs.length; i += batchSize) {
             const batch = db.batch();
             const chunk = allDocs.slice(i, i + batchSize);
@@ -443,7 +420,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
             });
             
-            // Only update root auction doc in the first batch
             if (i === 0) {
                 batch.update(auctionRef, {
                     status: AuctionStatus.NotStarted,
@@ -456,11 +432,9 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             
             await batch.commit();
-            // Throttling: Wait 200ms between batches to clear write stream buffer
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        // If there were no sub-docs, we still need to reset the auction status
         if (allDocs.length === 0) {
              await auctionRef.update({
                 status: AuctionStatus.NotStarted,
@@ -477,7 +451,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (!activeAuctionId) return;
         const unsold = state.players.filter(p => p.status === 'UNSOLD');
         
-        // Batching for Unsold Reset (prevent exhaustion if > 500 unsold)
         const batchSize = 300;
         for (let i = 0; i < unsold.length; i += batchSize) {
              const batch = db.batch();
@@ -487,7 +460,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                  batch.update(ref, { status: firebase.firestore.FieldValue.delete() });
              });
              await batch.commit();
-             // Throttling
              await new Promise(r => setTimeout(r, 100));
         }
         
@@ -537,7 +509,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const playerDoc = await t.get(playerRef);
             const playerData = playerDoc.data() as Player;
             
-            // 1. Revert previous sale if applicable
             if (playerData.status === 'SOLD' && playerData.soldTo) {
                 const prevTeam = state.teams.find(tm => tm.name === playerData.soldTo);
                 if (prevTeam) {
@@ -554,7 +525,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
             }
             
-            // 2. Apply new sale if newTeamId provided
             if (newTeamId) {
                 const newTeamRef = auctionRef.collection('teams').doc(newTeamId);
                 const newTeamDoc = await t.get(newTeamRef);
@@ -578,7 +548,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return (
         <AuctionContext.Provider value={{
-            state: activeState, // Pass the state with derived values overrides
+            state: activeState,
             userProfile,
             setUserProfile,
             placeBid,
@@ -586,7 +556,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             passPlayer,
             correctPlayerSale,
             startAuction,
-            undoPlayerSelection, // Export new function
+            undoPlayerSelection,
             endAuction,
             resetAuction,
             resetCurrentPlayer,
