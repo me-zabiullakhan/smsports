@@ -20,7 +20,7 @@ export interface Player {
   role: string;     // Player Type (Skill: Batsman, Bowler)
   basePrice: number;
   nationality: string;
-  speciality: string; // Kept for backward compat, usually same as role
+  speciality: string; // Kept for backward compat, usually same for role
   stats: {
     matches: number;
     runs: number;
@@ -144,6 +144,7 @@ export interface AuctionState {
   obsLayout: OBSLayout;
   adminViewOverride: AdminViewOverride | null;
   maxPlayersPerTeam?: number; // Global Squad Limit
+  systemLogoUrl?: string; // Global System Branding Logo
 }
 
 export enum UserRole {
@@ -234,6 +235,7 @@ export interface AuctionContextType {
     passPlayer: () => Promise<void>;
     correctPlayerSale: (playerId: string, newTeamId: string | null, newPrice: number) => Promise<void>;
     startAuction: (specificPlayerId?: string | number) => Promise<boolean>;
+    undoPlayerSelection: () => Promise<void>;
     endAuction: () => Promise<void>;
     resetAuction: () => Promise<void>;
     resetCurrentPlayer: () => Promise<void>;
