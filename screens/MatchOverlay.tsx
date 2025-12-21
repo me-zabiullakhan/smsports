@@ -1,7 +1,8 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '../firebase';
+// Add Trophy import
+import { Trophy } from 'lucide-react';
 import { Match, InningsState, BatsmanStats, BowlerStats, OverlayView, OverlayAnimation, DecisionStatus } from '../types';
 
 const MatchOverlay: React.FC = () => {
@@ -37,11 +38,13 @@ const MatchOverlay: React.FC = () => {
     const decision = match.overlay?.decision || 'NONE';
     const animType = match.overlay?.animation || 'NONE';
     const backgroundUrl = match.overlay?.backgroundGraphicUrl;
+    const teamAColor = match.overlay?.teamAColor || '#0000FF';
+    const teamBColor = match.overlay?.teamBColor || '#FF0000';
 
     // --- SUB-COMPONENTS ---
 
     const DecisionBanner = () => {
-        if (view !== 'DECISION') return null;
+        if (view !== 'DECISION' || decision === 'NONE') return null;
         let bgColor = "bg-yellow-500";
         let textColor = "text-black";
         let text = "DECISION PENDING";
@@ -128,23 +131,42 @@ const MatchOverlay: React.FC = () => {
         );
     };
 
+    const StatsPanel = ({ title, players }: { title: string, players: any[] }) => (
+        <div className="fixed inset-0 flex items-center justify-center p-20 z-20">
+            <div className="bg-slate-900/95 backdrop-blur-xl border-4 border-purple-500 rounded-3xl w-full max-w-4xl p-10 text-white shadow-[0_0_100px_rgba(0,0,0,0.8)]">
+                <h1 className="text-4xl font-black uppercase text-center mb-10 tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">{title}</h1>
+                <div className="space-y-4">
+                    {players.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-6">
+                                <span className="text-2xl font-black text-purple-400 italic">#{i+1}</span>
+                                <span className="text-2xl font-bold uppercase">{p.name}</span>
+                            </div>
+                            <span className="text-3xl font-black tabular-nums text-pink-400">{p.value}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
     // --- THEME RENDERERS ---
 
     const RenderDefaultTicker = () => (
         <div className="fixed bottom-10 left-0 w-full flex flex-col justify-end p-10 font-sans text-white z-20">
             <div className="w-full max-w-6xl mx-auto animate-slide-up">
-                <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-t-xl border-t-4 border-yellow-500 shadow-2xl flex items-stretch h-24 overflow-hidden relative">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] opacity-10"></div>
-                    <div className="px-8 flex items-center gap-6 bg-black/20 z-10">
-                        <div className="text-3xl font-black uppercase tracking-wider italic">{battingTeamName}</div>
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-t-xl border-t-4 border-purple-500 shadow-2xl flex items-stretch h-24 overflow-hidden relative">
+                    <div className="absolute inset-0 bg-black/40 opacity-40"></div>
+                    <div className="px-8 flex items-center gap-6 bg-black/40 z-10" style={{ backgroundColor: match.currentInnings === 1 ? teamAColor : teamBColor }}>
+                        <div className="text-2xl font-black uppercase tracking-wider italic">{battingTeamName}</div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-6xl font-black text-yellow-400 leading-none drop-shadow-lg">{currentInnings.totalRuns}/{currentInnings.wickets}</span>
-                            <span className="text-2xl font-mono text-gray-300 font-bold">({currentInnings.overs})</span>
+                            <span className="text-6xl font-black text-white leading-none drop-shadow-lg">{currentInnings.totalRuns}/{currentInnings.wickets}</span>
+                            <span className="text-2xl font-mono text-white/70 font-bold">({currentInnings.overs})</span>
                         </div>
                     </div>
                     <div className="flex-1 flex items-center justify-around px-6 relative z-10">
                         <div className={`flex flex-col ${currentInnings.strikerId ? 'opacity-100' : 'opacity-40'}`}>
-                            <div className="flex items-center gap-2"><span className="text-yellow-400 text-2xl drop-shadow-md">🏏</span><span className="text-2xl font-black uppercase italic">{striker?.name || '-'}</span></div>
+                            <div className="flex items-center gap-2"><span className="text-lime-400 text-2xl drop-shadow-md">🏏</span><span className="text-2xl font-black uppercase italic">{striker?.name || '-'}</span></div>
                             <span className="text-xl font-mono text-gray-300 font-bold">{striker?.runs || 0} <span className="text-sm font-normal">({striker?.balls || 0})</span></span>
                         </div>
                         <div className="w-px h-12 bg-white/10"></div>
@@ -159,16 +181,13 @@ const MatchOverlay: React.FC = () => {
                         </div>
                     </div>
                     <div className="px-6 bg-black/40 flex flex-col justify-center items-end min-w-[150px] z-10">
-                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Current Run Rate</span>
-                        <span className="text-4xl font-black text-green-400 italic">{(currentInnings.totalRuns / Math.max(0.1, currentInnings.overs)).toFixed(2)}</span>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Target</span>
+                        <span className="text-4xl font-black text-lime-400 italic">{match.currentInnings === 2 ? (match.innings[1].totalRuns + 1) : '-'}</span>
                     </div>
                 </div>
                 <div className="bg-black/80 h-10 flex items-center px-6 gap-2 rounded-b-xl border-t border-white/10 z-10">
                     <span className="text-[10px] font-black uppercase text-cyan-400 tracking-widest mr-4 italic">Recent Balls</span>
                     <div className="flex gap-2">{recentBalls.map((b, i) => (<div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shadow-lg ${b.isWicket ? 'bg-red-600 text-white' : b.runs >= 4 ? 'bg-green-600 text-white' : 'bg-gray-200 text-black'}`}>{b.isWicket ? 'W' : b.runs}</div>))}</div>
-                    <div className="ml-auto flex items-center gap-4">
-                        <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Extras: <span className="text-white ml-1">{currentInnings.extras.wides + currentInnings.extras.noBalls + currentInnings.extras.byes + currentInnings.extras.legByes}</span></span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -183,34 +202,59 @@ const MatchOverlay: React.FC = () => {
                 .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
             `}</style>
             
-            {/* BACKGROUND ASSET LAYER */}
             {backgroundUrl && (
                 <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center animate-fade-in">
                     <img src={backgroundUrl} className="w-full h-full object-contain" alt="Custom Overlay Frame" />
                 </div>
             )}
             
-            {/* SCORING CONTENT LAYER */}
             <div className="relative z-10 w-full h-full">
                 
-                {/* Decision Layer */}
                 <DecisionBanner />
-
-                {/* Animation Layer */}
                 <AnimationLayer />
 
-                {/* Conditional Views */}
                 {view === 'DEFAULT' && <RenderDefaultTicker />}
                 {view === 'B1' && <PlayerStatsCard data={striker} type="B" />}
                 {view === 'B2' && <PlayerStatsCard data={nonStriker} type="B" />}
                 {view === 'BOWLER' && <PlayerStatsCard data={bowler} type="BW" />}
                 
-                {/* Fallback to Ticker if decision or animation is active but no view set */}
+                {view === 'TOP_BATTERS' && <StatsPanel title="Top Batters" players={[{name: 'Player 1', value: 85}, {name: 'Player 2', value: 72}, {name: 'Player 3', value: 68}]} />}
+                {view === 'TOP_BOWLERS' && <StatsPanel title="Top Bowlers" players={[{name: 'Bowler A', value: '4/12'}, {name: 'Bowler B', value: '3/15'}, {name: 'Bowler C', value: '2/20'}]} />}
+                
+                {view === 'CUSTOM' && match.overlay?.customMessage && (
+                    <div className="fixed bottom-10 left-0 w-full flex justify-center p-10 animate-slide-up">
+                        <div className="bg-slate-900 border-4 border-purple-500 rounded-2xl p-10 text-white text-center shadow-2xl min-w-[600px]">
+                            <h2 className="text-4xl font-black uppercase italic leading-tight">
+                                {match.overlay.customMessage.split('-').map((line, idx) => <div key={idx}>{line}</div>)}
+                            </h2>
+                        </div>
+                    </div>
+                )}
+
+                {view === 'MOM' && match.overlay?.momId && (
+                    <div className="fixed inset-0 flex items-center justify-center p-20">
+                         <div className="bg-gradient-to-br from-indigo-900 to-black p-10 rounded-3xl border-8 border-purple-500 shadow-2xl text-center text-white animate-bounce-in">
+                             <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-6 drop-shadow-lg" />
+                             <h1 className="text-2xl font-bold uppercase tracking-widest text-purple-400 mb-2">Man of the Match</h1>
+                             <h1 className="text-7xl font-black uppercase italic drop-shadow-md">
+                                 {/* MOM Player name lookup needs allPlayers to be populated or match to have team data */}
+                                 {match.innings[1].batsmen[match.overlay.momId]?.name || 
+                                  match.innings[2].batsmen[match.overlay.momId]?.name || 
+                                  match.innings[1].bowlers[match.overlay.momId]?.name || 
+                                  match.innings[2].bowlers[match.overlay.momId]?.name || 'Player'}
+                             </h1>
+                         </div>
+                    </div>
+                )}
+
                 {(view === 'DECISION' || view === 'ANIMATION') && decision === 'NONE' && animType === 'NONE' && <RenderDefaultTicker />}
 
             </div>
         </div>
     );
 }
+
+// Internal helper for MOM logic
+const allPlayers = []; // This should be populated if needed in Overlay, or fetched from Match
 
 export default MatchOverlay;

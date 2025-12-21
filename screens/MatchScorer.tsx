@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, Circle, Settings, UserPlus, Info, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Image as ImageIcon, Check, Plus, Gavel, Monitor, Play } from 'lucide-react';
+import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team, Player } from '../types';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 
 const MatchScorer: React.FC = () => {
@@ -13,13 +13,13 @@ const MatchScorer: React.FC = () => {
     const [match, setMatch] = useState<Match | null>(null);
     const [teamA, setTeamA] = useState<Team | null>(null);
     const [teamB, setTeamB] = useState<Team | null>(null);
-    const [assets, setAssets] = useState<ScoringAsset[]>([]);
     const [loading, setLoading] = useState(true);
     
     // UI States
     const [tossWinner, setTossWinner] = useState('');
     const [tossChoice, setTossChoice] = useState<'BAT' | 'BOWL'>('BAT');
     const [processing, setProcessing] = useState(false);
+    const [extraControllerVisible, setExtraControllerVisible] = useState(true);
 
     // Controller Inputs
     const [isWide, setIsWide] = useState(false);
@@ -31,6 +31,12 @@ const MatchScorer: React.FC = () => {
     // Overlay Inputs
     const [customInput, setCustomInput] = useState('');
     const [selectedMOM, setSelectedMOM] = useState('');
+    const [selectedStatsPlayer, setSelectedStatsPlayer] = useState('');
+    const [teamAColor, setTeamAColor] = useState('#0000FF');
+    const [teamBColor, setTeamBColor] = useState('#FF0000');
+
+    // Override State
+    const [manualRuns, setManualRuns] = useState<{ [key: string]: number }>({ I1: 0, I1W: 0, I2: 0, I2W: 0 });
 
     // Initial Data Fetch
     useEffect(() => {
@@ -41,6 +47,17 @@ const MatchScorer: React.FC = () => {
                 setMatch(m);
                 if (m.overlay?.momId) setSelectedMOM(m.overlay.momId);
                 if (m.overlay?.customMessage) setCustomInput(m.overlay.customMessage);
+                if (m.overlay?.statsPlayerId) setSelectedStatsPlayer(m.overlay.statsPlayerId);
+                if (m.overlay?.teamAColor) setTeamAColor(m.overlay.teamAColor);
+                if (m.overlay?.teamBColor) setTeamBColor(m.overlay.teamBColor);
+                
+                // Sync manual override fields with DB values initially
+                setManualRuns({
+                    I1: m.innings[1]?.totalRuns || 0,
+                    I1W: m.innings[1]?.wickets || 0,
+                    I2: m.innings[2]?.totalRuns || 0,
+                    I2W: m.innings[2]?.wickets || 0
+                });
             } else {
                 navigate('/scoring');
             }
@@ -48,17 +65,6 @@ const MatchScorer: React.FC = () => {
         });
         return () => unsub();
     }, [matchId, navigate]);
-
-    // Fetch Assets for Library
-    useEffect(() => {
-        if (!userProfile?.uid) return;
-        const unsub = db.collection('scoringAssets')
-            .where('createdBy', '==', userProfile.uid)
-            .onSnapshot(snap => {
-                setAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
-            });
-        return () => unsub();
-    }, [userProfile]);
 
     // Fetch Teams
     useEffect(() => {
@@ -85,6 +91,8 @@ const MatchScorer: React.FC = () => {
 
     const battingTeam = currentInnings ? getTeam(currentInnings.battingTeamId) : null;
     const bowlingTeam = currentInnings ? getTeam(currentInnings.bowlingTeamId) : null;
+    const allPlayers = [...(teamA?.players || []), ...(teamB?.players || [])];
+
     const needsStriker = currentInnings && !currentInnings.strikerId;
     const needsNonStriker = currentInnings && !currentInnings.nonStrikerId;
     const needsBowler = currentInnings && !currentInnings.currentBowlerId;
@@ -102,14 +110,6 @@ const MatchScorer: React.FC = () => {
             tossWinnerId: tossWinner, tossChoice: tossChoice, status: 'LIVE', [`innings.1`]: newInnings, overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'DEFAULT', decision: 'NONE' }
         });
         setProcessing(false);
-    };
-
-    const handleDeleteMatch = async () => {
-        if(!match) return;
-        if(window.confirm("Are you sure?")) {
-            setProcessing(true);
-            try { await db.collection('matches').doc(match.id).delete(); } catch (e) { setProcessing(false); }
-        }
     };
 
     const handlePlayerSelect = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', playerId: string) => {
@@ -135,6 +135,33 @@ const MatchScorer: React.FC = () => {
         await db.collection('matches').doc(match.id).update(updateData);
     };
 
+    const handleSwapBatter = async () => {
+        if (!match || !currentInnings || !currentInnings.strikerId || !currentInnings.nonStrikerId) return;
+        const updateData: any = {};
+        const prefix = `innings.${match.currentInnings}`;
+        updateData[`${prefix}.strikerId`] = currentInnings.nonStrikerId;
+        updateData[`${prefix}.nonStrikerId`] = currentInnings.strikerId;
+        updateData[`${prefix}.batsmen.${currentInnings.strikerId}.isStriker`] = false;
+        updateData[`${prefix}.batsmen.${currentInnings.nonStrikerId}.isStriker`] = true;
+        await db.collection('matches').doc(match.id).update(updateData);
+    };
+
+    const handleEndInning = async () => {
+        if (!match) return;
+        if (!window.confirm("End this inning and start next?")) return;
+        
+        if (match.currentInnings === 1) {
+            const bowlingId = currentInnings?.bowlingTeamId;
+            const battingId = currentInnings?.battingTeamId;
+            const newInnings: InningsState = {
+                battingTeamId: bowlingId || '', bowlingTeamId: battingId || '', totalRuns: 0, wickets: 0, overs: 0, ballsInCurrentOver: 0, currentRunRate: 0, extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null, batsmen: {}, bowlers: {}, recentBalls: []
+            };
+            await db.collection('matches').doc(match.id).update({ currentInnings: 2, [`innings.2`]: newInnings });
+        } else {
+            await db.collection('matches').doc(match.id).update({ status: 'COMPLETED' });
+        }
+    };
+
     const handleScore = async (runs: number) => {
         if (!match || !currentInnings || needsStriker || needsNonStriker || needsBowler) return;
         setProcessing(true);
@@ -142,15 +169,7 @@ const MatchScorer: React.FC = () => {
         const striker = state.batsmen[state.strikerId!];
         const bowler = state.bowlers[state.currentBowlerId!];
         
-        let extraType: 'WIDE' | 'NOBALL' | 'BYE' | 'LEGBYE' | undefined = undefined;
-        if (isWide) extraType = 'WIDE'; else if (isNoBall) extraType = 'NOBALL'; else if (isBye) extraType = 'BYE'; else if (isLegBye) extraType = 'LEGBYE';
-        
         const isLegalBall = !isWide && !isNoBall;
-        
-        let bowlerRuns = runs; 
-        if (isWide || isNoBall) bowlerRuns += 1; 
-        if (isBye || isLegBye) bowlerRuns = 0; 
-        bowler.runsConceded += bowlerRuns;
         
         let totalBallRuns = runs; 
         if (isWide || isNoBall) totalBallRuns += 1; 
@@ -172,6 +191,11 @@ const MatchScorer: React.FC = () => {
             } 
         }
 
+        let bowlerRuns = runs; 
+        if (isWide || isNoBall) bowlerRuns += 1; 
+        if (isBye || isLegBye) bowlerRuns = 0; 
+        bowler.runsConceded += bowlerRuns;
+
         if (isLegalBall) {
             state.ballsInCurrentOver++; bowler.ballsBowled++;
             const totalValidBalls = (Math.floor(state.overs) * 6) + Math.round((state.overs % 1) * 10) + 1;
@@ -187,7 +211,7 @@ const MatchScorer: React.FC = () => {
             state.strikerId = null; 
         }
 
-        state.recentBalls.push({ ballNumber: state.ballsInCurrentOver, overNumber: Math.floor(state.overs), bowlerId: bowler.playerId, batsmanId: striker.playerId, runs, isWide, isNoBall, isWicket, isBye, isLegBye, extras: (extraType ? 1 : 0) });
+        state.recentBalls.push({ ballNumber: state.ballsInCurrentOver, overNumber: Math.floor(state.overs), bowlerId: bowler.playerId, batsmanId: striker.playerId, runs, isWide, isNoBall, isWicket, isBye, isLegBye, extras: (isWide || isNoBall ? 1 : 0) });
         
         if (runs % 2 !== 0) { 
             const temp = state.strikerId; 
@@ -268,11 +292,7 @@ const MatchScorer: React.FC = () => {
             }
 
             await db.collection('matches').doc(match.id).update({ [`innings.${match.currentInnings}`]: state });
-        } catch (e) {
-            console.error("Undo failed", e);
-        } finally {
-            setProcessing(false);
-        }
+        } catch (e) { console.error("Undo failed", e); } finally { setProcessing(false); }
     };
 
     const updateOverlay = async (updates: Partial<Match['overlay']>) => {
@@ -280,60 +300,36 @@ const MatchScorer: React.FC = () => {
         await db.collection('matches').doc(match.id).update({ overlay: { ...match.overlay, ...updates } });
     };
 
-    const toggleTheme = async () => {
+    const handleSaveManual = async (field: 'I1' | 'I1W' | 'I2' | 'I2W') => {
         if (!match) return;
-        const currentTheme = match.overlay?.theme || 'DEFAULT';
-        const nextTheme = currentTheme === 'DEFAULT' ? 'CWC2023' : 'DEFAULT';
-        await updateOverlay({ theme: nextTheme });
+        const updates: any = {};
+        if (field === 'I1') updates['innings.1.totalRuns'] = manualRuns.I1;
+        if (field === 'I1W') updates['innings.1.wickets'] = manualRuns.I1W;
+        if (field === 'I2') updates['innings.2.totalRuns'] = manualRuns.I2;
+        if (field === 'I2W') updates['innings.2.wickets'] = manualRuns.I2W;
+        await db.collection('matches').doc(match.id).update(updates);
     };
 
-    const setOverlayBackground = async (url: string) => {
-        const currentBg = match?.overlay?.backgroundGraphicUrl;
-        const newUrl = currentBg === url ? null : url;
-        await updateOverlay({ backgroundGraphicUrl: newUrl });
-    };
-
-    const handleAnimation = async (type: OverlayAnimation) => {
-        if (!match) return;
-        await updateOverlay({ currentView: 'ANIMATION', animation: type });
-        // Auto stop after 5s for most animations
-        if (type !== 'NONE' && type !== 'HAT_TRICK' && type !== 'TOUR_BOUNDARIES') {
-            setTimeout(() => {
-                 updateOverlay({ currentView: 'DEFAULT', animation: 'NONE' });
-            }, 6000);
-        }
-    };
-
-    const handleDecision = async (status: DecisionStatus) => {
-        if (!match) return;
-        await updateOverlay({ currentView: 'DECISION', decision: status });
-        if (status === 'OUT' || status === 'NOT_OUT') {
-            setTimeout(() => {
-                updateOverlay({ currentView: 'DEFAULT', decision: 'NONE' });
-            }, 5000);
-        }
-    };
-
-    if (loading || !match) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin"/></div>;
+    if (loading || !match) return <div className="flex items-center justify-center h-screen bg-black"><Loader2 className="w-8 h-8 animate-spin text-purple-500"/></div>;
 
     const renderPlayerSelector = (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', currentId: string | null | undefined) => {
         const isBatsman = type === 'STRIKER' || type === 'NON_STRIKER';
         const team = isBatsman ? battingTeam : bowlingTeam;
-        if (!team) return <div className="text-xs text-gray-400 font-bold animate-pulse">Loading Team...</div>;
+        if (!team) return <div className="text-[10px] text-gray-500 font-bold">Waiting for team...</div>;
         if (currentId) {
             const playerStats = isBatsman ? currentInnings?.batsmen[currentId] : currentInnings?.bowlers[currentId];
             const name = playerStats?.name || team.players.find(p => String(p.id) === String(currentId))?.name || 'Unknown';
             const statsDisplay = isBatsman ? `${(playerStats as BatsmanStats)?.runs || 0}(${(playerStats as BatsmanStats)?.balls || 0})` : `${(playerStats as BowlerStats)?.wickets || 0}-${(playerStats as BowlerStats)?.runsConceded || 0} (${(playerStats as BowlerStats)?.overs || 0})`;
             return (
-                <div className={`flex justify-between font-bold text-sm ${type === 'STRIKER' ? 'text-green-400' : type === 'BOWLER' ? 'text-black' : 'text-white'}`}>
-                    <span className="truncate max-w-[100px]">{name}</span>
-                    <span className="tabular-nums">{statsDisplay}</span>
+                <div className={`flex justify-between items-center font-bold text-sm ${type === 'STRIKER' ? 'text-lime-400' : 'text-white'}`}>
+                    <span className="truncate max-w-[120px]">{name}</span>
+                    <span className="tabular-nums bg-black/40 px-2 rounded">{statsDisplay}</span>
                 </div>
             );
         }
         return (
             <select 
-                className={`w-full text-[10px] font-bold p-1 rounded border outline-none uppercase mb-1 ${type === 'BOWLER' ? 'bg-white border-cyan-500 text-black' : 'bg-gray-800 border-gray-600 text-white animate-pulse'}`} 
+                className="w-full text-[10px] font-black p-1.5 rounded bg-white text-black outline-none uppercase border-2 border-purple-500" 
                 onChange={(e) => handlePlayerSelect(type, e.target.value)} 
                 value=""
             >
@@ -344,197 +340,224 @@ const MatchScorer: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
-            <div className="bg-white p-4 shadow-sm border-b sticky top-0 z-10">
-                <div className="flex justify-between items-center mb-2">
-                    <button onClick={() => navigate('/scoring')} className="text-gray-500"><ArrowLeft className="w-5 h-5"/></button>
-                    <h2 className="font-black text-gray-700 uppercase tracking-tighter">Match Scoreboard</h2>
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => window.open(`/#/match-overlay/${matchId}`, '_blank')} className="text-blue-600 font-bold text-xs underline flex items-center gap-1">
-                            <Monitor className="w-3 h-3"/> LINKS
+        <div className="min-h-screen bg-slate-900 font-sans text-white pb-10">
+            {/* Header */}
+            <div className="bg-slate-800 p-4 shadow-lg sticky top-0 z-40 border-b border-white/10">
+                <div className="flex justify-between items-center mb-3">
+                    <button onClick={() => navigate('/scoring')} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600"><ArrowLeft className="w-5 h-5"/></button>
+                    <div className="text-center flex-1">
+                        <h2 className="text-lg font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                           {match.teamAName} <span className="text-white text-xs opacity-50 mx-1">VS</span> {match.teamBName}
+                        </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => window.open(`/#/match-overlay/${matchId}`, '_blank')} className="bg-blue-600 px-3 py-1.5 rounded-lg font-bold text-[10px] flex items-center gap-2">
+                            <Monitor className="w-3 h-3"/> OVERLAY
                         </button>
-                        <button onClick={handleDeleteMatch} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4"/></button>
                     </div>
                 </div>
 
-                <div className="text-center mb-3">
-                    <h3 className="font-black text-lg text-slate-800 uppercase tracking-tight">
-                        {match.teamAName} <span className="text-gray-400 font-normal lowercase mx-2">vs</span> {match.teamBName}
-                    </h3>
-                    <div className="bg-purple-600 text-white py-1 rounded text-xs font-bold uppercase tracking-widest mt-1">
-                        Run Rate: {(currentInnings?.totalRuns / Math.max(0.1, currentInnings?.overs || 0)).toFixed(2)}
-                    </div>
-                </div>
-
-                {(match.status === 'SCHEDULED' || match.status === 'TOSS') && (
-                    <div className="bg-white rounded-xl shadow-lg p-6 text-center border-4 border-yellow-400 mb-4 animate-fade-in">
-                        <Trophy className="w-12 h-12 mx-auto text-yellow-500 mb-3" />
-                        <h2 className="text-xl font-black mb-4 uppercase">Match Toss</h2>
-                        <div className="mb-4 text-left">
-                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">Toss Winner</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => setTossWinner(match.teamAId)} className={`p-2 rounded border-2 font-bold text-sm ${tossWinner === match.teamAId ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'}`}>{match.teamAName}</button>
-                                <button onClick={() => setTossWinner(match.teamBId)} className={`p-2 rounded border-2 font-bold text-sm ${tossWinner === match.teamBId ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'}`}>{match.teamBName}</button>
-                            </div>
-                        </div>
-                        <div className="mb-6 text-left">
-                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">Choice</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => setTossChoice('BAT')} className={`p-2 rounded border-2 font-bold text-sm ${tossChoice === 'BAT' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>BAT</button>
-                                <button onClick={() => setTossChoice('BOWL')} className={`p-2 rounded border-2 font-bold text-sm ${tossChoice === 'BOWL' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>BOWL</button>
-                            </div>
-                        </div>
-                        <button onClick={handleToss} disabled={!tossWinner || processing} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md transition-all disabled:opacity-50 flex items-center justify-center">
-                            {processing ? <Loader2 className="animate-spin w-4 h-4 mr-2"/> : 'START MATCH'}
-                        </button>
-                    </div>
-                )}
-
-                <div className="grid grid-cols-3 gap-2 mt-4 text-white">
-                    <div className="bg-gray-900 rounded p-2 flex flex-col justify-center min-h-[64px]">
-                        <div className="mb-1">{renderPlayerSelector('STRIKER', currentInnings?.strikerId)}</div>
+                {/* Score Summary Bar */}
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10 flex flex-col justify-center">
+                        <div className="mb-2">{renderPlayerSelector('STRIKER', currentInnings?.strikerId)}</div>
                         <div>{renderPlayerSelector('NON_STRIKER', currentInnings?.nonStrikerId)}</div>
                     </div>
-                    <div className="bg-blue-500 rounded p-2 text-center flex flex-col justify-center border-l-4 border-white/20">
-                        <span className="text-3xl font-black">{currentInnings?.totalRuns}-{currentInnings?.wickets}</span>
-                        <span className="text-xs font-bold uppercase">{currentInnings?.overs} OVR</span>
+                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-xl text-center flex flex-col justify-center shadow-lg border-b-4 border-black/30">
+                        <span className="text-4xl font-black leading-none">{currentInnings?.totalRuns}-{currentInnings?.wickets}</span>
+                        <span className="text-[10px] font-bold uppercase opacity-80 mt-1">{currentInnings?.overs} / {match.totalOvers} OVR</span>
                     </div>
-                    <div className="bg-cyan-500 rounded p-2 flex flex-col justify-between border-l-4 border-white/20">
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
                         <div>{renderPlayerSelector('BOWLER', currentInnings?.currentBowlerId)}</div>
-                        <div className="flex gap-1 justify-center mt-2">{currentInnings?.recentBalls.slice(-6).map((b,i) => (<div key={i} className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] font-bold ${b.isWicket ? 'bg-red-600 text-white' : 'bg-white text-black'}`}>{b.isWicket ? 'W' : b.runs}</div>))}</div>
+                        <div className="flex gap-1.5 justify-center mt-2">
+                            {currentInnings?.recentBalls.slice(-6).map((b, i) => (
+                                <div key={i} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${b.isWicket ? 'bg-red-500 text-white' : b.runs >= 4 ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-300'}`}>{b.isWicket ? 'W' : b.runs}</div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                    <div className="flex-1 relative">
-                        <input 
-                            className="w-full bg-gray-100 border rounded py-2 px-3 text-sm font-bold uppercase" 
-                            placeholder={`ADD PLAYER TO ${battingTeam?.name || 'BATTING TEAM'}`} 
-                        />
-                    </div>
-                    <button className="bg-green-500 text-white p-2 rounded flex items-center justify-center"><UserPlus className="w-5 h-5"/></button>
-                    <button className="bg-gray-900 text-white px-3 py-2 rounded text-xs font-bold whitespace-nowrap">{battingTeam?.name} Players ({battingTeam?.players.length})</button>
                 </div>
             </div>
 
-            <div className="max-w-xl mx-auto p-4 space-y-6">
+            <div className="max-w-xl mx-auto p-4 space-y-4">
                 
-                {/* Animations Section */}
-                <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-200">
-                    <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest text-center mb-4">Animations</h3>
-                    <div className="flex flex-wrap justify-center gap-2">
-                        <button onClick={() => handleAnimation('FREE_HIT')} className="bg-green-500 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Free Hit</button>
-                        <button onClick={() => handleAnimation('HAT_TRICK')} className="bg-purple-500 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Hat-trick Ball</button>
-                        <button onClick={() => handleAnimation('FOUR')} className="bg-pink-500 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Four</button>
-                        <button onClick={() => handleAnimation('SIX')} className="bg-blue-500 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Six</button>
-                        <button onClick={() => handleAnimation('WICKET')} className="bg-red-500 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Wicket</button>
-                        <button onClick={() => handleAnimation('TOUR_BOUNDARIES')} className="bg-purple-400 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Tour Boundaries</button>
-                        <button onClick={() => handleAnimation('NONE')} className="bg-red-800 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm">Stop</button>
+                {/* Main Controller Section */}
+                <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
+                    <h3 className="text-center font-black text-xs uppercase tracking-[0.4em] text-purple-300 mb-6">Controller</h3>
+                    
+                    {/* Top Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={handleSwapBatter} className="bg-blue-600/80 hover:bg-blue-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><RefreshCw className="w-3 h-3"/> Swap</button>
+                            <button className="bg-red-600/80 hover:bg-red-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><Trash2 className="w-3 h-3"/> Retire</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handlePlayerSelect('BOWLER', '')} className="bg-indigo-600/80 hover:bg-indigo-600 py-2.5 rounded-lg text-[10px] font-black uppercase">Bowler</button>
+                            <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-lime-500 hover:bg-lime-600 py-2.5 rounded-lg text-[10px] font-black text-black uppercase">Default</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 mb-6">
+                        {['Mini-Score', 'Tour Name', 'B1', 'B2'].map(btn => (
+                            <button key={btn} onClick={() => updateOverlay({ currentView: btn === 'B1' ? 'B1' : btn === 'B2' ? 'B2' : 'DEFAULT' })} className="bg-slate-800/80 py-2 rounded text-[10px] font-bold uppercase border border-white/5">{btn}</button>
+                        ))}
+                        {['Bowler', 'Batting', 'Bowling', 'PP+'].map(btn => (
+                            <button key={btn} onClick={() => updateOverlay({ currentView: btn === 'Bowler' ? 'BOWLER' : 'DEFAULT' })} className="bg-slate-800/80 py-2 rounded text-[10px] font-bold uppercase border border-white/5">{btn}</button>
+                        ))}
+                    </div>
+
+                    <div className="flex justify-center gap-4 mb-6">
+                        <button onClick={handleEndInning} className="bg-pink-600 hover:bg-pink-700 px-6 py-2.5 rounded-full text-xs font-black uppercase shadow-lg border-b-4 border-pink-900/50">End Inning {match.currentInnings}</button>
+                        <button onClick={handleUndo} className="bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-full text-xs font-black uppercase shadow-lg border-b-4 border-red-900/50 flex items-center gap-2"><Undo2 className="w-4 h-4"/> Undo</button>
+                    </div>
+
+                    {/* Extras Checkboxes */}
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-8 bg-black/30 p-4 rounded-2xl border border-white/5">
+                        {[ 
+                            { label: 'Wide', state: isWide, set: setIsWide },
+                            { label: 'No Ball', state: isNoBall, set: setIsNoBall },
+                            { label: 'Byes', state: isBye, set: setIsBye },
+                            { label: 'Leg Byes', state: isLegBye, set: setIsLegBye },
+                            { label: 'Wicket', state: isWicket, set: setIsWicket, color: 'text-red-400' }
+                        ].map(item => (
+                            <button key={item.label} onClick={() => item.set(!item.state)} className={`flex items-center gap-1.5 transition-all ${item.state ? (item.color || 'text-lime-400') : 'text-gray-400 opacity-50'}`}>
+                                {item.state ? <CheckSquare className="w-5 h-5"/> : <Square className="w-5 h-5"/>}
+                                <span className="text-[10px] font-black uppercase">{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Score Buttons */}
+                    <div className="grid grid-cols-4 gap-4">
+                        {[0, 1, 2, 3, 4, 5, 6].map(r => (
+                            <button key={r} onClick={() => handleScore(r)} className="w-16 h-16 rounded-full bg-slate-100 hover:bg-white text-slate-900 flex items-center justify-center text-2xl font-black shadow-xl border-b-4 border-slate-300 active:translate-y-1 transition-all mx-auto">{r}</button>
+                        ))}
+                        <button className="w-16 h-16 rounded-full bg-slate-800 text-white flex items-center justify-center border-2 border-white/10"><MoreHorizontal/></button>
                     </div>
                 </div>
 
-                {/* Display Controller */}
-                <div className="bg-black rounded-3xl shadow-xl p-6 text-white border-b-8 border-purple-600">
-                    <h3 className="text-center font-black text-sm uppercase tracking-[0.3em] mb-6">Display Controller</h3>
-                    <div className="grid grid-cols-5 gap-2 mb-4">
-                        <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className={`text-[10px] font-bold py-2 rounded transition-all border-b-4 border-black/40 ${match.overlay?.currentView === 'DEFAULT' ? 'bg-green-500' : 'bg-gray-600'}`}>DEFAULT</button>
-                        <button onClick={() => updateOverlay({ currentView: 'B1' })} className={`text-[10px] font-bold py-2 rounded border-b-4 border-black/40 ${match.overlay?.currentView === 'B1' ? 'bg-blue-600' : 'bg-blue-800'}`}>I1BAT</button>
-                        <button onClick={() => updateOverlay({ currentView: 'B2' })} className={`text-[10px] font-bold py-2 rounded border-b-4 border-black/40 ${match.overlay?.currentView === 'B2' ? 'bg-blue-600' : 'bg-blue-800'}`}>I1BALL</button>
-                        <button className="bg-blue-800 text-[10px] font-bold py-2 rounded border-b-4 border-black/40 opacity-50">I2BAT</button>
-                        <button className="bg-blue-800 text-[10px] font-bold py-2 rounded border-b-4 border-black/40 opacity-50">I2BALL</button>
+                {/* Animations Block */}
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Animations</h4>
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {['FREE HIT', 'HAT-TRICK BALL', 'FOUR', 'SIX', 'WICKET', 'TOUR BOUNDARIES'].map(anim => (
+                             <button key={anim} onClick={() => updateOverlay({ currentView: 'ANIMATION', animation: anim.split(' ')[0] as any })} className="bg-purple-600/80 hover:bg-purple-600 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-tight">{anim}</button>
+                        ))}
+                        <button onClick={() => updateOverlay({ currentView: 'DEFAULT', animation: 'NONE' })} className="bg-red-600 px-4 py-2 rounded-lg text-[9px] font-black uppercase">STOP</button>
                     </div>
-                    <div className="grid grid-cols-5 gap-2 mb-4">
-                        <button onClick={() => updateOverlay({ currentView: 'SUMMARY' })} className="bg-pink-500 text-[10px] font-bold py-2 rounded border-b-4 border-black/40">SUMMARY</button>
-                        <button className="bg-pink-500 text-[10px] font-bold py-2 rounded border-b-4 border-black/40 opacity-50">FOW</button>
-                        <button onClick={() => updateOverlay({ currentView: 'B1' })} className="bg-red-600 text-[10px] font-bold py-2 rounded border-b-4 border-black/40">B1</button>
-                        <button onClick={() => updateOverlay({ currentView: 'B2' })} className="bg-red-600 text-[10px] font-bold py-2 rounded border-b-4 border-black/40">B2</button>
-                        <button onClick={() => updateOverlay({ currentView: 'BOWLER' })} className="bg-red-600 text-[10px] font-bold py-2 rounded border-b-4 border-black/40">BOWLER</button>
+                </div>
+
+                {/* Display Controller Block */}
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Display Controller</h4>
+                    <div className="grid grid-cols-5 gap-2 mb-2">
+                         {['DEFAULT', 'I1BAT', 'I1BALL', 'I2BAT', 'I2BALL'].map(view => (
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-lime-500/80 hover:bg-lime-500 text-black py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                         ))}
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                         {['SUMMARY', 'FOW', 'B1', 'B2'].map(view => (
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-purple-600/80 hover:bg-purple-600 py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                         ))}
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                        <button onClick={() => updateOverlay({ currentView: 'TARGET' })} className="bg-cyan-600 text-[10px] font-bold py-2 rounded border-b-4 border-black/40">TARGET</button>
-                        <button className="bg-yellow-500 text-[10px] font-bold py-2 rounded border-b-4 border-black/40 opacity-50">PARTNERSHIP</button>
-                        <button className="bg-red-600 text-[10px] font-bold py-2 rounded border-b-4 border-black/40 opacity-50">TEAMS PLAYERS</button>
+                         {['BOWLER', 'TARGET', 'PARTNERSHIP'].map(view => (
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-pink-600/80 hover:bg-pink-600 py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                         ))}
+                    </div>
+                    <div className="mt-2">
+                        <button onClick={() => updateOverlay({ currentView: 'TEAMS_PLAYERS' })} className="w-full bg-pink-600 py-2 rounded text-[8px] font-black uppercase">Teams Players</button>
                     </div>
                 </div>
 
-                {/* Decision Panel */}
-                <div className="bg-black rounded-xl p-6 text-white shadow-xl border-l-8 border-purple-600">
-                    <div className="flex items-center gap-6">
-                        <h3 className="font-black text-cyan-400 uppercase text-lg tracking-wider whitespace-nowrap">Decision :</h3>
-                        <div className="flex-1 grid grid-cols-3 gap-3">
-                            <button onClick={() => handleDecision('PENDING')} className="bg-yellow-500 text-black font-black text-xs py-2 px-4 rounded-full uppercase shadow-lg border-b-4 border-black/20">Pending</button>
-                            <button onClick={() => handleDecision('OUT')} className="bg-red-600 text-white font-black text-xs py-2 px-4 rounded-full uppercase shadow-lg border-b-4 border-black/20">Out</button>
-                            <button onClick={() => handleDecision('NOT_OUT')} className="bg-green-600 text-white font-black text-xs py-2 px-4 rounded-full uppercase shadow-lg border-b-4 border-black/20">Not Out</button>
-                        </div>
+                {/* Decision Block */}
+                <div className="bg-black/50 p-5 rounded-2xl border-l-4 border-lime-500 flex items-center justify-between gap-4">
+                    <span className="text-lime-500 font-black text-sm uppercase italic">Decision :</span>
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'PENDING' })} className="bg-yellow-500 text-black font-black text-[10px] py-2 rounded-full uppercase">Pending</button>
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'OUT' })} className="bg-red-600 py-2 rounded-full font-black text-[10px] uppercase">Out</button>
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'NOT_OUT' })} className="bg-lime-600 py-2 rounded-full font-black text-[10px] uppercase">Not Out</button>
                     </div>
                 </div>
 
-                {/* Custom Input */}
-                <div className="bg-black rounded-xl p-6 text-white shadow-xl">
-                    <div className="flex items-center gap-6">
-                        <h3 className="font-black text-cyan-400 uppercase text-[10px] tracking-widest whitespace-nowrap">Custom Input :</h3>
-                        <div className="flex-1 flex gap-2">
-                            <input 
-                                className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" 
-                                placeholder="Use - for split text" 
-                                value={customInput}
-                                onChange={(e) => setCustomInput(e.target.value)}
-                            />
-                            <button 
-                                onClick={() => updateOverlay({ customMessage: customInput })}
-                                className="bg-green-600 text-white font-bold text-[10px] px-3 py-2 rounded whitespace-nowrap uppercase"
-                            >Display Input</button>
-                        </div>
+                {/* Input Blocks */}
+                <div className="space-y-2">
+                    {/* Custom Input */}
+                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                        <span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Custom Input :</span>
+                        <input className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="Split text with -" />
+                        <button onClick={() => updateOverlay({ customMessage: customInput, currentView: 'CUSTOM' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
+                    </div>
+
+                    {/* MOM Input */}
+                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                        <span className="text-[10px] font-black text-lime-400 uppercase whitespace-nowrap">Select MOM:</span>
+                        <select className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={selectedMOM} onChange={e => setSelectedMOM(e.target.value)}>
+                            <option value="">Select MOM Player</option>
+                            {allPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button onClick={() => updateOverlay({ momId: selectedMOM, currentView: 'MOM' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
+                    </div>
+
+                    {/* Tour Stats Player Input */}
+                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                        <span className="text-[10px] font-black text-purple-400 uppercase whitespace-nowrap">Tour Stats Player:</span>
+                        <select className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={selectedStatsPlayer} onChange={e => setSelectedStatsPlayer(e.target.value)}>
+                            <option value="">Select Player</option>
+                            {allPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button onClick={() => updateOverlay({ statsPlayerId: selectedStatsPlayer, currentView: 'PLAYER_STATS' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
                     </div>
                 </div>
 
-                {/* MOM Player */}
-                <div className="bg-black rounded-xl p-6 text-white shadow-xl">
-                    <div className="flex items-center gap-6">
-                        <h3 className="font-black text-cyan-400 uppercase text-[10px] tracking-widest whitespace-nowrap">Select MOM Player:</h3>
-                        <div className="flex-1 flex gap-2">
-                            <select 
-                                className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none"
-                                value={selectedMOM}
-                                onChange={(e) => setSelectedMOM(e.target.value)}
-                            >
-                                <option value="">Select MOM Player</option>
-                                {battingTeam?.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                {bowlingTeam?.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                            <button 
-                                onClick={() => updateOverlay({ momId: selectedMOM })}
-                                className="bg-green-600 text-white font-bold text-[10px] px-3 py-2 rounded whitespace-nowrap uppercase"
-                            >Display MOM</button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Scoring Controller */}
-                <div className="bg-gradient-to-br from-cyan-400 to-purple-600 rounded-3xl p-6 shadow-2xl text-white mt-10">
-                    <h3 className="text-center font-black text-black text-2xl mb-6 uppercase tracking-tighter">Match Controller</h3>
-                    <div className="flex justify-between items-center bg-white/20 p-4 rounded-2xl mb-6 text-xs font-black uppercase">
-                        <button onClick={() => setIsWide(!isWide)} className={`flex flex-col items-center gap-1 transition-all ${isWide ? 'text-blue-900 scale-110' : 'text-white/60'}`}>{isWide ? <CheckSquare className="w-8 h-8"/> : <Square className="w-8 h-8"/>} Wide</button>
-                        <button onClick={() => setIsNoBall(!isNoBall)} className={`flex flex-col items-center gap-1 transition-all ${isNoBall ? 'text-blue-900 scale-110' : 'text-white/60'}`}>{isNoBall ? <CheckSquare className="w-8 h-8"/> : <Square className="w-8 h-8"/>} NB</button>
-                        <button onClick={() => setIsBye(!isBye)} className={`flex flex-col items-center gap-1 transition-all ${isBye ? 'text-blue-900 scale-110' : 'text-white/60'}`}>{isBye ? <CheckSquare className="w-8 h-8"/> : <Square className="w-8 h-8"/>} Bye</button>
-                        <button onClick={() => setIsWicket(!isWicket)} className={`flex flex-col items-center gap-1 transition-all ${isWicket ? 'text-red-900 scale-110 font-black' : 'text-white/60'}`}>{isWicket ? <CheckSquare className="w-8 h-8"/> : <Square className="w-8 h-8"/>} Wicket</button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
-                        {[0, 1, 2, 3, 4, 5, 6].map(r => (
-                            <button key={r} onClick={() => handleScore(r)} className="bg-white/10 hover:bg-white/30 text-black font-black text-4xl py-6 rounded-3xl border border-white/20 transition-all active:scale-95 shadow-lg backdrop-blur-md">{r}</button>
+                {/* Tour Stats Buttons */}
+                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-red-500 mb-4">Tour Stats Controller</h4>
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {['POINTS TABLE', 'TOP BATTERS', 'TOP BOWLERS', 'TOP 4/6 STRIKERS', 'TOP PLAYER OF SERIES'].map(stat => (
+                             <button key={stat} onClick={() => updateOverlay({ currentView: stat.replace(/ /g, '_') as any })} className="bg-pink-600/80 hover:bg-pink-600 px-4 py-2 rounded-lg text-[8px] font-black uppercase">{stat}</button>
                         ))}
-                        <button onClick={handleUndo} className="bg-red-600 hover:bg-red-700 text-white font-black rounded-3xl text-sm flex flex-col items-center justify-center gap-1 shadow-lg transition-all active:scale-95"><Undo2 className="w-6 h-6"/> UNDO</button>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow p-4 text-center border-t-8 border-gray-200">
-                    <h4 className="font-black text-xs uppercase text-gray-400 mb-4 tracking-widest">Theme & System</h4>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                        <button onClick={toggleTheme} className="bg-gray-800 text-white text-[10px] font-bold px-4 py-2 rounded-lg uppercase shadow-md flex items-center gap-2">
-                           <Palette className="w-3 h-3"/> Theme: {match.overlay?.theme || 'Default'}
-                        </button>
-                        <button onClick={() => navigate('/scoring')} className="bg-blue-600 text-white text-[10px] font-bold px-4 py-2 rounded-lg uppercase shadow-md">Dashboard</button>
+                {/* Team Color Picker */}
+                <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/5">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Select Team Color</h4>
+                    <div className="flex items-center justify-center gap-6">
+                        <div className="flex flex-col items-center gap-2">
+                            <input type="color" className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-transparent" value={teamAColor} onChange={e => setTeamAColor(e.target.value)} />
+                            <span className="text-[10px] font-bold text-gray-400">{match.teamAName}</span>
+                        </div>
+                        <button onClick={() => updateOverlay({ teamAColor, teamBColor })} className="bg-black/50 text-white font-black text-[10px] px-8 py-2 rounded uppercase border border-white/10 hover:bg-black transition-colors">Save Colors</button>
+                        <div className="flex flex-col items-center gap-2">
+                            <input type="color" className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-transparent" value={teamBColor} onChange={e => setTeamBColor(e.target.value)} />
+                            <span className="text-[10px] font-bold text-gray-400">{match.teamBName}</span>
+                        </div>
                     </div>
+                </div>
+
+                {/* Extra Controller Section */}
+                <div className="bg-red-600 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                    <div className="flex justify-center mb-6">
+                        <button onClick={() => setExtraControllerVisible(!extraControllerVisible)} className="bg-black px-6 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{extraControllerVisible ? 'Hide Extra Controller' : 'Show Extra Controller'}</button>
+                    </div>
+                    
+                    {extraControllerVisible && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
+                            {[
+                                { label: 'Change Inning 1 Runs (+1 run will added to Target)', field: 'I1' as const, key: 'I1' },
+                                { label: 'Change Inning 1 Wickets', field: 'I1W' as const, key: 'I1W' },
+                                { label: 'Change Inning 2 Runs', field: 'I2' as const, key: 'I2' },
+                                { label: 'Change Inning 2 Wickets', field: 'I2W' as const, key: 'I2W' }
+                            ].map(item => (
+                                <div key={item.key} className="flex flex-col items-center text-center space-y-3">
+                                    <p className="text-[10px] font-black text-white leading-tight h-10 flex items-center justify-center">{item.label}</p>
+                                    <input type="number" className="w-20 h-12 rounded-xl bg-white text-slate-900 text-xl font-black text-center" value={manualRuns[item.key]} onChange={e => setManualRuns({...manualRuns, [item.key]: Number(e.target.value)})} />
+                                    <button onClick={() => handleSaveManual(item.field)} className="bg-black text-white font-black text-[10px] px-6 py-1.5 rounded-full uppercase">Save</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
             </div>

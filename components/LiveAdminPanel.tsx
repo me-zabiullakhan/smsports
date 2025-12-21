@@ -184,10 +184,10 @@ const LiveAdminPanel: React.FC = () => {
       if (window.confirm("Confirm UNSOLD?")) {
           setIsProcessing(true);
           const pid = state.currentPlayerId ? String(state.currentPlayerId) : '';
-          const pName = players.find(p => String(p.id) === pid)?.name || 'Player';
+          const pName = players.find(p => String(p.id) === String(pid))?.name || 'Player';
 
           await passPlayer();
-          setLastAction({ playerId: pid, type: 'UNSOLD', name: pName });
+          setLastAction({ playerId: String(pid), type: 'UNSOLD', name: pName });
           setIsProcessing(false);
       }
   }
@@ -295,18 +295,17 @@ const LiveAdminPanel: React.FC = () => {
                       {/* Inline Form */}
                       <div>
                           <label className="block text-[10px] text-text-secondary uppercase font-bold mb-1">Sold To Team</label>
-                          <div className="relative">
-                            <select 
-                                value={selectedTeamId} 
-                                onChange={(e) => setSelectedTeamId(e.target.value)}
-                                className="w-full bg-primary border border-gray-600 rounded p-2 text-sm text-white outline-none focus:border-green-500 appearance-none"
-                            >
-                                <option value="">-- Select Team --</option>
-                                {teams.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name} ({t.budget})</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                          <div className="grid grid-cols-2 gap-1 overflow-y-auto max-h-32 p-1 bg-black/20 rounded">
+                              {teams.map(t => (
+                                  <button 
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setSelectedTeamId(String(t.id))}
+                                    className={`px-2 py-1.5 rounded text-[10px] font-bold border transition-all truncate ${selectedTeamId === String(t.id) ? 'bg-green-600 text-white border-green-400' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
+                                  >
+                                      {t.name} ({t.budget})
+                                  </button>
+                              ))}
                           </div>
                       </div>
                       
@@ -413,26 +412,27 @@ const LiveAdminPanel: React.FC = () => {
                            />
                        </div>
 
-                       <div className="relative flex gap-1">
-                           <div className="relative flex-grow">
-                               <select 
-                                   className="w-full bg-gray-900 text-white text-xs p-3 rounded border border-gray-700 focus:border-highlight outline-none appearance-none cursor-pointer pr-8"
-                                   value={manualPlayerId}
-                                   onChange={(e) => setManualPlayerId(e.target.value)}
-                               >
-                                   <option value="">-- Choose Player ({filteredPlayers.length}) --</option>
-                                   {filteredPlayers.map(p => (
-                                       <option key={p.id} value={p.id} className={p.status === 'UNSOLD' ? 'text-red-400 font-bold' : ''}>
-                                           {p.name} ({p.category}) {p.status === 'UNSOLD' ? '[UNSOLD]' : ''} - Base: {p.basePrice}
-                                       </option>
-                                   ))}
-                               </select>
-                               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                           </div>
+                       {/* Options listed directly per instructions */}
+                       <div className="max-h-40 overflow-y-auto border border-gray-700 rounded bg-gray-900 custom-scrollbar mb-2">
+                            {filteredPlayers.length > 0 ? filteredPlayers.map(p => (
+                                <div 
+                                    key={p.id}
+                                    onClick={() => setManualPlayerId(String(p.id))}
+                                    className={`p-2 text-[10px] cursor-pointer border-b border-gray-800 last:border-0 hover:bg-highlight/10 transition-colors ${manualPlayerId === String(p.id) ? 'bg-highlight/20 text-highlight font-bold' : 'text-gray-300'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span>{p.name} <span className="opacity-60">({p.category})</span></span>
+                                        <span className="font-mono">{p.basePrice}</span>
+                                    </div>
+                                    {p.status === 'UNSOLD' && <span className="text-red-400 text-[8px] font-bold uppercase">Unsold</span>}
+                                </div>
+                            )) : (
+                                <div className="p-4 text-center text-gray-500 text-[10px] italic">No players found</div>
+                            )}
                        </div>
                        
                        {/* UNSOLD ACTION BLOCK */}
-                       {manualPlayerId && players.find(p => p.id === manualPlayerId)?.status === 'UNSOLD' && (
+                       {manualPlayerId && players.find(p => String(p.id) === manualPlayerId)?.status === 'UNSOLD' && (
                            <div className="mt-3 bg-red-900/20 border border-red-500/50 rounded-lg p-3 animate-fade-in">
                                <h4 className="text-red-400 text-[10px] uppercase font-bold mb-2 flex items-center">
                                    <AlertOctagon className="w-3 h-3 mr-1" /> Unsold Player Actions
@@ -465,7 +465,7 @@ const LiveAdminPanel: React.FC = () => {
                      }
                    >
                        {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Play className="mr-2 h-5 w-5"/>} 
-                       {manualPlayerId && players.find(p => p.id === manualPlayerId)?.status === 'UNSOLD' ? 'Re-Auction Player' : 'Start Bidding'}
+                       {manualPlayerId && players.find(p => String(p.id) === manualPlayerId)?.status === 'UNSOLD' ? 'Re-Auction Player' : 'Start Bidding'}
                    </button>
                </div>
            );
@@ -551,7 +551,7 @@ const LiveAdminPanel: React.FC = () => {
                             >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                     {team.logoUrl ? (
-                                        <img src={team.logoUrl} className="w-6 h-6 rounded-full object-contain bg-gray-100 flex-shrink-0" />
+                                        <img src={team.logoUrl} className="w-6 h-6 rounded-full object-contain bg-gray-100 flex-shrink-0" alt="" />
                                     ) : (
                                         <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-[10px] font-bold text-gray-600 flex-shrink-0">
                                             {team.name.charAt(0)}
@@ -592,7 +592,7 @@ const LiveAdminPanel: React.FC = () => {
                 </button>
               </div>
               
-              {/* Quick Actions & Theme Selectors */}
+              {/* Quick Actions & Status Segments */}
               <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full">
                   <div className="flex items-center gap-1">
                     <button 
@@ -631,29 +631,33 @@ const LiveAdminPanel: React.FC = () => {
               {/* Display & Sponsors Toolbar */}
               <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full mt-1 border-t border-gray-700">
                   <div className="flex items-center gap-2 flex-grow">
-                      <div className="w-24">
+                      <div className="flex-1">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">Projector</label>
-                          <select 
-                            value={state.projectorLayout || 'STANDARD'} 
-                            onChange={(e) => updateTheme('PROJECTOR', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
-                          >
-                              <option value="STANDARD">Standard</option>
-                              <option value="IPL">Gold/Blue</option>
-                              <option value="MODERN">Modern</option>
-                          </select>
+                          <div className="flex bg-gray-800 rounded p-0.5">
+                              {['STANDARD', 'IPL', 'MODERN'].map(l => (
+                                  <button 
+                                    key={l}
+                                    onClick={() => updateTheme('PROJECTOR', l)}
+                                    className={`flex-1 px-1 py-0.5 rounded text-[7px] font-black transition-all ${state.projectorLayout === l ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                  >
+                                      {l.slice(0, 4)}
+                                  </button>
+                              ))}
+                          </div>
                       </div>
-                      <div className="w-24">
+                      <div className="flex-1">
                           <label className="block text-[8px] text-gray-400 uppercase font-bold mb-0.5">OBS</label>
-                          <select 
-                            value={state.obsLayout || 'STANDARD'} 
-                            onChange={(e) => updateTheme('OBS', e.target.value)}
-                            className="w-full bg-gray-800 text-white text-[10px] p-1 rounded border border-gray-600 outline-none hover:border-highlight cursor-pointer"
-                          >
-                              <option value="STANDARD">Standard</option>
-                              <option value="MINIMAL">Minimal</option>
-                              <option value="VERTICAL">Vertical</option>
-                          </select>
+                          <div className="flex bg-gray-800 rounded p-0.5">
+                              {['STANDARD', 'MINIMAL', 'VERTICAL'].map(l => (
+                                  <button 
+                                    key={l}
+                                    onClick={() => updateTheme('OBS', l)}
+                                    className={`flex-1 px-1 py-0.5 rounded text-[7px] font-black transition-all ${state.obsLayout === l ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                  >
+                                      {l.slice(0, 4)}
+                                  </button>
+                              ))}
+                          </div>
                       </div>
                   </div>
 

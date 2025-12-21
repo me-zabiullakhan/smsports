@@ -311,7 +311,7 @@ export interface InningsState {
     recentBalls: BallEvent[];
 }
 
-export type OverlayView = 'DEFAULT' | 'B1' | 'B2' | 'BOWLER' | 'SUMMARY' | 'TARGET' | 'DECISION' | 'ANIMATION';
+export type OverlayView = 'DEFAULT' | 'B1' | 'B2' | 'BOWLER' | 'SUMMARY' | 'TARGET' | 'DECISION' | 'ANIMATION' | 'FOW' | 'PARTNERSHIP' | 'TEAMS_PLAYERS' | 'PLAYER_STATS' | 'POINTS_TABLE' | 'TOP_BATTERS' | 'TOP_BOWLERS' | 'TOP_STRIKERS' | 'MOM' | 'I1BAT' | 'I1BALL' | 'I2BAT' | 'I2BALL' | 'CUSTOM';
 export type DecisionStatus = 'PENDING' | 'OUT' | 'NOT_OUT' | 'NONE';
 export type OverlayAnimation = 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT' | 'HAT_TRICK' | 'TOUR_BOUNDARIES' | 'NONE';
 
@@ -322,8 +322,12 @@ export interface OverlayState {
     customMessage?: string;
     decision?: DecisionStatus;
     momId?: string;
+    statsPlayerId?: string; // For tournament stats player
     autoRefresh?: boolean;
-    backgroundGraphicUrl?: string; 
+    backgroundGraphicUrl?: string;
+    teamAColor?: string;
+    teamBColor?: string;
+    showPP?: boolean;
 }
 
 export interface Match {
