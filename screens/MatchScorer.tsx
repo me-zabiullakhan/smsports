@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team, Player } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle, XCircle, UserMinus } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 
 const MatchScorer: React.FC = () => {
@@ -132,6 +132,16 @@ const MatchScorer: React.FC = () => {
             if (type === 'STRIKER') updateData[`${prefix}.strikerId`] = playerId;
             else updateData[`${prefix}.nonStrikerId`] = playerId;
         }
+        await db.collection('matches').doc(match.id).update(updateData);
+    };
+
+    const handleResetPlayerSlot = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER') => {
+        if (!match || !currentInnings) return;
+        const updateData: any = {};
+        const prefix = `innings.${match.currentInnings}`;
+        if (type === 'STRIKER') updateData[`${prefix}.strikerId`] = null;
+        else if (type === 'NON_STRIKER') updateData[`${prefix}.nonStrikerId`] = null;
+        else if (type === 'BOWLER') updateData[`${prefix}.currentBowlerId`] = null;
         await db.collection('matches').doc(match.id).update(updateData);
     };
 
@@ -321,9 +331,18 @@ const MatchScorer: React.FC = () => {
             const name = playerStats?.name || team.players.find(p => String(p.id) === String(currentId))?.name || 'Unknown';
             const statsDisplay = isBatsman ? `${(playerStats as BatsmanStats)?.runs || 0}(${(playerStats as BatsmanStats)?.balls || 0})` : `${(playerStats as BowlerStats)?.wickets || 0}-${(playerStats as BowlerStats)?.runsConceded || 0} (${(playerStats as BowlerStats)?.overs || 0})`;
             return (
-                <div className={`flex justify-between items-center font-bold text-sm ${type === 'STRIKER' ? 'text-lime-400' : 'text-white'}`}>
-                    <span className="truncate max-w-[120px]">{name}</span>
-                    <span className="tabular-nums bg-black/40 px-2 rounded">{statsDisplay}</span>
+                <div className="flex justify-between items-center w-full">
+                    <div className={`flex flex-col items-start font-bold text-sm ${type === 'STRIKER' ? 'text-lime-400' : 'text-white'}`}>
+                        <span className="truncate max-w-[120px]">{name}</span>
+                        <span className="tabular-nums text-[10px] opacity-70">{statsDisplay}</span>
+                    </div>
+                    <button 
+                        onClick={() => handleResetPlayerSlot(type)}
+                        className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
+                        title="Change / Correct Selection"
+                    >
+                        <RefreshCw className="w-3 h-3" />
+                    </button>
                 </div>
             );
         }
@@ -389,10 +408,16 @@ const MatchScorer: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2 mb-4">
                         <div className="grid grid-cols-2 gap-2">
                             <button onClick={handleSwapBatter} className="bg-blue-600/80 hover:bg-blue-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><RefreshCw className="w-3 h-3"/> Swap</button>
-                            <button className="bg-red-600/80 hover:bg-red-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><Trash2 className="w-3 h-3"/> Retire</button>
+                            <button 
+                                onClick={() => handleResetPlayerSlot('STRIKER')} 
+                                className="bg-red-600/80 hover:bg-red-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                                title="Retire Striker & Select New"
+                            >
+                                <UserMinus className="w-3 h-3"/> Retire
+                            </button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => handlePlayerSelect('BOWLER', '')} className="bg-indigo-600/80 hover:bg-indigo-600 py-2.5 rounded-lg text-[10px] font-black uppercase">Bowler</button>
+                            <button onClick={() => handleResetPlayerSlot('BOWLER')} className="bg-indigo-600/80 hover:bg-indigo-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><RefreshCw className="w-3 h-3"/> Bowler</button>
                             <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-lime-500 hover:bg-lime-600 py-2.5 rounded-lg text-[10px] font-black text-black uppercase">Default</button>
                         </div>
                     </div>
