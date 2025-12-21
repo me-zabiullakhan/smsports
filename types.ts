@@ -217,6 +217,14 @@ export interface Tournament {
     teams?: Team[]; // For simplicity in standalone tournaments, teams might be nested or subcollection
 }
 
+export interface ScoringAsset {
+    id: string;
+    name: string;
+    url: string;
+    type: 'FRAME' | 'BACKGROUND' | 'LOGO';
+    createdBy: string;
+}
+
 export interface AuctionContextType {
     state: AuctionState;
     userProfile: UserProfile | null;
@@ -303,14 +311,19 @@ export interface InningsState {
     recentBalls: BallEvent[];
 }
 
+export type OverlayView = 'DEFAULT' | 'B1' | 'B2' | 'BOWLER' | 'SUMMARY' | 'TARGET' | 'DECISION' | 'ANIMATION';
+export type DecisionStatus = 'PENDING' | 'OUT' | 'NOT_OUT' | 'NONE';
+export type OverlayAnimation = 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT' | 'HAT_TRICK' | 'TOUR_BOUNDARIES' | 'NONE';
+
 export interface OverlayState {
-    currentView: string; 
-    theme?: 'DEFAULT' | 'CWC2023'; // Added Theme Property
-    animation: string; 
+    currentView: OverlayView; 
+    theme?: 'DEFAULT' | 'CWC2023'; 
+    animation: OverlayAnimation; 
     customMessage?: string;
-    decision?: string;
+    decision?: DecisionStatus;
     momId?: string;
     autoRefresh?: boolean;
+    backgroundGraphicUrl?: string; 
 }
 
 export interface Match {

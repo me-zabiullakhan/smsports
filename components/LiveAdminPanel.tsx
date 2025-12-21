@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
@@ -275,7 +274,7 @@ const LiveAdminPanel: React.FC = () => {
                             }
                         }}
                         disabled={isProcessing}
-                        className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95 flex items-center justify-center tracking-wide"
                     >
                         {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : "GENERATE SUMMARY & FINISH"}
                     </button>
@@ -357,7 +356,7 @@ const LiveAdminPanel: React.FC = () => {
                       <button 
                         onClick={handlePass}
                         disabled={isProcessing}
-                        className="flex flex-col items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
+                        className="flex flex-col items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
                       >
                           {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <X className="mb-1 h-6 w-6"/>}
                           UNSOLD
@@ -611,22 +610,20 @@ const LiveAdminPanel: React.FC = () => {
                         <Monitor className="w-4 h-4" />
                     </button>
                     
-                    {/* Bidding Dropdown */}
-                    <div className="relative ml-1">
-                        <select
-                            value={biddingStatus === 'ON' ? 'ON' : 'OFF'}
-                            onChange={(e) => {
-                                const newVal = e.target.value === 'ON';
-                                updateBiddingStatus(newVal ? 'ON' : 'PAUSED');
-                            }}
-                            className={`appearance-none pl-6 pr-6 py-1 rounded text-xs font-bold border outline-none cursor-pointer ${biddingStatus === 'ON' ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}
+                    {/* Bidding Status - Changed from Dropdown to Segmented Buttons per instructions */}
+                    <div className="flex bg-gray-800 rounded p-1 ml-1">
+                        <button 
+                            onClick={() => updateBiddingStatus('ON')}
+                            className={`px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center ${biddingStatus === 'ON' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                         >
-                            <option value="ON">BIDDING ON</option>
-                            <option value="OFF">BIDDING PAUSED</option>
-                        </select>
-                        <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {biddingStatus === 'ON' ? <Unlock className="w-3 h-3 text-green-400"/> : <Lock className="w-3 h-3 text-red-400"/>}
-                        </div>
+                            <Unlock className="w-3 h-3 mr-1"/> ON
+                        </button>
+                        <button 
+                            onClick={() => updateBiddingStatus('PAUSED')}
+                            className={`px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center ${biddingStatus !== 'ON' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            <Lock className="w-3 h-3 mr-1"/> OFF
+                        </button>
                     </div>
                   </div>
               </div>

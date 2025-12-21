@@ -1,20 +1,49 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { AuctionSetup, Match, Team, Tournament } from '../types';
-import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy, Layers, PenTool, Save } from 'lucide-react';
+import { AuctionSetup, Match, Team, Tournament, ScoringAsset } from '../types';
+import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy, Layers, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 import TournamentManager from '../components/TournamentManager';
+
+// Helper for image compression
+const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 1280; // Overlays need decent quality
+                const MAX_HEIGHT = 720;
+                let width = img.width;
+                let height = img.height;
+                if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+                else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/png', 0.8)); // PNG for transparency support
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
 
 const ScoringDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { userProfile } = useAuction();
     const [matches, setMatches] = useState<Match[]>([]);
+    const [assets, setAssets] = useState<ScoringAsset[]>([]);
     const [loading, setLoading] = useState(true);
     
     // UI Tabs
-    const [activeTab, setActiveTab] = useState<'MATCHES' | 'TOURNAMENTS'>('MATCHES');
+    const [activeTab, setActiveTab] = useState<'MATCHES' | 'TOURNAMENTS' | 'GRAPHICS'>('MATCHES');
 
     // Inline Create Match State
     const [sourceType, setSourceType] = useState<'AUCTION' | 'TOURNAMENT'>('AUCTION');
@@ -27,6 +56,12 @@ const ScoringDashboard: React.FC = () => {
     const [overs, setOvers] = useState(20);
     const [creating, setCreating] = useState(false);
 
+    // Graphic Upload State
+    const [newAssetName, setNewAssetName] = useState('');
+    const [newAssetType, setNewAssetType] = useState<ScoringAsset['type']>('FRAME');
+    const [assetPreview, setAssetPreview] = useState('');
+    const assetFileRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         if (!userProfile?.uid) return;
 
@@ -38,7 +73,18 @@ const ScoringDashboard: React.FC = () => {
                 setMatches(snap.docs.map(d => ({ id: d.id, ...d.data() } as Match)));
                 setLoading(false);
             });
-        return () => unsubMatches();
+
+        // Fetch Assets
+        const unsubAssets = db.collection('scoringAssets')
+            .where('createdBy', '==', userProfile.uid)
+            .onSnapshot(snap => {
+                setAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
+            });
+
+        return () => {
+            unsubMatches();
+            unsubAssets();
+        };
     }, [userProfile]);
 
     // Load Sources based on Type selection
@@ -88,8 +134,8 @@ const ScoringDashboard: React.FC = () => {
             const teamBObj = availableTeams.find(t => t.id === teamB);
 
             const newMatch: Omit<Match, 'id'> = {
-                auctionId: selectedSourceId, // Used as generic source ID
-                sourceType: sourceType, // NEW FIELD
+                auctionId: selectedSourceId, 
+                sourceType: sourceType, 
                 teamAId: teamA,
                 teamBId: teamB,
                 teamAName: teamAObj?.name || 'Team A',
@@ -106,11 +152,43 @@ const ScoringDashboard: React.FC = () => {
 
             await db.collection('matches').add(newMatch);
             setCreating(false);
-            setTeamA(''); setTeamB(''); // Reset teams but keep source for fast creation
+            setTeamA(''); setTeamB(''); 
         } catch (e: any) {
             alert("Error creating match: " + e.message);
             setCreating(false);
         }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const compressed = await compressImage(e.target.files[0]);
+            setAssetPreview(compressed);
+        }
+    };
+
+    const handleUploadAsset = async () => {
+        if (!assetPreview || !newAssetName || !userProfile?.uid) return;
+        setCreating(true);
+        try {
+            await db.collection('scoringAssets').add({
+                name: newAssetName,
+                type: newAssetType,
+                url: assetPreview,
+                createdBy: userProfile.uid,
+                createdAt: Date.now()
+            });
+            setNewAssetName('');
+            setAssetPreview('');
+            alert("Asset Uploaded to Public Folder!");
+        } catch (e: any) {
+            alert("Upload failed: " + e.message);
+        }
+        setCreating(false);
+    };
+
+    const deleteAsset = async (id: string) => {
+        if (!window.confirm("Remove this graphic from library?")) return;
+        await db.collection('scoringAssets').doc(id).delete();
     };
 
     const deleteMatch = async (id: string, e: React.MouseEvent) => {
@@ -126,7 +204,6 @@ const ScoringDashboard: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
-            {/* Header */}
             <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
                 <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-3">
@@ -138,18 +215,24 @@ const ScoringDashboard: React.FC = () => {
                         </h1>
                     </div>
                     
-                    <div className="flex bg-gray-100 rounded-lg p-1">
+                    <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto">
                         <button 
                             onClick={() => setActiveTab('MATCHES')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'MATCHES' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'MATCHES' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Matches
                         </button>
                         <button 
                             onClick={() => setActiveTab('TOURNAMENTS')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'TOURNAMENTS' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'TOURNAMENTS' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Tournaments
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('GRAPHICS')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'GRAPHICS' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Graphics Library
                         </button>
                     </div>
                 </div>
@@ -157,9 +240,97 @@ const ScoringDashboard: React.FC = () => {
 
             <main className="container mx-auto px-4 py-6 max-w-6xl">
                 
-                {activeTab === 'TOURNAMENTS' ? (
-                    <TournamentManager />
-                ) : (
+                {activeTab === 'TOURNAMENTS' && <TournamentManager />}
+
+                {activeTab === 'GRAPHICS' && (
+                    <div className="space-y-8 animate-fade-in">
+                        {/* UPLOAD BOX */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                                <ImageIcon className="w-5 h-5 text-blue-500"/> Upload to Graphics Library
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Asset Name</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full border rounded-lg px-4 py-2 text-sm" 
+                                            placeholder="e.g. My Custom Frame 1" 
+                                            value={newAssetName}
+                                            onChange={e => setNewAssetName(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Asset Type</label>
+                                        <select 
+                                            className="w-full border rounded-lg px-4 py-2 text-sm"
+                                            value={newAssetType}
+                                            onChange={e => setNewAssetType(e.target.value as any)}
+                                        >
+                                            <option value="FRAME">Overlay Frame (Transparent)</option>
+                                            <option value="BACKGROUND">Full Background</option>
+                                            <option value="LOGO">Corner Logo</option>
+                                        </select>
+                                    </div>
+                                    <button 
+                                        onClick={handleUploadAsset}
+                                        disabled={creating || !assetPreview || !newAssetName}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                    >
+                                        {creating ? <Loader2 className="animate-spin w-5 h-5"/> : <Upload className="w-5 h-5"/>}
+                                        Add to Public Folder
+                                    </button>
+                                </div>
+
+                                <div 
+                                    onClick={() => assetFileRef.current?.click()}
+                                    className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-gray-50 min-h-[160px] relative overflow-hidden"
+                                >
+                                    {assetPreview ? (
+                                        <img src={assetPreview} className="max-h-full object-contain" />
+                                    ) : (
+                                        <>
+                                            <Upload className="w-10 h-10 text-gray-300 mb-2"/>
+                                            <p className="text-xs text-gray-500 font-bold">CLICK TO SELECT OVERLAY IMAGE</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">Prefer transparent PNG 1280x720</p>
+                                        </>
+                                    )}
+                                    <input ref={assetFileRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* LIST ASSETS */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {assets.map(asset => (
+                                <div key={asset.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden group relative">
+                                    <div className="aspect-video bg-gray-100 flex items-center justify-center overflow-hidden">
+                                        <img src={asset.url} className="max-h-full transition-transform group-hover:scale-110" />
+                                    </div>
+                                    <div className="p-3">
+                                        <p className="font-bold text-sm truncate text-gray-700">{asset.name}</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{asset.type}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => deleteAsset(asset.id)}
+                                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    >
+                                        <Trash2 className="w-3 h-3"/>
+                                    </button>
+                                </div>
+                            ))}
+                            {assets.length === 0 && (
+                                <div className="col-span-full py-12 text-center text-gray-400">
+                                    <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-20"/>
+                                    <p>Your graphics library is empty.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'MATCHES' && (
                     <>
                         {/* INLINE CREATE MATCH PANEL */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
