@@ -3,11 +3,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Match, Team, Tournament, ScoringAsset } from '../types';
-import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy, Layers, Image as ImageIcon, Upload, X } from 'lucide-react';
+/* Added Gavel icon to the import list below */
+import { ArrowLeft, Plus, Calendar, Play, Monitor, Trash2, Loader2, Trophy, Layers, Image as ImageIcon, Upload, X, Check, Target, Gavel } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 import TournamentManager from '../components/TournamentManager';
 
-// Helper for image compression
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -17,7 +17,7 @@ const compressImage = (file: File): Promise<string> => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 1280; // Overlays need decent quality
+                const MAX_WIDTH = 1280;
                 const MAX_HEIGHT = 720;
                 let width = img.width;
                 let height = img.height;
@@ -27,7 +27,7 @@ const compressImage = (file: File): Promise<string> => {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/png', 0.8)); // PNG for transparency support
+                resolve(canvas.toDataURL('image/png', 0.8));
             };
             img.onerror = (err) => reject(err);
         };
@@ -42,10 +42,8 @@ const ScoringDashboard: React.FC = () => {
     const [assets, setAssets] = useState<ScoringAsset[]>([]);
     const [loading, setLoading] = useState(true);
     
-    // UI Tabs
     const [activeTab, setActiveTab] = useState<'MATCHES' | 'TOURNAMENTS' | 'GRAPHICS'>('MATCHES');
 
-    // Inline Create Match State
     const [sourceType, setSourceType] = useState<'AUCTION' | 'TOURNAMENT'>('AUCTION');
     const [sourceList, setSourceList] = useState<(AuctionSetup | Tournament)[]>([]);
     const [selectedSourceId, setSelectedSourceId] = useState('');
@@ -56,7 +54,6 @@ const ScoringDashboard: React.FC = () => {
     const [overs, setOvers] = useState(20);
     const [creating, setCreating] = useState(false);
 
-    // Graphic Upload State
     const [newAssetName, setNewAssetName] = useState('');
     const [newAssetType, setNewAssetType] = useState<ScoringAsset['type']>('FRAME');
     const [assetPreview, setAssetPreview] = useState('');
@@ -66,7 +63,6 @@ const ScoringDashboard: React.FC = () => {
         if (!userProfile?.uid) return;
 
         setLoading(true);
-        // Fetch Matches
         const unsubMatches = db.collection('matches')
             .orderBy('createdAt', 'desc')
             .onSnapshot(snap => {
@@ -74,7 +70,6 @@ const ScoringDashboard: React.FC = () => {
                 setLoading(false);
             });
 
-        // Fetch Assets
         const unsubAssets = db.collection('scoringAssets')
             .where('createdBy', '==', userProfile.uid)
             .onSnapshot(snap => {
@@ -87,7 +82,6 @@ const ScoringDashboard: React.FC = () => {
         };
     }, [userProfile]);
 
-    // Load Sources based on Type selection
     useEffect(() => {
         if (!userProfile?.uid) return;
         setSourceList([]);
@@ -105,7 +99,6 @@ const ScoringDashboard: React.FC = () => {
             });
     }, [sourceType, userProfile]);
 
-    // Load Teams when source selected
     useEffect(() => {
         if (!selectedSourceId) {
             setAvailableTeams([]);
@@ -120,7 +113,7 @@ const ScoringDashboard: React.FC = () => {
 
     const handleCreateMatch = async () => {
         if (!selectedSourceId || !teamA || !teamB || !overs) {
-            alert("Please fill all fields");
+            alert("Please select both teams and overs.");
             return;
         }
         if (teamA === teamB) {
@@ -179,7 +172,7 @@ const ScoringDashboard: React.FC = () => {
             });
             setNewAssetName('');
             setAssetPreview('');
-            alert("Asset Uploaded to Public Folder!");
+            alert("Background added to your library!");
         } catch (e: any) {
             alert("Upload failed: " + e.message);
         }
@@ -203,7 +196,7 @@ const ScoringDashboard: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
             <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
                 <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-3">
@@ -244,34 +237,35 @@ const ScoringDashboard: React.FC = () => {
 
                 {activeTab === 'GRAPHICS' && (
                     <div className="space-y-8 animate-fade-in">
-                        {/* UPLOAD BOX */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
-                                <ImageIcon className="w-5 h-5 text-blue-500"/> Upload to Graphics Library
+                                <ImageIcon className="w-5 h-5 text-blue-500"/> Upload Scoreboard Background
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Asset Name</label>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Background Name</label>
                                         <input 
                                             type="text" 
                                             className="w-full border rounded-lg px-4 py-2 text-sm" 
-                                            placeholder="e.g. My Custom Frame 1" 
+                                            placeholder="e.g. T20 World Cup Style" 
                                             value={newAssetName}
                                             onChange={e => setNewAssetName(e.target.value)}
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Asset Type</label>
-                                        <select 
-                                            className="w-full border rounded-lg px-4 py-2 text-sm"
-                                            value={newAssetType}
-                                            onChange={e => setNewAssetType(e.target.value as any)}
-                                        >
-                                            <option value="FRAME">Overlay Frame (Transparent)</option>
-                                            <option value="BACKGROUND">Full Background</option>
-                                            <option value="LOGO">Corner Logo</option>
-                                        </select>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['FRAME', 'BACKGROUND', 'LOGO'].map(type => (
+                                                <button 
+                                                    key={type}
+                                                    onClick={() => setNewAssetType(type as any)}
+                                                    className={`py-2 rounded text-[10px] font-black transition-all border ${newAssetType === type ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}
+                                                >
+                                                    {type}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                     <button 
                                         onClick={handleUploadAsset}
@@ -279,7 +273,7 @@ const ScoringDashboard: React.FC = () => {
                                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                                     >
                                         {creating ? <Loader2 className="animate-spin w-5 h-5"/> : <Upload className="w-5 h-5"/>}
-                                        Add to Public Folder
+                                        Save to My Library
                                     </button>
                                 </div>
 
@@ -292,8 +286,8 @@ const ScoringDashboard: React.FC = () => {
                                     ) : (
                                         <>
                                             <Upload className="w-10 h-10 text-gray-300 mb-2"/>
-                                            <p className="text-xs text-gray-500 font-bold">CLICK TO SELECT OVERLAY IMAGE</p>
-                                            <p className="text-[10px] text-gray-400 mt-1">Prefer transparent PNG 1280x720</p>
+                                            <p className="text-xs text-gray-500 font-bold uppercase tracking-tight">Select Background Image</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">PNG/JPG 1280x720 recommended</p>
                                         </>
                                     )}
                                     <input ref={assetFileRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
@@ -301,7 +295,6 @@ const ScoringDashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* LIST ASSETS */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {assets.map(asset => (
                                 <div key={asset.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden group relative">
@@ -323,7 +316,7 @@ const ScoringDashboard: React.FC = () => {
                             {assets.length === 0 && (
                                 <div className="col-span-full py-12 text-center text-gray-400">
                                     <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-20"/>
-                                    <p>Your graphics library is empty.</p>
+                                    <p>Your library is empty.</p>
                                 </div>
                             )}
                         </div>
@@ -331,67 +324,132 @@ const ScoringDashboard: React.FC = () => {
                 )}
 
                 {activeTab === 'MATCHES' && (
-                    <>
-                        {/* INLINE CREATE MATCH PANEL */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-8">
-                            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                <Plus className="w-4 h-4"/> Schedule New Match
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-3">
+                                <Calendar className="w-5 h-5 text-blue-500"/> Schedule New Match
                             </h2>
-                            <div className="flex flex-col md:flex-row gap-4 items-end">
-                                <div className="w-full md:w-auto">
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Source</label>
-                                    <div className="flex bg-gray-100 rounded p-1">
-                                        <button onClick={() => setSourceType('AUCTION')} className={`flex-1 px-3 py-1.5 text-xs font-bold rounded ${sourceType === 'AUCTION' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>Auction</button>
-                                        <button onClick={() => setSourceType('TOURNAMENT')} className={`flex-1 px-3 py-1.5 text-xs font-bold rounded ${sourceType === 'TOURNAMENT' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>Tournament</button>
+                            
+                            <div className="space-y-6">
+                                {/* STEP 1: SELECT SOURCE */}
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">1. Select Source Protocol</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['AUCTION', 'TOURNAMENT'].map(type => (
+                                            <button 
+                                                key={type}
+                                                onClick={() => setSourceType(type as any)}
+                                                className={`py-4 rounded-xl font-black text-xs transition-all border-2 flex flex-col items-center gap-2 ${sourceType === type ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-[1.02]' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+                                            >
+                                                {type === 'AUCTION' ? <Gavel className="w-5 h-5"/> : <Trophy className="w-5 h-5"/>}
+                                                {type}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
 
-                                <div className="flex-1 w-full">
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select {sourceType === 'AUCTION' ? 'Auction' : 'Tournament'}</label>
-                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={selectedSourceId} onChange={e => setSelectedSourceId(e.target.value)}>
-                                        <option value="">-- Select --</option>
-                                        {sourceList.map((s: any) => <option key={s.id} value={s.id}>{s.name || s.title}</option>)}
-                                    </select>
-                                </div>
+                                {/* STEP 2: SELECT SPECIFIC SOURCE */}
+                                {sourceList.length > 0 && (
+                                    <div className="animate-slide-up">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">2. Select {sourceType === 'AUCTION' ? 'Auction' : 'Tournament'}</label>
+                                        <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-xl bg-gray-50 p-2 custom-scrollbar">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {sourceList.map((s: any) => (
+                                                    <button 
+                                                        key={s.id}
+                                                        onClick={() => setSelectedSourceId(s.id)}
+                                                        className={`p-3 text-left rounded-lg text-xs font-bold transition-all border-2 ${selectedSourceId === s.id ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-transparent text-gray-600 hover:border-gray-200'}`}
+                                                    >
+                                                        {s.name || s.title}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                <div className="flex-1 w-full">
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Team A</label>
-                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={teamA} onChange={e => setTeamA(e.target.value)} disabled={!selectedSourceId}>
-                                        <option value="">-- Team A --</option>
-                                        {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                </div>
+                                {/* STEP 3: SELECT TEAMS & OVERS */}
+                                {availableTeams.length > 0 && selectedSourceId && (
+                                    <div className="animate-slide-up space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">3A. Batting Team</label>
+                                                <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-xl bg-gray-50 p-2 custom-scrollbar">
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {availableTeams.map(t => (
+                                                            <button 
+                                                                key={t.id}
+                                                                onClick={() => setTeamA(String(t.id))}
+                                                                className={`p-3 text-left rounded-lg text-xs font-bold transition-all border-2 flex items-center gap-3 ${teamA === String(t.id) ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-transparent text-gray-600 hover:border-gray-200'}`}
+                                                            >
+                                                                {teamA === String(t.id) && <Check className="w-4 h-4"/>}
+                                                                {t.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">3B. Bowling Team</label>
+                                                <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-xl bg-gray-50 p-2 custom-scrollbar">
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {availableTeams.map(t => (
+                                                            <button 
+                                                                key={t.id}
+                                                                onClick={() => setTeamB(String(t.id))}
+                                                                className={`p-3 text-left rounded-lg text-xs font-bold transition-all border-2 flex items-center gap-3 ${teamB === String(t.id) ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-transparent text-gray-600 hover:border-gray-200'}`}
+                                                            >
+                                                                {teamB === String(t.id) && <Check className="w-4 h-4"/>}
+                                                                {t.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                <div className="flex-1 w-full">
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Team B</label>
-                                    <select className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50" value={teamB} onChange={e => setTeamB(e.target.value)} disabled={!selectedSourceId}>
-                                        <option value="">-- Team B --</option>
-                                        {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="w-20">
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Overs</label>
-                                    <input type="number" className="w-full border rounded-lg px-2 py-2 text-sm bg-gray-50 text-center" value={overs} onChange={e => setOvers(Number(e.target.value))} />
-                                </div>
-
-                                <button 
-                                    onClick={handleCreateMatch} 
-                                    disabled={creating}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all active:scale-95 flex items-center h-[38px]"
-                                >
-                                    {creating ? <Loader2 className="animate-spin w-4 h-4"/> : 'Create'}
-                                </button>
+                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                                            <div className="w-full md:w-48">
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Match Overs</label>
+                                                <div className="flex bg-white rounded-lg border p-1">
+                                                    {[5, 10, 20, 50].map(ov => (
+                                                        <button 
+                                                            key={ov}
+                                                            onClick={() => setOvers(ov)}
+                                                            className={`flex-1 py-2 rounded text-xs font-black transition-all ${overs === ov ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-blue-500'}`}
+                                                        >
+                                                            {ov}
+                                                        </button>
+                                                    ))}
+                                                    <input 
+                                                        type="number" 
+                                                        className="w-14 text-center text-xs font-black outline-none border-l ml-1" 
+                                                        value={overs} 
+                                                        onChange={e => setOvers(Number(e.target.value))} 
+                                                    />
+                                                </div>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={handleCreateMatch} 
+                                                disabled={creating || !teamA || !teamB}
+                                                className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-black py-4 px-12 rounded-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                                            >
+                                                {creating ? <Loader2 className="animate-spin w-5 h-5"/> : <Target className="w-5 h-5"/>}
+                                                ESTABLISH MATCH PROTOCOL
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Matches List */}
                         {loading ? (
                             <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8 text-blue-600"/></div>
                         ) : matches.length === 0 ? (
                             <div className="text-center p-12 text-gray-400 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
                                 <Calendar className="w-12 h-12 mx-auto mb-3 opacity-20"/>
-                                <p>No matches scheduled.</p>
+                                <p>No matches in the current registry.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -410,7 +468,7 @@ const ScoringDashboard: React.FC = () => {
                                                 <div className="w-[45%]">
                                                     <div className="font-bold text-gray-800 truncate text-sm" title={match.teamAName}>{match.teamAName}</div>
                                                 </div>
-                                                <div className="text-gray-300 font-bold text-xs">VS</div>
+                                                <div className="text-gray-300 font-bold text-xs px-2">VS</div>
                                                 <div className="w-[45%] text-right">
                                                     <div className="font-bold text-gray-800 truncate text-sm" title={match.teamBName}>{match.teamBName}</div>
                                                 </div>
@@ -425,14 +483,14 @@ const ScoringDashboard: React.FC = () => {
                                             </button>
                                             <button 
                                                 onClick={() => window.open(`/#/match-overlay/${match.id}`, '_blank')}
-                                                className="bg-white hover:bg-gray-100 text-gray-600 border border-gray-200 p-2 rounded"
+                                                className="bg-white hover:bg-gray-100 text-gray-600 border border-gray-200 p-2 rounded shadow-sm"
                                                 title="OBS Overlay"
                                             >
                                                 <Monitor className="w-4 h-4"/>
                                             </button>
                                             <button 
                                                 onClick={(e) => deleteMatch(match.id, e)}
-                                                className="bg-white hover:bg-red-50 text-red-400 border border-gray-200 hover:border-red-200 p-2 rounded transition-colors"
+                                                className="bg-white hover:bg-red-50 text-red-400 border border-gray-200 hover:border-red-200 p-2 rounded transition-colors shadow-sm"
                                                 title="Delete Match"
                                             >
                                                 <Trash2 className="w-4 h-4"/>
@@ -442,7 +500,7 @@ const ScoringDashboard: React.FC = () => {
                                 ))}
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </main>
         </div>

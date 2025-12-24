@@ -3,8 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { db } from '../firebase';
-import { AuctionSetup } from '../types';
-import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, Menu, LogOut, Database, UserCheck, LayoutDashboard, Globe, ChevronRight, Settings, Image as ImageIcon, Upload, Save } from 'lucide-react';
+import { AuctionSetup, ScoreboardTheme, ScoringAsset } from '../types';
+import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, Menu, LogOut, Database, UserCheck, LayoutDashboard, Globe, ChevronRight, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -15,8 +15,8 @@ const compressImage = (file: File): Promise<string> => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 500;
-                const MAX_HEIGHT = 500;
+                const MAX_WIDTH = 1280;
+                const MAX_HEIGHT = 720;
                 let width = img.width;
                 let height = img.height;
                 if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
@@ -31,6 +31,17 @@ const compressImage = (file: File): Promise<string> => {
         reader.onerror = (err) => reject(err);
     });
 };
+
+const THEMES_LIST: {id: ScoreboardTheme, label: string, year: string}[] = [
+    { id: 'ICC_T20_2010', label: 'Classic ICC 2010', year: '2010' },
+    { id: 'ICC_T20_2012', label: 'Signature ICC 2012', year: '2012' },
+    { id: 'ICC_T20_2014', label: 'Compact ICC 2014', year: '2014' },
+    { id: 'ICC_T20_2016', label: 'Dynamic ICC 2016', year: '2016' },
+    { id: 'ICC_T20_2021', label: 'Modern Pink 2021', year: '2021' },
+    { id: 'ICC_T20_2022', label: 'Crimson Glow 2022', year: '2022' },
+    { id: 'ICC_T20_2024', label: 'NexGen Dark 2024', year: '2024' },
+    { id: 'DEFAULT', label: 'Standard Minimal', year: 'Current' },
+];
 
 const SuperAdminDashboard: React.FC = () => {
     const { state, userProfile, logout } = useAuction();
@@ -48,6 +59,15 @@ const SuperAdminDashboard: React.FC = () => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [savingLogo, setSavingLogo] = useState(false);
 
+    const [globalAssets, setGlobalAssets] = useState<ScoringAsset[]>([]);
+    const [newAssetName, setNewAssetName] = useState('');
+    const [assetPreview, setAssetPreview] = useState('');
+    const assetFileRef = useRef<HTMLInputElement>(null);
+    const [uploadingAsset, setUploadingAsset] = useState(false);
+
+    const [hiddenThemes, setHiddenThemes] = useState<string[]>([]);
+    const [updatingThemes, setUpdatingThemes] = useState(false);
+
     useEffect(() => {
         setLoading(true);
         const unsubscribe = db.collection('auctions').onSnapshot((snapshot) => {
@@ -59,12 +79,45 @@ const SuperAdminDashboard: React.FC = () => {
             setStats({ totalAuctions: data.length, activeAuctions: activeCount, totalAccounts: uniqueOwners.size });
             setLoading(false);
         });
-        return () => unsubscribe();
+
+        const unsubConfig = db.collection('appConfig').doc('scoreboardConfig').onSnapshot(doc => {
+            if (doc.exists) {
+                setHiddenThemes(doc.data()?.hiddenThemes || []);
+            }
+        });
+
+        const unsubGlobalAssets = db.collection('globalAssets').onSnapshot(snap => {
+            setGlobalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
+        });
+
+        return () => {
+            unsubscribe();
+            unsubConfig();
+            unsubGlobalAssets();
+        };
     }, []);
 
     useEffect(() => {
         if (state.systemLogoUrl) setLogoPreview(state.systemLogoUrl);
     }, [state.systemLogoUrl]);
+
+    const toggleThemeVisibility = async (themeId: string) => {
+        setUpdatingThemes(true);
+        try {
+            let newHidden = [...hiddenThemes];
+            if (newHidden.includes(themeId)) {
+                newHidden = newHidden.filter(t => t !== themeId);
+            } else {
+                newHidden.push(themeId);
+            }
+            await db.collection('appConfig').doc('scoreboardConfig').set({
+                hiddenThemes: newHidden
+            }, { merge: true });
+        } catch (e: any) {
+            alert("Update failed: " + e.message);
+        }
+        setUpdatingThemes(false);
+    };
 
     const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -84,6 +137,38 @@ const SuperAdminDashboard: React.FC = () => {
             alert("Failed to save: " + e.message);
         }
         setSavingLogo(false);
+    };
+
+    const handleAssetFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const compressed = await compressImage(e.target.files[0]);
+            setAssetPreview(compressed);
+        }
+    };
+
+    const handleUploadGlobalAsset = async () => {
+        if (!assetPreview || !newAssetName) return;
+        setUploadingAsset(true);
+        try {
+            await db.collection('globalAssets').add({
+                name: newAssetName,
+                url: assetPreview,
+                type: 'BACKGROUND',
+                createdBy: 'SUPER_ADMIN',
+                createdAt: Date.now()
+            });
+            setNewAssetName('');
+            setAssetPreview('');
+            alert("Global Scoreboard Background Uploaded!");
+        } catch (e: any) {
+            alert("Upload failed: " + e.message);
+        }
+        setUploadingAsset(false);
+    };
+
+    const deleteGlobalAsset = async (id: string) => {
+        if (!window.confirm("Permanently delete this global graphic?")) return;
+        await db.collection('globalAssets').doc(id).delete();
     };
 
     const handleDelete = async (id: string, title: string) => {
@@ -125,11 +210,9 @@ const SuperAdminDashboard: React.FC = () => {
 
             <main className="container mx-auto px-6 py-10 max-w-7xl">
                 
-                {/* System Identity & Global Branding */}
                 <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10">
                     <div className="flex flex-col items-center gap-4">
                         <div className="relative group">
-                            {/* LOGO FRAME */}
                             <div className="w-48 h-48 rounded-3xl bg-black border-4 border-zinc-800 p-4 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-center overflow-hidden relative">
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
                                 {logoPreview ? (
@@ -162,6 +245,120 @@ const SuperAdminDashboard: React.FC = () => {
                             {savingLogo ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5" />}
                             APPLY GLOBAL BRANDING
                         </button>
+                    </div>
+                </div>
+
+                <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl mb-12">
+                    <div className="flex items-center gap-4 mb-10">
+                        <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                            <Layout className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black uppercase tracking-tighter">Broadcast Packages</h2>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage scoreboard registry visibility</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {THEMES_LIST.map(theme => {
+                            const isHidden = hiddenThemes.includes(theme.id);
+                            return (
+                                <div key={theme.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${isHidden ? 'border-zinc-800 opacity-50' : 'border-blue-500/30 hover:border-blue-500'}`}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="bg-zinc-900 px-3 py-1 rounded-full text-[8px] font-black text-blue-400 uppercase tracking-[0.2em] border border-white/5">
+                                            {theme.year}
+                                        </div>
+                                        <button 
+                                            onClick={() => toggleThemeVisibility(theme.id)}
+                                            disabled={updatingThemes}
+                                            className={`p-2 rounded-xl transition-all ${isHidden ? 'bg-zinc-800 text-zinc-500 hover:text-white' : 'bg-blue-600 text-white shadow-lg'}`}
+                                        >
+                                            {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">{theme.label}</h3>
+                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{isHidden ? 'Currently Hidden' : 'Active Registry'}</p>
+                                    
+                                    <div className={`absolute bottom-0 left-0 h-1 transition-all ${isHidden ? 'w-0' : 'w-full bg-blue-500'}`}></div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl mb-12">
+                    <div className="flex items-center gap-4 mb-10">
+                        <div className="bg-emerald-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                            <ImageIcon className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black uppercase tracking-tighter">Global Scoreboard Backgrounds</h2>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Upload backgrounds available for all scoring matches</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        <div className="bg-black/40 p-8 rounded-3xl border border-white/5 space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Background Name</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-xs font-black uppercase tracking-widest outline-none focus:border-emerald-500 transition-all" 
+                                    placeholder="E.G. FINALS BACKGROUND"
+                                    value={newAssetName}
+                                    onChange={e => setNewAssetName(e.target.value)}
+                                />
+                            </div>
+                            <div 
+                                onClick={() => assetFileRef.current?.click()}
+                                className="aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-zinc-800/50 transition-all group relative overflow-hidden"
+                            >
+                                {assetPreview ? (
+                                    <img src={assetPreview} className="max-h-full max-w-full object-contain relative z-10" />
+                                ) : (
+                                    <>
+                                        <Upload className="w-10 h-10 text-zinc-700 group-hover:text-emerald-500 transition-colors mb-2" />
+                                        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Select Image</p>
+                                    </>
+                                )}
+                                <input ref={assetFileRef} type="file" className="hidden" accept="image/*" onChange={handleAssetFileChange} />
+                            </div>
+                            <button 
+                                onClick={handleUploadGlobalAsset}
+                                disabled={uploadingAsset || !assetPreview || !newAssetName}
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"
+                            >
+                                {uploadingAsset ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                                UPLOAD GLOBAL BACKGROUND
+                            </button>
+                        </div>
+
+                        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-6 overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
+                            {globalAssets.map(asset => (
+                                <div key={asset.id} className="bg-zinc-950 rounded-3xl border border-zinc-800 overflow-hidden group relative">
+                                    <div className="aspect-video bg-black flex items-center justify-center relative">
+                                        <img src={asset.url} className="max-h-full transition-transform group-hover:scale-105" />
+                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                                            <button 
+                                                onClick={() => deleteGlobalAsset(asset.id)}
+                                                className="bg-red-600 text-white p-3 rounded-2xl shadow-xl hover:scale-110 active:scale-90 transition-all"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="p-4">
+                                        <p className="font-black text-[10px] uppercase tracking-tighter truncate text-zinc-400">{asset.name}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {globalAssets.length === 0 && (
+                                <div className="col-span-full h-full flex flex-col items-center justify-center text-zinc-700 opacity-20">
+                                    <ImageIcon className="w-20 h-20 mb-4" />
+                                    <p className="font-black uppercase tracking-[0.4em]">No Global Backgrounds</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

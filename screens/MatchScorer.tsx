@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { Match, InningsState, BatsmanStats, BowlerStats, ScoringAsset, OverlayView, OverlayAnimation, DecisionStatus, Team, Player, ScoreboardTheme } from '../types';
-import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle, XCircle, UserMinus, Layout } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, RotateCcw, Save, Loader2, Undo2, CheckSquare, Square, Palette, ChevronDown, RefreshCw, Trash2, Check, Plus, Monitor, Play, Zap, Info, UserPlus, AlignLeft, ShieldCheck, MoreHorizontal, Settings, HelpCircle, XCircle, UserMinus, Layout, Image as ImageIcon, Globe, User, Star, BarChart2 } from 'lucide-react';
 import { useAuction } from '../hooks/useAuction';
 
 const MatchScorer: React.FC = () => {
@@ -13,32 +13,30 @@ const MatchScorer: React.FC = () => {
     const [match, setMatch] = useState<Match | null>(null);
     const [teamA, setTeamA] = useState<Team | null>(null);
     const [teamB, setTeamB] = useState<Team | null>(null);
+    const [localAssets, setLocalAssets] = useState<ScoringAsset[]>([]);
+    const [globalAssets, setGlobalAssets] = useState<ScoringAsset[]>([]);
     const [loading, setLoading] = useState(true);
+    const [hiddenThemes, setHiddenThemes] = useState<string[]>([]);
     
-    // UI States
     const [tossWinner, setTossWinner] = useState('');
     const [tossChoice, setTossChoice] = useState<'BAT' | 'BOWL'>('BAT');
     const [processing, setProcessing] = useState(false);
     const [extraControllerVisible, setExtraControllerVisible] = useState(true);
 
-    // Controller Inputs
     const [isWide, setIsWide] = useState(false);
     const [isNoBall, setIsNoBall] = useState(false);
     const [isBye, setIsBye] = useState(false);
     const [isLegBye, setIsLegBye] = useState(false);
     const [isWicket, setIsWicket] = useState(false);
 
-    // Overlay Inputs
     const [customInput, setCustomInput] = useState('');
     const [selectedMOM, setSelectedMOM] = useState('');
     const [selectedStatsPlayer, setSelectedStatsPlayer] = useState('');
     const [teamAColor, setTeamAColor] = useState('#0000FF');
     const [teamBColor, setTeamBColor] = useState('#FF0000');
 
-    // Override State
     const [manualRuns, setManualRuns] = useState<{ [key: string]: number }>({ I1: 0, I1W: 0, I2: 0, I2W: 0 });
 
-    // Initial Data Fetch
     useEffect(() => {
         if (!matchId) return;
         const unsub = db.collection('matches').doc(matchId).onSnapshot(doc => {
@@ -51,7 +49,6 @@ const MatchScorer: React.FC = () => {
                 if (m.overlay?.teamAColor) setTeamAColor(m.overlay.teamAColor);
                 if (m.overlay?.teamBColor) setTeamBColor(m.overlay.teamBColor);
                 
-                // Sync manual override fields with DB values initially
                 setManualRuns({
                     I1: m.innings[1]?.totalRuns || 0,
                     I1W: m.innings[1]?.wickets || 0,
@@ -63,10 +60,24 @@ const MatchScorer: React.FC = () => {
             }
             setLoading(false);
         });
-        return () => unsub();
+
+        const unsubConfig = db.collection('appConfig').doc('scoreboardConfig').onSnapshot(doc => {
+            if (doc.exists) {
+                setHiddenThemes(doc.data()?.hiddenThemes || []);
+            }
+        });
+
+        const unsubGlobalAssets = db.collection('globalAssets').onSnapshot(snap => {
+            setGlobalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
+        });
+
+        return () => {
+            unsub();
+            unsubConfig();
+            unsubGlobalAssets();
+        };
     }, [matchId, navigate]);
 
-    // Fetch Teams
     useEffect(() => {
         if (!match) return;
         const fetchTeams = async () => {
@@ -78,7 +89,15 @@ const MatchScorer: React.FC = () => {
             if (docB.exists) setTeamB({ id: docB.id, ...docB.data() } as Team);
         };
         fetchTeams();
-    }, [match?.auctionId, match?.teamAId, match?.teamBId, match?.sourceType]);
+
+        if (userProfile?.uid) {
+            db.collection('scoringAssets')
+                .where('createdBy', '==', userProfile.uid)
+                .onSnapshot(snap => {
+                    setLocalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
+                });
+        }
+    }, [match?.auctionId, match?.teamAId, match?.teamBId, match?.sourceType, userProfile]);
 
     const currentInnings = match ? match.innings[match.currentInnings] : null;
     
@@ -96,21 +115,6 @@ const MatchScorer: React.FC = () => {
     const needsStriker = currentInnings && !currentInnings.strikerId;
     const needsNonStriker = currentInnings && !currentInnings.nonStrikerId;
     const needsBowler = currentInnings && !currentInnings.currentBowlerId;
-
-    const handleToss = async () => {
-        if (!match || !tossWinner || !tossChoice) return;
-        setProcessing(true);
-        let battingId = tossWinner;
-        let bowlingId = tossWinner === match.teamAId ? match.teamBId : match.teamAId;
-        if (tossChoice === 'BOWL') { const temp = battingId; battingId = bowlingId; bowlingId = temp; }
-        const newInnings: InningsState = {
-            battingTeamId: battingId, bowlingTeamId: bowlingId, totalRuns: 0, wickets: 0, overs: 0, ballsInCurrentOver: 0, currentRunRate: 0, extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null, batsmen: {}, bowlers: {}, recentBalls: []
-        };
-        await db.collection('matches').doc(match.id).update({
-            tossWinnerId: tossWinner, tossChoice: tossChoice, status: 'LIVE', [`innings.1`]: newInnings, overlay: { currentView: 'DEFAULT', animation: 'NONE', theme: 'ICC_T20_2024', decision: 'NONE' }
-        });
-        setProcessing(false);
-    };
 
     const handlePlayerSelect = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', playerId: string) => {
         if (!match || !playerId) return;
@@ -325,7 +329,7 @@ const MatchScorer: React.FC = () => {
     const renderPlayerSelector = (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', currentId: string | null | undefined) => {
         const isBatsman = type === 'STRIKER' || type === 'NON_STRIKER';
         const team = isBatsman ? battingTeam : bowlingTeam;
-        if (!team) return <div className="text-[10px] text-gray-500 font-bold">Waiting for team...</div>;
+        if (!team) return <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest p-2 bg-gray-800 rounded">Protocol Waiting...</div>;
         if (currentId) {
             const playerStats = isBatsman ? currentInnings?.batsmen[currentId] : currentInnings?.bowlers[currentId];
             const name = playerStats?.name || team.players.find(p => String(p.id) === String(currentId))?.name || 'Unknown';
@@ -336,276 +340,261 @@ const MatchScorer: React.FC = () => {
                         <span className="truncate max-w-[120px]">{name}</span>
                         <span className="tabular-nums text-[10px] opacity-70">{statsDisplay}</span>
                     </div>
-                    <button 
-                        onClick={() => handleResetPlayerSlot(type)}
-                        className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
-                        title="Change / Correct Selection"
-                    >
-                        <RefreshCw className="w-3 h-3" />
-                    </button>
+                    <button onClick={() => handleResetPlayerSlot(type)} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white" title="Reset Slot"><RefreshCw className="w-3 h-3" /></button>
                 </div>
             );
         }
         return (
-            <select 
-                className="w-full text-[10px] font-black p-1.5 rounded bg-white text-black outline-none uppercase border-2 border-purple-500" 
-                onChange={(e) => handlePlayerSelect(type, e.target.value)} 
-                value=""
-            >
-                <option value="">SELECT {type}</option>
-                {team.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <div className="w-full space-y-1">
+                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">{type} Auswahl</div>
+                <div className="max-h-24 overflow-y-auto bg-gray-900/50 rounded border border-gray-700 p-1 custom-scrollbar">
+                    {team.players.map(p => (
+                        <button key={p.id} onClick={() => handlePlayerSelect(type, String(p.id))} className="w-full text-left px-2 py-1 text-[9px] font-bold text-gray-400 hover:bg-highlight hover:text-primary rounded transition-all truncate uppercase">
+                            {p.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
         );
     };
 
+    const availableThemes = [
+        { id: 'ICC_T20_2010', label: 'T20 2010' },
+        { id: 'ICC_T20_2012', label: 'T20 2012' },
+        { id: 'ICC_T20_2014', label: 'T20 2014' },
+        { id: 'ICC_T20_2016', label: 'T20 2016' },
+        { id: 'ICC_T20_2021', label: 'T20 2021' },
+        { id: 'ICC_T20_2022', label: 'T20 2022' },
+        { id: 'ICC_T20_2024', label: 'T20 2024' },
+        { id: 'DEFAULT', label: 'Modern' },
+    ].filter(t => !hiddenThemes.includes(t.id));
+
     return (
-        <div className="min-h-screen bg-slate-900 font-sans text-white pb-10">
-            {/* Header */}
-            <div className="bg-slate-800 p-4 shadow-lg sticky top-0 z-40 border-b border-white/10">
-                <div className="flex justify-between items-center mb-3">
-                    <button onClick={() => navigate('/scoring')} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600"><ArrowLeft className="w-5 h-5"/></button>
+        <div className="min-h-screen bg-slate-950 font-sans text-white pb-20 selection:bg-blue-500 selection:text-white">
+            <div className="bg-slate-900 p-4 shadow-2xl sticky top-0 z-40 border-b border-white/5 backdrop-blur-xl">
+                <div className="flex justify-between items-center mb-4">
+                    <button onClick={() => navigate('/scoring')} className="p-2 bg-slate-800 rounded-xl hover:bg-slate-700 transition-all active:scale-95"><ArrowLeft className="w-5 h-5"/></button>
                     <div className="text-center flex-1">
-                        <h2 className="text-lg font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                           {match.teamAName} <span className="text-white text-xs opacity-50 mx-1">VS</span> {match.teamBName}
+                        <h2 className="text-lg font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                           {match.teamAName} <span className="text-white text-[10px] opacity-40 mx-2">VS</span> {match.teamBName}
                         </h2>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => window.open(`/#/match-overlay/${matchId}`, '_blank')} className="bg-blue-600 px-3 py-1.5 rounded-lg font-bold text-[10px] flex items-center gap-2">
-                            <Monitor className="w-3 h-3"/> OVERLAY
-                        </button>
-                    </div>
+                    <button onClick={() => window.open(`/#/match-overlay/${matchId}`, '_blank')} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl font-black text-[10px] flex items-center gap-2 shadow-lg transition-all active:scale-95">
+                        <Monitor className="w-4 h-4"/> BROADCAST
+                    </button>
                 </div>
 
-                {/* Score Summary Bar */}
-                <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10 flex flex-col justify-center">
-                        <div className="mb-2">{renderPlayerSelector('STRIKER', currentInnings?.strikerId)}</div>
-                        <div>{renderPlayerSelector('NON_STRIKER', currentInnings?.nonStrikerId)}</div>
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col justify-center gap-2">
+                        {renderPlayerSelector('STRIKER', currentInnings?.strikerId)}
+                        <div className="h-px bg-white/5 w-full"></div>
+                        {renderPlayerSelector('NON_STRIKER', currentInnings?.nonStrikerId)}
                     </div>
-                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-xl text-center flex flex-col justify-center shadow-lg border-b-4 border-black/30">
-                        <span className="text-4xl font-black leading-none">{currentInnings?.totalRuns}-{currentInnings?.wickets}</span>
-                        <span className="text-[10px] font-bold uppercase opacity-80 mt-1">{currentInnings?.overs} / {match.totalOvers} OVR</span>
+                    <div className="bg-gradient-to-br from-blue-700 to-indigo-900 p-4 rounded-3xl text-center flex flex-col justify-center shadow-2xl border border-white/10 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <span className="text-5xl font-black tabular-nums leading-none tracking-tighter drop-shadow-lg">{currentInnings?.totalRuns}-{currentInnings?.wickets}</span>
+                        <span className="text-[10px] font-black uppercase opacity-60 mt-2 tracking-[0.3em]">{currentInnings?.overs} / {match.totalOvers} OVR</span>
                     </div>
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
-                        <div>{renderPlayerSelector('BOWLER', currentInnings?.currentBowlerId)}</div>
-                        <div className="flex gap-1.5 justify-center mt-2">
+                    <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col justify-between">
+                        {renderPlayerSelector('BOWLER', currentInnings?.currentBowlerId)}
+                        <div className="flex gap-1.5 justify-center mt-3 pt-2 border-t border-white/5">
                             {currentInnings?.recentBalls.slice(-6).map((b, i) => (
-                                <div key={i} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${b.isWicket ? 'bg-red-500 text-white' : b.runs >= 4 ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-300'}`}>{b.isWicket ? 'W' : b.runs}</div>
+                                <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-md ${b.isWicket ? 'bg-pink-600 text-white animate-pulse' : b.runs >= 4 ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400'}`}>{b.isWicket ? 'W' : b.runs}</div>
                             ))}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-xl mx-auto p-4 space-y-4">
+            <div className="max-w-2xl mx-auto p-4 space-y-6">
                 
-                {/* Theme Selection Section */}
-                <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/5">
-                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-blue-400 mb-4 flex items-center justify-center gap-2">
-                        <Palette className="w-3 h-3"/> Scoreboard Theme
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 mb-6 flex items-center justify-center gap-2">
+                        <Palette className="w-3 h-3"/> Scoreboard Package
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                         {[
-                             { id: 'ICC_T20_2010', label: 'T20 2010' },
-                             { id: 'ICC_T20_2012', label: 'T20 2012' },
-                             { id: 'ICC_T20_2014', label: 'T20 2014' },
-                             { id: 'ICC_T20_2016', label: 'T20 2016' },
-                             { id: 'ICC_T20_2021', label: 'T20 2021' },
-                             { id: 'ICC_T20_2022', label: 'T20 2022' },
-                             { id: 'ICC_T20_2024', label: 'T20 2024' },
-                             { id: 'DEFAULT', label: 'Modern' },
-                         ].map(t => (
-                             <button 
-                                key={t.id}
-                                onClick={() => updateOverlay({ theme: t.id as ScoreboardTheme })}
-                                className={`py-2 rounded text-[10px] font-black uppercase border transition-all ${match.overlay?.theme === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-700 border-white/5 text-slate-400 hover:text-white'}`}
-                             >
+                         {availableThemes.map(t => (
+                             <button key={t.id} onClick={() => updateOverlay({ theme: t.id as ScoreboardTheme })} className={`py-3 rounded-xl text-[10px] font-black uppercase border transition-all active:scale-95 ${match.overlay?.theme === t.id ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'}`}>
                                  {t.label}
                              </button>
                          ))}
+                         {availableThemes.length === 0 && <p className="col-span-full text-center text-xs text-gray-500 italic">No packages authorized.</p>}
                     </div>
                 </div>
 
-                {/* Main Controller Section */}
-                <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
-                    <h3 className="text-center font-black text-xs uppercase tracking-[0.4em] text-purple-300 mb-6">Controller</h3>
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden border border-white/5">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full"></div>
+                    <h3 className="text-center font-black text-xs uppercase tracking-[0.6em] text-slate-500 mb-8">Control Deck</h3>
                     
-                    {/* Top Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="grid grid-cols-2 gap-2">
-                            <button onClick={handleSwapBatter} className="bg-blue-600/80 hover:bg-blue-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><RefreshCw className="w-3 h-3"/> Swap</button>
-                            <button 
-                                onClick={() => handleResetPlayerSlot('STRIKER')} 
-                                className="bg-red-600/80 hover:bg-red-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"
-                                title="Retire Striker & Select New"
-                            >
-                                <UserMinus className="w-3 h-3"/> Retire
-                            </button>
+                            <button onClick={handleSwapBatter} className="bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 py-4 rounded-2xl text-[10px] font-black uppercase flex flex-col items-center justify-center gap-2 transition-all active:scale-95"><RefreshCw className="w-4 h-4 text-blue-400 group-hover:text-white"/> Swap</button>
+                            <button onClick={() => handleResetPlayerSlot('STRIKER')} className="bg-pink-600/20 hover:bg-pink-600 border border-pink-500/30 py-4 rounded-2xl text-[10px] font-black uppercase flex flex-col items-center justify-center gap-2 transition-all active:scale-95"><UserMinus className="w-4 h-4 text-pink-400"/> Retire</button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => handleResetPlayerSlot('BOWLER')} className="bg-indigo-600/80 hover:bg-indigo-600 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-2"><RefreshCw className="w-3 h-3"/> Bowler</button>
-                            <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-lime-500 hover:bg-lime-600 py-2.5 rounded-lg text-[10px] font-black text-black uppercase">Default</button>
+                            <button onClick={() => handleResetPlayerSlot('BOWLER')} className="bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 py-4 rounded-2xl text-[10px] font-black uppercase flex flex-col items-center justify-center gap-2 transition-all active:scale-95"><RefreshCw className="w-4 h-4 text-indigo-400"/> Bowler</button>
+                            <button onClick={() => updateOverlay({ currentView: 'DEFAULT' })} className="bg-emerald-500 text-black py-4 rounded-2xl text-[10px] font-black uppercase shadow-lg transition-all active:scale-95">Reset View</button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 mb-6">
-                        {['Mini-Score', 'Tour Name', 'B1', 'B2'].map(btn => (
-                            <button key={btn} onClick={() => updateOverlay({ currentView: btn === 'B1' ? 'B1' : btn === 'B2' ? 'B2' : 'DEFAULT' })} className="bg-slate-800/80 py-2 rounded text-[10px] font-bold uppercase border border-white/5">{btn}</button>
-                        ))}
-                        {['Bowler', 'Batting', 'Bowling', 'PP+'].map(btn => (
-                            <button key={btn} onClick={() => updateOverlay({ currentView: btn === 'Bowler' ? 'BOWLER' : 'DEFAULT' })} className="bg-slate-800/80 py-2 rounded text-[10px] font-bold uppercase border border-white/5">{btn}</button>
-                        ))}
-                    </div>
-
-                    <div className="flex justify-center gap-4 mb-6">
-                        <button onClick={handleEndInning} className="bg-pink-600 hover:bg-pink-700 px-6 py-2.5 rounded-full text-xs font-black uppercase shadow-lg border-b-4 border-pink-900/50">End Inning {match.currentInnings}</button>
-                        <button onClick={handleUndo} className="bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-full text-xs font-black uppercase shadow-lg border-b-4 border-red-900/50 flex items-center gap-2"><Undo2 className="w-4 h-4"/> Undo</button>
-                    </div>
-
-                    {/* Extras Checkboxes */}
-                    <div className="flex flex-wrap justify-between items-center gap-2 mb-8 bg-black/30 p-4 rounded-2xl border border-white/5">
+                    <div className="flex flex-wrap justify-between items-center gap-4 mb-8 bg-black/40 p-6 rounded-3xl border border-white/5">
                         {[ 
                             { label: 'Wide', state: isWide, set: setIsWide },
                             { label: 'No Ball', state: isNoBall, set: setIsNoBall },
                             { label: 'Byes', state: isBye, set: setIsBye },
                             { label: 'Leg Byes', state: isLegBye, set: setIsLegBye },
-                            { label: 'Wicket', state: isWicket, set: setIsWicket, color: 'text-red-400' }
+                            { label: 'Wicket', state: isWicket, set: setIsWicket, color: 'text-pink-500' }
                         ].map(item => (
-                            <button key={item.label} onClick={() => item.set(!item.state)} className={`flex items-center gap-1.5 transition-all ${item.state ? (item.color || 'text-lime-400') : 'text-gray-400 opacity-50'}`}>
-                                {item.state ? <CheckSquare className="w-5 h-5"/> : <Square className="w-5 h-5"/>}
-                                <span className="text-[10px] font-black uppercase">{item.label}</span>
+                            <button key={item.label} onClick={() => item.set(!item.state)} className={`flex flex-col items-center gap-2 transition-all active:scale-95 ${item.state ? (item.color || 'text-emerald-400') : 'text-gray-600 opacity-40'}`}>
+                                {item.state ? <CheckSquare className="w-6 h-6"/> : <Square className="w-6 h-6"/>}
+                                <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
                             </button>
                         ))}
                     </div>
 
-                    {/* Score Buttons */}
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 gap-4 mb-10">
                         {[0, 1, 2, 3, 4, 5, 6].map(r => (
-                            <button key={r} onClick={() => handleScore(r)} className="w-16 h-16 rounded-full bg-slate-100 hover:bg-white text-slate-900 flex items-center justify-center text-2xl font-black shadow-xl border-b-4 border-slate-300 active:translate-y-1 transition-all mx-auto">{r}</button>
+                            <button key={r} onClick={() => handleScore(r)} className="w-16 h-16 rounded-3xl bg-slate-100 hover:bg-white text-slate-900 flex items-center justify-center text-3xl font-black shadow-2xl transition-all active:scale-90 active:rotate-2 mx-auto">{r}</button>
                         ))}
-                        <button className="w-16 h-16 rounded-full bg-slate-800 text-white flex items-center justify-center border-2 border-white/10"><MoreHorizontal/></button>
+                        <button className="w-16 h-16 rounded-3xl bg-slate-800 text-white flex items-center justify-center border-2 border-white/5 active:scale-90 transition-all"><MoreHorizontal/></button>
+                    </div>
+
+                    <div className="flex justify-center gap-4">
+                        <button onClick={handleEndInning} className="bg-slate-100 hover:bg-white text-slate-900 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all active:scale-95">End Inning {match.currentInnings}</button>
+                        <button onClick={handleUndo} className="bg-pink-600 hover:bg-pink-500 px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-xl flex items-center gap-2 transition-all active:scale-95"><Undo2 className="w-4 h-4"/> Undo</button>
                     </div>
                 </div>
 
-                {/* Animations Block */}
-                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
-                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Animations</h4>
-                    <div className="flex flex-wrap justify-center gap-2">
-                        {['FREE HIT', 'HAT-TRICK BALL', 'FOUR', 'SIX', 'WICKET', 'TOUR BOUNDARIES'].map(anim => (
-                             <button key={anim} onClick={() => updateOverlay({ currentView: 'ANIMATION', animation: anim.split(' ')[0] as any })} className="bg-purple-600/80 hover:bg-purple-600 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-tight">{anim}</button>
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6 flex items-center justify-center gap-2">
+                        < ImageIcon className="w-3 h-3"/> Background Gallery
+                    </h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        <button onClick={() => updateOverlay({ backgroundGraphicUrl: '' })} className={`aspect-video rounded-2xl border-2 flex flex-col items-center justify-center text-[8px] font-black uppercase transition-all ${!match.overlay?.backgroundGraphicUrl ? 'bg-slate-950 border-emerald-500 text-emerald-500' : 'bg-slate-800 border-white/5 text-slate-500 hover:text-white'}`}>
+                            <XCircle className="w-5 h-5 mb-1"/> CLEAR
+                        </button>
+                        {[...globalAssets, ...localAssets].map(asset => (
+                            <button key={asset.id} onClick={() => updateOverlay({ backgroundGraphicUrl: asset.url })} className={`group aspect-video rounded-2xl border-2 overflow-hidden relative transition-all active:scale-95 ${match.overlay?.backgroundGraphicUrl === asset.url ? 'border-emerald-500 ring-4 ring-emerald-500/20' : 'border-white/5 hover:border-white/20'}`}>
+                                <img src={asset.url} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-[7px] font-black text-white uppercase text-center p-2 leading-none">{asset.name}</span>
+                                </div>
+                            </button>
                         ))}
-                        <button onClick={() => updateOverlay({ currentView: 'DEFAULT', animation: 'NONE' })} className="bg-red-600 px-4 py-2 rounded-lg text-[9px] font-black uppercase">STOP</button>
                     </div>
                 </div>
 
-                {/* Display Controller Block */}
-                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
-                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Display Controller</h4>
-                    <div className="grid grid-cols-5 gap-2 mb-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* MAN OF THE MATCH INLINE SELECTION */}
+                    <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-yellow-500 mb-4 flex items-center gap-2"><Star className="w-3 h-3"/> Player of Match</h4>
+                        <div className="max-h-48 overflow-y-auto bg-black/40 rounded-2xl p-2 border border-white/5 custom-scrollbar mb-3">
+                            <div className="grid grid-cols-1 gap-1">
+                                {allPlayers.map(p => (
+                                    <button 
+                                        key={p.id} 
+                                        onClick={() => setSelectedMOM(String(p.id))}
+                                        className={`w-full text-left px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-between ${selectedMOM === String(p.id) ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:bg-white/5'}`}
+                                    >
+                                        <span>{p.name}</span>
+                                        {selectedMOM === String(p.id) && <Check className="w-3 h-3"/>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <button onClick={() => updateOverlay({ momId: selectedMOM, currentView: 'MOM' })} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black text-[10px] py-3 rounded-2xl uppercase transition-all active:scale-95 shadow-lg">Display MOM</button>
+                    </div>
+
+                    {/* TOUR STATS PLAYER INLINE SELECTION */}
+                    <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-purple-500 mb-4 flex items-center gap-2"><BarChart2 className="w-3 h-3"/> Player Profile</h4>
+                        <div className="max-h-48 overflow-y-auto bg-black/40 rounded-2xl p-2 border border-white/5 custom-scrollbar mb-3">
+                            <div className="grid grid-cols-1 gap-1">
+                                {allPlayers.map(p => (
+                                    <button 
+                                        key={p.id} 
+                                        onClick={() => setSelectedStatsPlayer(String(p.id))}
+                                        className={`w-full text-left px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-between ${selectedStatsPlayer === String(p.id) ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                                    >
+                                        <span>{p.name}</span>
+                                        {selectedStatsPlayer === String(p.id) && <Check className="w-3 h-3"/>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <button onClick={() => updateOverlay({ statsPlayerId: selectedStatsPlayer, currentView: 'PLAYER_STATS' })} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-[10px] py-3 rounded-2xl uppercase transition-all active:scale-95 shadow-lg">Display Profile</button>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6">Overlay Displays</h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
                          {['DEFAULT', 'I1BAT', 'I1BALL', 'I2BAT', 'I2BALL'].map(view => (
-                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-lime-500/80 hover:bg-lime-500 text-black py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className={`py-3 rounded-xl text-[8px] font-black uppercase border transition-all active:scale-95 ${match.overlay?.currentView === view ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400'}`}>{view}</button>
                          ))}
                     </div>
-                    <div className="grid grid-cols-4 gap-2 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                          {['SUMMARY', 'FOW', 'B1', 'B2'].map(view => (
-                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-purple-600/80 hover:bg-purple-600 py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className={`py-3 rounded-xl text-[8px] font-black uppercase border transition-all active:scale-95 ${match.overlay?.currentView === view ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400'}`}>{view}</button>
                          ))}
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                          {['BOWLER', 'TARGET', 'PARTNERSHIP'].map(view => (
-                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className="bg-pink-600/80 hover:bg-pink-600 py-2 rounded text-[8px] font-black uppercase">{view}</button>
+                             <button key={view} onClick={() => updateOverlay({ currentView: view as any })} className={`py-3 rounded-xl text-[8px] font-black uppercase border transition-all active:scale-95 ${match.overlay?.currentView === view ? 'bg-pink-600 border-pink-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400'}`}>{view}</button>
                          ))}
                     </div>
-                    <div className="mt-2">
-                        <button onClick={() => updateOverlay({ currentView: 'TEAMS_PLAYERS' })} className="w-full bg-pink-600 py-2 rounded text-[8px] font-black uppercase">Teams Players</button>
+                </div>
+
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                    <span className="text-emerald-500 font-black text-xs uppercase tracking-[0.4em] italic">Live Decision :</span>
+                    <div className="flex-1 grid grid-cols-3 gap-3 w-full">
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'PENDING' })} className="bg-yellow-500 hover:bg-yellow-400 text-black font-black text-[10px] py-4 rounded-2xl uppercase transition-all active:scale-95 shadow-lg">Pending</button>
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'OUT' })} className="bg-pink-600 hover:bg-pink-500 py-4 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 shadow-lg">Out</button>
+                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'NOT_OUT' })} className="bg-emerald-600 hover:bg-emerald-500 py-4 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 shadow-lg">Not Out</button>
                     </div>
                 </div>
 
-                {/* Decision Block */}
-                <div className="bg-black/50 p-5 rounded-2xl border-l-4 border-lime-500 flex items-center justify-between gap-4">
-                    <span className="text-lime-500 font-black text-sm uppercase italic">Decision :</span>
-                    <div className="flex-1 grid grid-cols-3 gap-2">
-                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'PENDING' })} className="bg-yellow-500 text-black font-black text-[10px] py-2 rounded-full uppercase">Pending</button>
-                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'OUT' })} className="bg-red-600 py-2 rounded-full font-black text-[10px] uppercase">Out</button>
-                        <button onClick={() => updateOverlay({ currentView: 'DECISION', decision: 'NOT_OUT' })} className="bg-lime-600 py-2 rounded-full font-black text-[10px] uppercase">Not Out</button>
-                    </div>
-                </div>
-
-                {/* Input Blocks */}
-                <div className="space-y-2">
-                    {/* Custom Input */}
-                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Custom Input :</span>
-                        <input className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={customInput} onChange={e => setCustomInput(e.target.value)} placeholder="Split text with -" />
-                        <button onClick={() => updateOverlay({ customMessage: customInput, currentView: 'CUSTOM' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
-                    </div>
-
-                    {/* MOM Input */}
-                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-lime-400 uppercase whitespace-nowrap">Select MOM:</span>
-                        <select className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={selectedMOM} onChange={e => setSelectedMOM(e.target.value)}>
-                            <option value="">Select MOM Player</option>
-                            {allPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        <button onClick={() => updateOverlay({ momId: selectedMOM, currentView: 'MOM' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
-                    </div>
-
-                    {/* Tour Stats Player Input */}
-                    <div className="bg-slate-800/80 p-4 rounded-xl border border-white/5 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-purple-400 uppercase whitespace-nowrap">Tour Stats Player:</span>
-                        <select className="flex-1 bg-white text-black text-xs px-3 py-2 rounded font-bold outline-none" value={selectedStatsPlayer} onChange={e => setSelectedStatsPlayer(e.target.value)}>
-                            <option value="">Select Player</option>
-                            {allPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        <button onClick={() => updateOverlay({ statsPlayerId: selectedStatsPlayer, currentView: 'PLAYER_STATS' })} className="bg-lime-500 text-black font-black text-[10px] px-3 py-2 rounded uppercase whitespace-nowrap">Display</button>
-                    </div>
-                </div>
-
-                {/* Tour Stats Buttons */}
-                <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/5">
-                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-red-500 mb-4">Tour Stats Controller</h4>
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6">Tournament Data Pages</h4>
                     <div className="flex flex-wrap justify-center gap-2">
-                        {['POINTS TABLE', 'TOP BATTERS', 'TOP BOWLERS', 'TOP 4/6 STRIKERS', 'TOP PLAYER OF SERIES'].map(stat => (
-                             <button key={stat} onClick={() => updateOverlay({ currentView: stat.replace(/ /g, '_') as any })} className="bg-pink-600/80 hover:bg-pink-600 px-4 py-2 rounded-lg text-[8px] font-black uppercase">{stat}</button>
+                        {['POINTS TABLE', 'TOP BATTERS', 'TOP BOWLERS', 'TOP STRIKERS', 'MOM'].map(stat => (
+                             <button key={stat} onClick={() => updateOverlay({ currentView: stat.replace(/ /g, '_') as any })} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase border transition-all active:scale-95 ${match.overlay?.currentView === stat.replace(/ /g, '_') ? 'bg-pink-600 border-pink-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'}`}>{stat}</button>
                         ))}
                     </div>
                 </div>
 
-                {/* Team Color Picker */}
-                <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/5">
-                    <h4 className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Select Team Color</h4>
-                    <div className="flex items-center justify-center gap-6">
-                        <div className="flex flex-col items-center gap-2">
-                            <input type="color" className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-transparent" value={teamAColor} onChange={e => setTeamAColor(e.target.value)} />
-                            <span className="text-[10px] font-bold text-gray-400">{match.teamAName}</span>
+                <div className="bg-slate-900/80 p-6 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <h4 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-6">Team Aesthetics</h4>
+                    <div className="flex items-center justify-around gap-6">
+                        <div className="flex flex-col items-center gap-3">
+                            <input type="color" className="w-16 h-16 rounded-2xl overflow-hidden border-4 border-white/10 bg-transparent cursor-pointer transition-all active:scale-90" value={teamAColor} onChange={e => setTeamAColor(e.target.value)} />
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{match.teamAName}</span>
                         </div>
-                        <button onClick={() => updateOverlay({ teamAColor, teamBColor })} className="bg-black/50 text-white font-black text-[10px] px-8 py-2 rounded uppercase border border-white/10 hover:bg-black transition-colors">Save Colors</button>
-                        <div className="flex flex-col items-center gap-2">
-                            <input type="color" className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-transparent" value={teamBColor} onChange={e => setTeamBColor(e.target.value)} />
-                            <span className="text-[10px] font-bold text-gray-400">{match.teamBName}</span>
+                        <button onClick={() => updateOverlay({ teamAColor, teamBColor })} className="bg-white text-slate-900 font-black text-[10px] px-10 py-3 rounded-2xl uppercase transition-all active:scale-95 shadow-xl">Apply Colors</button>
+                        <div className="flex flex-col items-center gap-3">
+                            <input type="color" className="w-16 h-16 rounded-2xl overflow-hidden border-4 border-white/10 bg-transparent cursor-pointer transition-all active:scale-90" value={teamBColor} onChange={e => setTeamBColor(e.target.value)} />
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{match.teamBName}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Extra Controller Section */}
-                <div className="bg-red-600 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                    <div className="flex justify-center mb-6">
-                        <button onClick={() => setExtraControllerVisible(!extraControllerVisible)} className="bg-black px-6 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white">{extraControllerVisible ? 'Hide Extra Controller' : 'Show Extra Controller'}</button>
+                <div className="bg-pink-600 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden">
+                    <div className="flex justify-center mb-8">
+                        <button onClick={() => setExtraControllerVisible(!extraControllerVisible)} className="bg-black/40 hover:bg-black/60 px-8 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-95">Manual Overrides</button>
                     </div>
                     
                     {extraControllerVisible && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-slide-up">
                             {[
-                                { label: 'Change Inning 1 Runs (+1 run will added to Target)', field: 'I1' as const, key: 'I1' },
-                                { label: 'Change Inning 1 Wickets', field: 'I1W' as const, key: 'I1W' },
-                                { label: 'Change Inning 2 Runs', field: 'I2' as const, key: 'I2' },
-                                { label: 'Change Inning 2 Wickets', field: 'I2W' as const, key: 'I2W' }
+                                { label: 'Inning 1 Runs', field: 'I1' as const, key: 'I1' },
+                                { label: 'Inning 1 Wkts', field: 'I1W' as const, key: 'I1W' },
+                                { label: 'Inning 2 Runs', field: 'I2' as const, key: 'I2' },
+                                { label: 'Inning 2 Wkts', field: 'I2W' as const, key: 'I2W' }
                             ].map(item => (
-                                <div key={item.key} className="flex flex-col items-center text-center space-y-3">
-                                    <p className="text-[10px] font-black text-white leading-tight h-10 flex items-center justify-center">{item.label}</p>
-                                    <input type="number" className="w-20 h-12 rounded-xl bg-white text-slate-900 text-xl font-black text-center" value={manualRuns[item.key]} onChange={e => setManualRuns({...manualRuns, [item.key]: Number(e.target.value)})} />
-                                    <button onClick={() => handleSaveManual(item.field)} className="bg-black text-white font-black text-[10px] px-6 py-1.5 rounded-full uppercase">Save</button>
+                                <div key={item.key} className="flex flex-col items-center text-center gap-3">
+                                    <p className="text-[9px] font-black text-white/60 uppercase tracking-widest leading-tight h-8 flex items-center justify-center">{item.label}</p>
+                                    <input type="number" className="w-20 h-14 rounded-2xl bg-white text-slate-900 text-2xl font-black text-center shadow-lg outline-none focus:ring-4 ring-black/10" value={manualRuns[item.key]} onChange={e => setManualRuns({...manualRuns, [item.key]: Number(e.target.value)})} />
+                                    <button onClick={() => handleSaveManual(item.field)} className="bg-black text-white font-black text-[9px] px-6 py-2 rounded-xl uppercase transition-all active:scale-95">Save</button>
                                 </div>
                             ))}
                         </div>
