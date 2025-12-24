@@ -112,9 +112,10 @@ const MatchScorer: React.FC = () => {
     const bowlingTeam = currentInnings ? getTeam(currentInnings.bowlingTeamId) : null;
     const allPlayers = [...(teamA?.players || []), ...(teamB?.players || [])];
 
-    const needsStriker = currentInnings && !currentInnings.strikerId;
-    const needsNonStriker = currentInnings && !currentInnings.nonStrikerId;
-    const needsBowler = currentInnings && !currentInnings.currentBowlerId;
+    // Added missing definitions for validation in scoring process
+    const needsStriker = !currentInnings?.strikerId;
+    const needsNonStriker = !currentInnings?.nonStrikerId;
+    const needsBowler = !currentInnings?.currentBowlerId;
 
     const handlePlayerSelect = async (type: 'STRIKER' | 'NON_STRIKER' | 'BOWLER', playerId: string) => {
         if (!match || !playerId) return;
@@ -177,6 +178,7 @@ const MatchScorer: React.FC = () => {
     };
 
     const handleScore = async (runs: number) => {
+        // needsStriker, needsNonStriker, and needsBowler are defined in the component scope
         if (!match || !currentInnings || needsStriker || needsNonStriker || needsBowler) return;
         setProcessing(true);
         const state = JSON.parse(JSON.stringify(currentInnings)) as InningsState;
@@ -346,7 +348,7 @@ const MatchScorer: React.FC = () => {
         }
         return (
             <div className="w-full space-y-1">
-                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">{type} Auswahl</div>
+                <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">{type} Selection</div>
                 <div className="max-h-24 overflow-y-auto bg-gray-900/50 rounded border border-gray-700 p-1 custom-scrollbar">
                     {team.players.map(p => (
                         <button key={p.id} onClick={() => handlePlayerSelect(type, String(p.id))} className="w-full text-left px-2 py-1 text-[9px] font-bold text-gray-400 hover:bg-highlight hover:text-primary rounded transition-all truncate uppercase">
@@ -366,6 +368,7 @@ const MatchScorer: React.FC = () => {
         { id: 'ICC_T20_2021', label: 'T20 2021' },
         { id: 'ICC_T20_2022', label: 'T20 2022' },
         { id: 'ICC_T20_2024', label: 'T20 2024' },
+        { id: 'CWC_2023', label: 'CWC 2023' },
         { id: 'DEFAULT', label: 'Modern' },
     ].filter(t => !hiddenThemes.includes(t.id));
 

@@ -349,11 +349,7 @@ const MatchOverlay: React.FC = () => {
     const T20_2024 = () => (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[1200px] font-sans animate-slide-up z-20">
             <div className="bg-[#000a20] rounded-xl h-20 border-2 border-white/5 shadow-[0_20px_60px_rgba(0,0,0,0.7)] flex items-stretch overflow-hidden relative">
-                
-                {/* Team A Flag Section */}
                 <div className="w-20 bg-gradient-to-br from-indigo-900 to-black flex items-center justify-center border-r border-white/5"><Globe className="text-white/10 w-10 h-10"/></div>
-
-                {/* Batsmen Area */}
                 <div className="w-[300px] flex flex-col justify-center px-8 border-r border-white/5 gap-1.5">
                     <div className="flex justify-between items-center group">
                         <div className="flex items-center gap-3">
@@ -375,8 +371,6 @@ const MatchOverlay: React.FC = () => {
                         </div>
                     </div>
                 </div>
-
-                {/* Center Score Branding */}
                 <div className="flex-1 flex flex-col items-stretch overflow-hidden relative">
                     <div className="h-full flex items-center bg-gradient-to-r from-[#000d2b] via-[#00174d] to-[#000d2b]">
                         <div className="flex-1 flex flex-col items-center justify-center">
@@ -390,8 +384,6 @@ const MatchOverlay: React.FC = () => {
                     </div>
                     <div className="absolute bottom-0 left-0 w-full h-1.5 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-700"></div>
                 </div>
-
-                {/* Bowler Area */}
                 <div className="w-[380px] flex flex-col justify-center px-8 border-l border-white/5 gap-2 bg-black/20">
                     <div className="flex justify-between items-center">
                         <span className="text-white font-black uppercase text-base tracking-tight italic">{bowler?.name || '-'}</span>
@@ -406,13 +398,8 @@ const MatchOverlay: React.FC = () => {
                                  {b.isWicket ? 'W' : b.runs}
                              </div>
                         ))}
-                        {[...Array(Math.max(0, 6 - recentBalls.length))].map((_, i) => (
-                             <div key={`empty-${i}`} className="w-6 h-6 rounded-full border-2 border-white/5 bg-white/5"></div>
-                        ))}
                     </div>
                 </div>
-
-                {/* Team B Flag Section */}
                 <div className="w-20 bg-gradient-to-br from-indigo-900 to-black flex items-center justify-center border-l border-white/5"><Globe className="text-white/10 w-10 h-10"/></div>
             </div>
             {match.currentInnings === 2 && (
@@ -426,6 +413,81 @@ const MatchOverlay: React.FC = () => {
         </div>
     );
 
+    const CWC_2023 = () => (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[1200px] font-sans animate-slide-up z-20">
+            {/* Main Wrapper Bar */}
+            <div className="bg-white/95 backdrop-blur-sm h-14 w-full rounded-full shadow-[0_15px_40px_rgba(0,0,0,0.4)] flex items-stretch overflow-hidden border border-gray-100">
+                
+                {/* Left Flag Placeholder */}
+                <div className="w-20 bg-gray-50 flex items-center justify-center border-r border-gray-100">
+                    <Globe className="text-gray-300 w-10 h-10" />
+                </div>
+
+                {/* Batsmen Segment */}
+                <div className="flex flex-col justify-center px-8 border-r border-gray-100 min-w-[280px]">
+                    <div className="flex justify-between items-center gap-4">
+                        <div className="flex items-center gap-2">
+                             <div className="w-1.5 h-1.5 bg-purple-700 rounded-full"></div>
+                             <span className="text-gray-800 font-black uppercase text-sm tracking-tight truncate max-w-[120px]">{striker?.name || '-'}</span>
+                        </div>
+                        <span className="text-gray-800 font-black text-lg tabular-nums">{striker?.runs || 0} <span className="text-[10px] font-bold text-gray-400 ml-1">{striker?.balls || 0}</span></span>
+                    </div>
+                    <div className="flex justify-between items-center opacity-50">
+                        <span className="text-gray-800 font-bold uppercase text-[11px] truncate max-w-[120px] ml-3.5">{nonStriker?.name || '-'}</span>
+                        <span className="text-gray-800 font-black text-sm tabular-nums">{nonStriker?.runs || 0} <span className="text-[10px] font-bold text-gray-400 ml-1">{nonStriker?.balls || 0}</span></span>
+                    </div>
+                </div>
+
+                {/* Match Identity Box - Slanted Purple */}
+                <div className="relative w-44">
+                    <div className="absolute inset-y-0 left-[-20px] right-[-10px] bg-indigo-900 transform -skew-x-[25deg] shadow-lg"></div>
+                    <div className="relative h-full flex flex-col items-center justify-center text-white px-2">
+                         <span className="text-[10px] font-black uppercase tracking-tighter truncate w-full text-center">
+                            {match.teamAName} v {match.teamBName}
+                         </span>
+                         <span className="text-[8px] font-bold uppercase opacity-60 truncate w-full text-center">LIVE MATCH</span>
+                    </div>
+                </div>
+
+                {/* Score Box - Slanted Pink */}
+                <div className="relative w-56 ml-[-5px]">
+                    <div className="absolute inset-y-0 left-[-15px] right-[-15px] bg-pink-600 transform -skew-x-[25deg] shadow-xl border-x-2 border-white/20"></div>
+                    <div className="relative h-full flex items-center justify-center text-white gap-2">
+                        <span className="text-4xl font-black italic tracking-tighter tabular-nums drop-shadow-md">
+                            {currentInnings.totalRuns}-{currentInnings.wickets}
+                        </span>
+                        <div className="bg-yellow-400 text-black text-[9px] font-black px-1.5 py-0.5 rounded-sm transform skew-x-[25deg] -rotate-3">PP</div>
+                    </div>
+                </div>
+
+                {/* Overs Segment */}
+                <div className="flex items-center px-6 border-r border-gray-100 bg-gray-50/50">
+                    <span className="text-gray-800 font-black text-xl italic tabular-nums">{currentInnings.overs}</span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase ml-2 tracking-widest leading-none">Overs</span>
+                </div>
+
+                {/* Bowler Segment */}
+                <div className="flex-1 flex flex-col justify-center px-8 min-w-[250px]">
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-800 font-black uppercase text-sm italic tracking-tight">{bowler?.name || '-'}</span>
+                        <span className="text-gray-800 font-black text-lg tabular-nums">
+                            {bowler?.wickets || 0}-{bowler?.runsConceded || 0} <span className="text-[10px] font-bold text-gray-400 ml-1 italic">{bowler?.overs || 0}</span>
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <div className="bg-red-500 w-3 h-3 rounded-full flex items-center justify-center"><span className="text-white text-[6px] font-black">▶</span></div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">LIVE BROADCAST</span>
+                    </div>
+                </div>
+
+                {/* Right Flag Placeholder */}
+                <div className="w-20 bg-gray-50 flex items-center justify-center border-l border-gray-100">
+                    <Globe className="text-gray-300 w-10 h-10" />
+                </div>
+            </div>
+        </div>
+    );
+
     const RenderTheme = () => {
         switch (theme) {
             case 'ICC_T20_2010': return <T20_2010 />;
@@ -435,6 +497,7 @@ const MatchOverlay: React.FC = () => {
             case 'ICC_T20_2021': return <T20_2021 />;
             case 'ICC_T20_2022': return <T20_2022 />;
             case 'ICC_T20_2024': return <T20_2024 />;
+            case 'CWC_2023': return <CWC_2023 />;
             default: return <T20_2024 />;
         }
     };
@@ -452,7 +515,7 @@ const MatchOverlay: React.FC = () => {
             
             {backgroundUrl && (
                 <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center animate-fade-in">
-                    <img src={backgroundUrl} className="w-full h-full object-contain opacity-50" alt="Overlay" />
+                    <img src={backgroundUrl} className="w-full h-full object-contain" alt="Overlay" />
                 </div>
             )}
             
