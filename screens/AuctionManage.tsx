@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, Filter, ChevronUp, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import * as XLSX from 'xlsx';
 
@@ -80,7 +80,10 @@ const AuctionManage: React.FC = () => {
     const [showPlayerExport, setShowPlayerExport] = useState(false);
     const [playerExportFilters, setPlayerExportFilters] = useState({ categories: [] as string[], roles: [] as string[] });
     const [showRequestExport, setShowRequestExport] = useState(false);
-    const [requestExportFilters, setRequestExportFilters] = useState({ statuses: ['APPROVED', 'PENDING', 'REJECTED'] as string[], fields: [] as string[] });
+    const [requestExportFilters, setRequestExportFilters] = useState({ 
+        statuses: ['APPROVED', 'PENDING', 'REJECTED'] as string[], 
+        fields: [] as string[] 
+    });
 
     // Registration State
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
@@ -363,9 +366,36 @@ const AuctionManage: React.FC = () => {
     const handleUpdateRegStatus = async (requestId: string, newStatus: 'APPROVED' | 'REJECTED' | 'PENDING') => {
         if (!id) return;
         try {
+            const regDoc = await db.collection('auctions').doc(id).collection('registrations').doc(requestId).get();
+            if (!regDoc.exists) return;
+            const regData = regDoc.data() as RegisteredPlayer;
+
             await db.collection('auctions').doc(id).collection('registrations').doc(requestId).update({
                 status: newStatus
             });
+
+            // Auto-create player if approved
+            if (newStatus === 'APPROVED') {
+                // Check if player already exists by mobile to avoid duplicates
+                const existing = players.find(p => (p as any).mobile === regData.mobile);
+                if (!existing) {
+                    const newPlayer: Omit<Player, 'id'> = {
+                        name: regData.fullName,
+                        photoUrl: regData.profilePic,
+                        category: categoriesList[0] || 'Uncapped',
+                        role: regData.playerType,
+                        basePrice: auction?.basePrice || 20,
+                        nationality: regData.gender === 'Female' ? 'India' : 'India',
+                        status: 'UNSOLD',
+                        stats: { matches: 0, runs: 0, wickets: 0 },
+                        // Store additional info for reference
+                        ...({ mobile: regData.mobile, regId: requestId } as any)
+                    };
+                    const newRef = db.collection('auctions').doc(id).collection('players').doc();
+                    await newRef.set({ id: newRef.id, ...newPlayer });
+                    setPlayers(prev => [...prev, { id: newRef.id, ...newPlayer } as Player]);
+                }
+            }
         } catch (e: any) {
             alert("Update failed: " + e.message);
         }
@@ -753,7 +783,7 @@ const AuctionManage: React.FC = () => {
                                     onClick={() => setShowPlayerExport(!showPlayerExport)} 
                                     className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow border ${showPlayerExport ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                                 >
-                                    <Download className="w-5 h-5"/> Export Excel
+                                    <Download className="w-5 h-5"/> Export Pool
                                 </button>
                                 <button onClick={() => openModal('PLAYERS', { name: '', category: categoriesList[0], role: rolesList[0], basePrice: auction?.basePrice || 20, photoUrl: '', nationality: 'India' })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow">
                                     <Plus className="w-5 h-5"/> Add Player
@@ -765,13 +795,13 @@ const AuctionManage: React.FC = () => {
                             <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-200 mb-6 animate-slide-up">
                                 <div className="flex justify-between items-start mb-4">
                                     <h3 className="text-sm font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
-                                        <FileSpreadsheet className="w-4 h-4"/> Export Configuration
+                                        <FileSpreadsheet className="w-4 h-4"/> Export Final Players Pool
                                     </h3>
                                     <button onClick={() => setShowPlayerExport(false)} className="text-emerald-400 hover:text-emerald-600"><X className="w-5 h-5"/></button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div>
-                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Filter by Set (Category)</p>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Include Sets (Categories)</p>
                                         <div className="flex flex-wrap gap-2">
                                             {categoriesList.map(cat => (
                                                 <button 
@@ -786,7 +816,7 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Filter by Skill (Role)</p>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Include Skills (Roles)</p>
                                         <div className="flex flex-wrap gap-2">
                                             {rolesList.map(role => (
                                                 <button 
@@ -805,7 +835,7 @@ const AuctionManage: React.FC = () => {
                                         onClick={exportPlayersExcel}
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-8 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2"
                                     >
-                                        <Download className="w-4 h-4"/> Generate Excel Sheet
+                                        <Download className="w-4 h-4"/> Generate Export
                                     </button>
                                 </div>
                             </div>
