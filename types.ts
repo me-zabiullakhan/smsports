@@ -176,6 +176,7 @@ export interface FormField {
 export interface RegistrationConfig {
     isEnabled: boolean;
     includePayment: boolean; // Controls visibility of payment section
+    isPublic: boolean; // Controls visibility of registration link on home page
     fee: number;
     upiId: string;
     upiName: string;

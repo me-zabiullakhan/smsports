@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -47,6 +47,7 @@ const compressImage = (file: File): Promise<string> => {
 const DEFAULT_REG_CONFIG: RegistrationConfig = {
     isEnabled: false,
     includePayment: false,
+    isPublic: true,
     fee: 0,
     upiId: '',
     upiName: '',
@@ -114,7 +115,12 @@ const AuctionManage: React.FC = () => {
                 if (aucDoc.exists) {
                     const data = aucDoc.data() as AuctionSetup;
                     setAuction(data);
-                    if (data.registrationConfig) setRegConfig(data.registrationConfig);
+                    if (data.registrationConfig) {
+                        setRegConfig({
+                            ...DEFAULT_REG_CONFIG,
+                            ...data.registrationConfig
+                        });
+                    }
                     
                     setSettingsForm({
                         title: data.title || '',
@@ -783,12 +789,30 @@ const AuctionManage: React.FC = () => {
                                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 flex items-center"><Settings className="w-5 h-5 mr-2"/> General Config</h3>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between bg-gray-50 p-3 rounded">
-                                        <span className="font-semibold">Enable Registration Page</span>
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold">Enable Registration Page</span>
+                                            <p className="text-[10px] text-gray-500">Allow players to submit details</p>
+                                        </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" className="sr-only peer" checked={regConfig.isEnabled} onChange={e => setRegConfig({...regConfig, isEnabled: e.target.checked})} />
                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                         </label>
                                     </div>
+
+                                    <div className="flex items-center justify-between bg-blue-50 p-3 rounded border border-blue-100">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold flex items-center gap-2">
+                                                {regConfig.isPublic ? <Eye className="w-4 h-4 text-blue-600"/> : <EyeOff className="w-4 h-4 text-gray-400"/>}
+                                                Show on Public Home Page
+                                            </span>
+                                            <p className="text-[10px] text-blue-800">If disabled, players can only register via direct link</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" className="sr-only peer" checked={regConfig.isPublic} onChange={e => setRegConfig({...regConfig, isPublic: e.target.checked})} />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </div>
+
                                     <div>
                                         <label className="block text-sm font-bold text-gray-600 mb-1">Registration Fee (₹)</label>
                                         <input type="number" className="w-full border rounded p-2" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} />
@@ -979,7 +1003,7 @@ const AuctionManage: React.FC = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">Max Per Team</label>
-                                        <input type="number" className="w-full border rounded p-2" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
+                                        <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">Bid Increment</label>

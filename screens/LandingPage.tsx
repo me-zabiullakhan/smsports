@@ -23,6 +23,7 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
     }, [auction.id]);
 
     const isRegOpen = auction.registrationConfig?.isEnabled;
+    const isPublicReg = auction.registrationConfig?.isPublic ?? true; // Default to true if field missing
 
     return (
         <div className="bg-secondary border border-accent rounded-xl p-6 hover:border-highlight transition-all flex flex-col relative overflow-hidden group">
@@ -32,7 +33,7 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
                 <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded">View Room</button>
             </div>
             <div className="text-text-secondary text-sm mb-4 flex items-center gap-2">
-                {isRegOpen ? <span className="text-green-400 font-bold text-[10px] uppercase border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded">Reg Open</span> : <span className="text-gray-500 font-bold text-[10px] uppercase border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 rounded">Reg Closed</span>}
+                {(isRegOpen && isPublicReg) ? <span className="text-green-400 font-bold text-[10px] uppercase border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded">Reg Open</span> : (isRegOpen && !isPublicReg) ? <span className="text-blue-400 font-bold text-[10px] uppercase border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 rounded">Private Reg</span> : <span className="text-gray-500 font-bold text-[10px] uppercase border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 rounded">Reg Closed</span>}
                 <span className="text-gray-600">•</span>
                 <span>{teamCount !== null ? teamCount : '-'} / {auction.totalTeams} Teams</span>
             </div>
@@ -40,7 +41,7 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
                 <span>Starts: {auction.date || 'TBA'}</span>
                 <div className="flex gap-2">
                 <span className="bg-accent px-2 py-1 rounded text-white">{auction.sport}</span>
-                {isRegOpen && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:underline font-bold">Register Player</button>}
+                {isRegOpen && isPublicReg && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:underline font-bold">Register Player</button>}
                 </div>
             </div>
         </div>
