@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw } from 'lucide-react';
 import { auth, db } from '../firebase';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 const AuthScreen: React.FC = () => {
     const { setUserProfile } = useAuction();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<'team' | 'admin'>('team');
     
     // Admin State
@@ -15,6 +17,21 @@ const AuthScreen: React.FC = () => {
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
     const [isAdminRegister, setIsAdminRegister] = useState(false);
+
+    // Handle deep linking for tabs/registration
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        const mode = searchParams.get('mode');
+        
+        if (tab === 'admin') {
+            setActiveTab('admin');
+            if (mode === 'register') {
+                setIsAdminRegister(true);
+            }
+        } else if (tab === 'team') {
+            setActiveTab('team');
+        }
+    }, [searchParams]);
 
     // Forgot Password State
     const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -281,7 +298,6 @@ const AuthScreen: React.FC = () => {
                                     disabled={isLoading}
                                     className="w-full flex items-center justify-center bg-highlight hover:bg-teal-400 text-primary font-black py-5 px-6 rounded-2xl transition-all duration-500 transform hover:scale-[1.02] disabled:opacity-50 shadow-[0_15px_30px_rgba(56,178,172,0.3)] active:scale-95 uppercase tracking-[0.2em] text-sm"
                                 >
-                                   {/* Fixed missing RefreshCw icon */}
                                    {isLoading ? <RefreshCw className="animate-spin w-5 h-5"/> : <><LogIn className="mr-2 h-5 w-5"/> ENTER TERMINAL</>}
                                 </button>
                             </form>

@@ -6,7 +6,7 @@ import { AuctionStatus, AuctionSetup } from '../types';
 import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users } from 'lucide-react';
 import { db } from '../firebase';
 
-const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.ReactNode }> = ({ auction, navigate, getStatusBadge }) => {
+const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.Node }> = ({ auction, navigate, getStatusBadge }) => {
     const [teamCount, setTeamCount] = useState<number | null>(null);
 
     useEffect(() => {
@@ -105,7 +105,8 @@ const LandingPage: React.FC = () => {
           <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 tracking-tight">Manage Your <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-200">Cricket Auctions</span><br/> Professionally</h1>
           <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">Experience the thrill of a real-time auction room. Organize players, manage team budgets, and bid live with our advanced auction platform designed for sports enthusiasts.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link to="/auth" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl"><Play className="w-5 h-5 mr-2 fill-current" /> Create Auction</Link>
+            {/* Redirect to registration flow directly */}
+            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl"><Play className="w-5 h-5 mr-2 fill-current" /> Create Auction</Link>
           </div>
         </div>
       </header>
