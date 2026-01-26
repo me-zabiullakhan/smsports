@@ -523,7 +523,7 @@ const AuctionManage: React.FC = () => {
                                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-3">Add New Bid Rule</label>
                                          <div className="grid grid-cols-2 gap-3 mb-4">
                                              <div>
-                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">When Price >=</label>
+                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">When Price {">="}</label>
                                                  <input 
                                                     type="number" 
                                                     placeholder="e.g. 500" 

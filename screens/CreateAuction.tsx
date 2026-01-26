@@ -376,7 +376,7 @@ const CreateAuction: React.FC = () => {
                              <div className="grid grid-cols-2 gap-2 mt-2">
                                  <input 
                                     type="number" 
-                                    placeholder="Price >=" 
+                                    placeholder="Price {'>='}" 
                                     className="border p-2 rounded text-sm" 
                                     value={newSlab.from} 
                                     onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
