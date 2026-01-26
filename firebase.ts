@@ -13,25 +13,40 @@ const firebaseConfig = {
     measurementId: "G-CFW20VFVJ7"
 };
 
-// Initialize Firebase using Compat
+// Initialize Firebase using Compat singleton pattern
+let app;
 if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+    app = firebase.initializeApp(firebaseConfig);
+} else {
+    app = firebase.app();
 }
-const app = firebase.app();
-const db = firebase.firestore();
-const auth = firebase.auth();
 
-// Enable offline persistence
-try {
-    db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+const db = app.firestore();
+const auth = app.auth();
+
+// Configure Firestore settings for better performance/reliability
+db.settings({
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+});
+
+// Enable offline persistence with better error handling
+// Wrapping in an async-ready block to ensure it doesn't block main script if it fails
+const initPersistence = async () => {
+    try {
+        await db.enablePersistence({ synchronizeTabs: true });
+    } catch (err: any) {
         if (err.code === 'failed-precondition') {
-            console.warn("Firebase Persistence: Multiple tabs open");
+            // Multiple tabs open, persistence can only be enabled in one tab at a time.
+            console.warn("Firebase Persistence: Multiple tabs open, persistence disabled in this tab.");
         } else if (err.code === 'unimplemented') {
-            console.warn("Firebase Persistence: Browser not supported");
+            // The current browser does not support all of the features required to enable persistence
+            console.warn("Firebase Persistence: Browser not supported.");
+        } else {
+            console.error("Firebase Persistence Error:", err.message);
         }
-    });
-} catch (e) {
-    console.warn("Persistence init error:", e);
-}
+    }
+};
+
+initPersistence();
 
 export { db, auth };
