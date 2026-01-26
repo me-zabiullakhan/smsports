@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -77,6 +77,7 @@ const AuctionManage: React.FC = () => {
 
     // Registration State (Local copy for editing)
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
+    const [isCopied, setIsCopied] = useState(false);
 
     // Settings State
     const [settingsForm, setSettingsForm] = useState({
@@ -437,6 +438,15 @@ const AuctionManage: React.FC = () => {
         }));
     };
 
+    const copyRegLink = () => {
+        if (!id) return;
+        const baseUrl = window.location.href.split('#')[0];
+        const link = `${baseUrl}#/auction/${id}/register`;
+        navigator.clipboard.writeText(link);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    };
+
     const openModal = (item: any = {}) => {
         setEditItem(item);
         setPreviewImage(item.logoUrl || item.photoUrl || item.imageUrl || '');
@@ -786,7 +796,16 @@ const AuctionManage: React.FC = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-6">
                             <div className="bg-white rounded shadow p-6">
-                                <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 flex items-center"><Settings className="w-5 h-5 mr-2"/> General Config</h3>
+                                <div className="flex justify-between items-center border-b pb-2 mb-4">
+                                    <h3 className="font-bold text-gray-800 flex items-center"><Settings className="w-5 h-5 mr-2"/> General Config</h3>
+                                    <button 
+                                        onClick={copyRegLink}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${isCopied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                    >
+                                        {isCopied ? <CheckIcon className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                        {isCopied ? 'Copied Link!' : 'Copy Registration Link'}
+                                    </button>
+                                </div>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between bg-gray-50 p-3 rounded">
                                         <div className="flex flex-col">
@@ -811,6 +830,22 @@ const AuctionManage: React.FC = () => {
                                             <input type="checkbox" className="sr-only peer" checked={regConfig.isPublic} onChange={e => setRegConfig({...regConfig, isPublic: e.target.checked})} />
                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                         </label>
+                                    </div>
+
+                                    <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                                            <LinkIcon className="w-3 h-3"/> Direct Registration URL
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                readOnly 
+                                                className="flex-1 bg-white border rounded p-1.5 text-[10px] font-mono text-gray-600 truncate"
+                                                value={`${window.location.href.split('#')[0]}#/auction/${id}/register`}
+                                            />
+                                            <button onClick={copyRegLink} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded border">
+                                                <Copy className="w-3.5 h-3.5"/>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div>
