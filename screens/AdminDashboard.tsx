@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup } from '../types';
 
@@ -23,14 +23,10 @@ const AdminDashboard: React.FC = () => {
         setIsDbMissing(false);
 
         try {
-            // COMPAT SYNTAX FIX: db.collection()
-            // FILTER: Only show auctions created by the logged-in admin
             const unsubscribe = db.collection('auctions')
                 .where('createdBy', '==', userProfile.uid)
                 .onSnapshot((snapshot) => {
                     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
-                    // Sort by createdAt descending (newest first)
-                    // Note: Sorting is done client-side to avoid needing a composite index for every query
                     data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                     
                     setAuctions(data);
@@ -61,16 +57,12 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe: () => void | undefined;
-
-    // Only fetch if we have a profile (auth confirmed)
     if (userProfile && userProfile.uid) {
         unsubscribe = setupListener();
     } else {
-        // Wait briefly for auth to settle
         const timer = setTimeout(() => setLoading(false), 2000);
         return () => clearTimeout(timer);
     }
-
     return () => {
         if (unsubscribe) unsubscribe();
     };
@@ -81,18 +73,21 @@ const AdminDashboard: React.FC = () => {
   }
 
   const handleManualRefresh = () => {
-      // Force re-mount of listener
       setupListener();
   };
 
+  const copyRegLink = (auctionId: string) => {
+      const baseUrl = window.location.href.split('#')[0];
+      const url = `${baseUrl}#/auction/${auctionId}/register`;
+      navigator.clipboard.writeText(url);
+      alert("✅ Registration Link Copied!\n\nShare this URL with players so they can register for your auction.");
+  };
+
   const copyOBSLink = (auctionId: string, type: 'transparent' | 'green') => {
-      // CHECK FOR PREVIEW ENVIRONMENT
       if (window.location.protocol === 'blob:') {
           alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
           return;
       }
-
-      // Use current href base to support subdirectories/index.html paths
       const baseUrl = window.location.href.split('#')[0];
       const route = type === 'green' ? 'obs-green' : 'obs-overlay';
       const url = `${baseUrl}#/${route}/${auctionId}`;
@@ -118,14 +113,12 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
         <div className="container mx-auto px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-4">
                 <button className="text-gray-500 hover:text-gray-700 lg:hidden"><Menu /></button>
                 <h1 className="text-xl font-bold text-gray-700 hidden sm:block">SM SPORTS<span className="text-gray-400 font-normal">/admin</span></h1>
             </div>
-            
             <div className="flex-1 max-w-md mx-6 hidden md:block">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -136,7 +129,6 @@ const AdminDashboard: React.FC = () => {
                     />
                 </div>
             </div>
-
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-gray-700 transition-colors">
                     {userProfile?.name?.charAt(0) || 'A'}
@@ -165,7 +157,6 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-6">
-            {/* Welcome Card */}
             <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-lg">
@@ -180,7 +171,6 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* CRITICAL DATABASE ERROR BANNER */}
             {isDbMissing && (
                 <div className="bg-red-600 text-white rounded-xl p-6 shadow-lg border-2 border-red-800 animate-pulse">
                     <div className="flex items-start gap-4">
@@ -203,7 +193,6 @@ const AdminDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* Standard Error Banner */}
             {error && !isDbMissing && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3 text-red-700">
                     <AlertCircle className="w-5 h-5 shrink-0" />
@@ -212,7 +201,6 @@ const AdminDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* Auctions List */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                     <h3 className="font-bold text-lg text-gray-800">My Auctions</h3>
@@ -231,11 +219,22 @@ const AdminDashboard: React.FC = () => {
                         {auctions.length > 0 ? auctions.map((auction) => (
                             <div key={auction.id} className="p-6 hover:bg-gray-50 transition-colors group">
                                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                                    <div>
+                                    <div className="flex-1">
                                         <h4 className="font-bold text-gray-700 text-lg group-hover:text-green-700 transition-colors">{auction.title}</h4>
                                         <p className="text-sm text-gray-400 uppercase tracking-wider mt-1">{auction.sport} • {auction.date}</p>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {/* Registration Link Button */}
+                                        <button 
+                                            onClick={() => copyRegLink(auction.id!)}
+                                            className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-100 flex items-center transition-all shadow-sm"
+                                            title="Copy Player Registration Link"
+                                        >
+                                            <LinkIcon className="w-3.5 h-3.5 mr-1.5" /> Reg Link
+                                        </button>
+
+                                        <div className="w-px h-6 bg-gray-200 mx-1"></div>
+
                                         <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-blue-500 hover:bg-blue-50 px-3 py-1 rounded text-sm font-medium transition-colors">
                                             View
                                         </button>
@@ -252,7 +251,6 @@ const AdminDashboard: React.FC = () => {
                                             Live
                                         </button>
                                         
-                                        {/* OBS Buttons */}
                                         <div className="flex bg-gray-100 rounded p-1">
                                             <button 
                                                 onClick={() => copyOBSLink(auction.id!, 'transparent')}

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2 } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -320,6 +320,14 @@ const AuctionManage: React.FC = () => {
         } catch (e: any) {
             alert("Failed: " + e.message);
         }
+    };
+
+    const copyRegLink = () => {
+        if (!id) return;
+        const baseUrl = window.location.href.split('#')[0];
+        const url = `${baseUrl}#/auction/${id}/register`;
+        navigator.clipboard.writeText(url);
+        alert("✅ Registration Link Copied!\n\nShare this URL with players so they can register for your auction.");
     };
 
     const handleDelete = async (collection: string, itemId: string) => {
@@ -755,14 +763,22 @@ const AuctionManage: React.FC = () => {
                                 <h2 className="text-xl font-bold text-gray-800">Public Player Registration</h2>
                                 <p className="text-xs text-gray-400">Configure the form players will use to sign up.</p>
                             </div>
-                            <div className="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-xl border">
-                                <label className="text-xs font-black uppercase text-gray-500">Form Enabled</label>
+                            <div className="flex flex-wrap items-center gap-3">
                                 <button 
-                                    onClick={() => setRegConfig({ ...regConfig, isEnabled: !regConfig.isEnabled })}
-                                    className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-1 ${regConfig.isEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    onClick={copyRegLink}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
                                 >
-                                    <div className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${regConfig.isEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                    <Share2 className="w-4 h-4"/> Copy Public Link
                                 </button>
+                                <div className="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-xl border">
+                                    <label className="text-xs font-black uppercase text-gray-500">Form Enabled</label>
+                                    <button 
+                                        onClick={() => setRegConfig({ ...regConfig, isEnabled: !regConfig.isEnabled })}
+                                        className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-1 ${regConfig.isEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    >
+                                        <div className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${regConfig.isEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                    </button>
+                                </div>
                             </div>
                          </div>
 
