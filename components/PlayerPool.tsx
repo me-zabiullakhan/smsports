@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Player } from '../types';
@@ -39,12 +38,11 @@ const PlayerPool: React.FC = () => {
             });
         });
     } else if (activeTab === 'unsold') {
-        // Filter players specifically marked as UNSOLD in the main players list
         list = players.filter(p => p.status === 'UNSOLD').map(p => ({ ...p, status: 'unsold' as PlayerStatus }));
     }
 
     if (selectedRole !== 'All' && activeTab !== 'teams') {
-        list = list.filter(p => p.role === selectedRole || (!p.role && p.category === selectedRole)); // Fallback to category if role undefined
+        list = list.filter(p => p.role === selectedRole || (!p.role && p.category === selectedRole));
     }
 
     if (searchTerm && activeTab !== 'teams') {
@@ -64,6 +62,8 @@ const PlayerPool: React.FC = () => {
       </button>
   );
 
+  const rolesToDisplay = availableRoles.length > 0 ? ['All', ...availableRoles] : ['All', 'Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
+
   return (
     <div className="bg-secondary rounded-xl shadow-xl h-full flex flex-col border border-gray-700 overflow-hidden">
       <div className="p-4 bg-primary/30 border-b border-gray-700">
@@ -72,22 +72,29 @@ const PlayerPool: React.FC = () => {
         </h2>
         
         {activeTab !== 'teams' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
                 <div className="relative group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-highlight transition-colors" />
                     <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-10 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight transition-all" />
                     {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 transition-colors"><X className="h-4 w-4" /></button>}
                 </div>
 
-                <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full bg-primary border border-gray-600 rounded-lg py-2.5 pl-10 pr-8 text-text-main text-sm focus:outline-none focus:ring-1 focus:ring-highlight focus:border-highlight appearance-none cursor-pointer transition-all">
-                        <option value="All">All Roles</option>
-                        {availableRoles.length > 0 ? availableRoles.map((role) => <option key={role} value={role}>{role}</option>) : (
-                            // Fallback if no roles defined yet
-                            ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'].map(r => <option key={r} value={r}>{r}</option>)
-                        )}
-                    </select>
+                {/* Role Filter - Now Inline Chips instead of Dropdown */}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase tracking-widest px-1">
+                        <Filter className="w-3 h-3"/> Filter By Role
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                        {rolesToDisplay.map((role) => (
+                            <button
+                                key={role}
+                                onClick={() => setSelectedRole(role)}
+                                className={`px-2.5 py-1.5 rounded-md text-[10px] font-black uppercase transition-all border ${selectedRole === role ? 'bg-highlight border-highlight text-primary shadow-lg shadow-highlight/20' : 'bg-primary/50 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'}`}
+                            >
+                                {role}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
         )}
