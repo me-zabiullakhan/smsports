@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -76,7 +76,6 @@ const AuctionManage: React.FC = () => {
 
     // Registration State
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
-    const [isCopied, setIsCopied] = useState(false);
 
     // Settings State
     const [settingsForm, setSettingsForm] = useState({
@@ -99,10 +98,6 @@ const AuctionManage: React.FC = () => {
     const [editItem, setEditItem] = useState<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [previewImage, setPreviewImage] = useState<string>('');
-
-    // Custom Field Builder State
-    const [newField, setNewField] = useState<FormField>({ id: '', label: '', type: 'text', required: false });
-    const [dropdownOptionsInput, setDropdownOptionsInput] = useState('');
 
     useEffect(() => {
         if (!id) return;
@@ -294,37 +289,6 @@ const AuctionManage: React.FC = () => {
         }
     };
 
-    const handleApproveRequest = async (reg: RegisteredPlayer) => {
-        if (!id || !window.confirm(`Approve ${reg.fullName} and add to auction pool?`)) return;
-        try {
-            const newPlayer: any = {
-                name: reg.fullName,
-                category: 'Uncapped',
-                role: reg.playerType || 'All Rounder',
-                basePrice: auction?.basePrice || 0,
-                photoUrl: reg.profilePic || '',
-                nationality: 'India',
-                status: 'UNSOLD',
-                stats: { matches: 0, runs: 0, wickets: 0 },
-                speciality: reg.playerType
-            };
-            const playerRef = await db.collection('auctions').doc(id).collection('players').add(newPlayer);
-            const playerWithId = { id: playerRef.id, ...newPlayer };
-            await db.collection('auctions').doc(id).collection('registrations').doc(reg.id).update({ status: 'APPROVED' });
-            setPlayers(prev => [...prev, playerWithId]);
-            setRegistrations(prev => prev.map(r => r.id === reg.id ? { ...r, status: 'APPROVED' } : r));
-            alert("Player Approved!");
-        } catch (e: any) { alert("Error approving player: " + e.message); }
-    };
-
-    const handleRejectRequest = async (regId: string) => {
-        if (!id || !window.confirm("Reject this registration?")) return;
-        try {
-            await db.collection('auctions').doc(id).collection('registrations').doc(regId).update({ status: 'REJECTED' });
-            setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, status: 'REJECTED' } : r));
-        } catch (e: any) { alert("Error: " + e.message); }
-    };
-
     const handleDelete = async (collection: string, itemId: string) => {
         if (!window.confirm("Are you sure?")) return;
         if (!id) return;
@@ -365,7 +329,6 @@ const AuctionManage: React.FC = () => {
     };
 
     const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase()));
-    const filteredRequests = registrations.filter(r => r.fullName.toLowerCase().includes(requestSearch.toLowerCase()));
 
     if (loading) return <div className="p-10 text-center text-gray-700">Loading Management Console...</div>;
 
@@ -397,50 +360,50 @@ const AuctionManage: React.FC = () => {
             <main className="container mx-auto px-4 py-8 max-w-5xl">
                 
                 {activeTab === 'SETTINGS' && (
-                    <div className="bg-white rounded-xl shadow p-6 border border-gray-200 space-y-6 animate-fade-in">
-                        <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800 border-b pb-3">
-                            <Settings className="w-5 h-5 text-blue-500"/> Auction Configuration
-                        </h2>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Auction Title</label>
-                                    <input type="text" className="w-full border rounded-lg p-2.5 bg-gray-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-blue-500" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Sport</label>
-                                    <div className="flex bg-gray-100 p-1 rounded-lg">
-                                        {['Cricket', 'Football', 'Kabaddi'].map(s => (
-                                            <button 
-                                                key={s}
-                                                onClick={() => setSettingsForm({...settingsForm, sport: s})}
-                                                className={`flex-1 py-2 rounded-md text-xs font-black transition-all ${settingsForm.sport === s ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-700'}`}
-                                            >
-                                                {s}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Purse Value</label>
-                                        <input type="number" className="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total Teams</label>
-                                        <input 
-                                            type="number" 
-                                            className="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" 
-                                            value={settingsForm.totalTeams} 
-                                            onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})}
-                                            min="1"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                    <div className="bg-white rounded-xl shadow p-6 border border-gray-200 space-y-8 animate-fade-in">
+                        <div>
+                            <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800 border-b pb-3 mb-6">
+                                <Settings className="w-5 h-5 text-blue-500"/> Auction Configuration
+                            </h2>
                             
-                            <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Auction Title</label>
+                                        <input type="text" className="w-full border rounded-lg p-2.5 bg-gray-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-blue-500" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Sport</label>
+                                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                                            {['Cricket', 'Football', 'Kabaddi'].map(s => (
+                                                <button 
+                                                    key={s}
+                                                    onClick={() => setSettingsForm({...settingsForm, sport: s})}
+                                                    className={`flex-1 py-2 rounded-md text-xs font-black transition-all ${settingsForm.sport === s ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-700'}`}
+                                                >
+                                                    {s}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Purse Value</label>
+                                            <input type="number" className="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total Teams</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500" 
+                                                value={settingsForm.totalTeams} 
+                                                onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})}
+                                                min="1"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div className="flex flex-col items-center">
                                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 w-full text-left">Auction Logo</label>
                                     <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden relative bg-gray-50 group hover:border-blue-300 transition-colors">
@@ -456,6 +419,87 @@ const AuctionManage: React.FC = () => {
                                     <input ref={settingsLogoRef} type="file" className="hidden" accept="image/*" onChange={handleSettingsLogoChange} />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Bid Increment Slabs Section - Added back as requested */}
+                        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                             <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-emerald-500" /> Global Bid Increment Slabs
+                             </h3>
+                             
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 <div className="space-y-3">
+                                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-3">Add New Bid Rule</label>
+                                         <div className="grid grid-cols-2 gap-3 mb-4">
+                                             <div>
+                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">When Price >=</label>
+                                                 <input 
+                                                    type="number" 
+                                                    placeholder="e.g. 500" 
+                                                    className="w-full border rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500" 
+                                                    value={newSlab.from} 
+                                                    onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
+                                                 />
+                                             </div>
+                                             <div>
+                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">Increment by</label>
+                                                 <input 
+                                                    type="number" 
+                                                    placeholder="e.g. 50" 
+                                                    className="w-full border rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500" 
+                                                    value={newSlab.increment} 
+                                                    onChange={e => setNewSlab({...newSlab, increment: e.target.value})} 
+                                                 />
+                                             </div>
+                                         </div>
+                                         <button 
+                                            type="button" 
+                                            onClick={addSlab} 
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
+                                         >
+                                             <Plus className="w-4 h-4"/> Add Increment Rule
+                                         </button>
+                                     </div>
+                                     <p className="text-[10px] text-gray-400 leading-relaxed bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                         <b>How it works:</b> If current bid is 500 and you have a rule "From 500: +50", the next button will show 550. If multiple rules match, the highest matching "From" value is used.
+                                     </p>
+                                 </div>
+
+                                 <div className="space-y-2">
+                                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Active Rules ({slabs.length})</label>
+                                     <div className="max-h-[220px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                                         {slabs.length > 0 ? slabs.sort((a,b) => a.from - b.from).map((slab, idx) => (
+                                             <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 group hover:border-blue-400 transition-all shadow-sm">
+                                                 <div className="flex items-center gap-4">
+                                                     <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black text-[10px]">{idx + 1}</div>
+                                                     <div className="flex flex-col">
+                                                         <span className="text-[10px] text-gray-400 font-bold uppercase">Price Range</span>
+                                                         <span className="text-xs font-black text-gray-800">Above {slab.from}</span>
+                                                     </div>
+                                                     <div className="w-px h-6 bg-gray-100 mx-2"></div>
+                                                     <div className="flex flex-col">
+                                                         <span className="text-[10px] text-gray-400 font-bold uppercase">Increment</span>
+                                                         <span className="text-xs font-black text-emerald-600">+{slab.increment}</span>
+                                                     </div>
+                                                 </div>
+                                                 <button 
+                                                    type="button" 
+                                                    onClick={() => removeSlab(idx)} 
+                                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                 >
+                                                     <Trash2 className="w-4 h-4"/>
+                                                 </button>
+                                             </div>
+                                         )) : (
+                                             <div className="h-[200px] border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 italic text-xs">
+                                                 <TrendingUp className="w-8 h-8 mb-2 opacity-10" />
+                                                 No custom slab rules defined
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                             </div>
                         </div>
 
                         <div className="pt-6 border-t">
@@ -650,7 +694,6 @@ const AuctionManage: React.FC = () => {
 
                             {activeTab === 'PLAYERS' && (
                                 <div className="space-y-4">
-                                    {/* Inline Role Selection */}
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                                             <User className="w-3 h-3"/> Select Role
@@ -669,7 +712,6 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Inline Category Selection */}
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                                             <Tag className="w-3 h-3"/> Select Category (Set)
