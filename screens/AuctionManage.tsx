@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 
 // Helper for image compression
@@ -87,7 +87,7 @@ const AuctionManage: React.FC = () => {
         bidIncrement: 0,
         playersPerTeam: 0
     });
-    const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]); // New Slabs State
+    const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]);
     const [newSlab, setNewSlab] = useState<{from: string, increment: string}>({from: '', increment: ''});
 
     const [settingsLogo, setSettingsLogo] = useState('');
@@ -95,7 +95,7 @@ const AuctionManage: React.FC = () => {
 
     // Edit/Create States
     const [isEditing, setIsEditing] = useState(false);
-    const [editItem, setEditItem] = useState<any>(null); // Generic holder
+    const [editItem, setEditItem] = useState<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const qrInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -103,6 +103,7 @@ const AuctionManage: React.FC = () => {
 
     // Custom Field Builder State
     const [newField, setNewField] = useState<FormField>({ id: '', label: '', type: 'text', required: false });
+    const [dropdownOptionsInput, setDropdownOptionsInput] = useState('');
 
     // Initial Fetch
     useEffect(() => {
@@ -115,7 +116,6 @@ const AuctionManage: React.FC = () => {
                     setAuction(data);
                     if (data.registrationConfig) setRegConfig(data.registrationConfig);
                     
-                    // Init Settings Form
                     setSettingsForm({
                         title: data.title || '',
                         date: data.date || '',
@@ -153,7 +153,6 @@ const AuctionManage: React.FC = () => {
         fetchAll();
     }, [id]);
 
-    // Fetch Registrations when tab active
     useEffect(() => {
         if (id && activeTab === 'REQUESTS') {
             db.collection('auctions').doc(id).collection('registrations').orderBy('submittedAt', 'desc').get()
@@ -188,36 +187,24 @@ const AuctionManage: React.FC = () => {
         };
         try {
             if (editItem.id) {
-                // Update Existing
                 await db.collection('auctions').doc(id).collection('teams').doc(editItem.id).update(teamData);
                 setTeams(prev => prev.map(t => t.id === editItem.id ? { ...t, ...teamData } : t));
             } else {
-                // Create New - Use Global Counter for T001, T002...
                 const newTeamResult = await db.runTransaction(async (transaction) => {
                     const counterRef = db.collection('appConfig').doc('globalCounters');
                     const counterDoc = await transaction.get(counterRef);
-                    
                     let nextNum = 1;
-                    if (counterDoc.exists) {
-                        nextNum = (counterDoc.data()?.teamCount || 0) + 1;
-                    }
-                    
+                    if (counterDoc.exists) nextNum = (counterDoc.data()?.teamCount || 0) + 1;
                     const newId = `T${String(nextNum).padStart(3, '0')}`;
                     const newTeamRef = db.collection('auctions').doc(id).collection('teams').doc(newId);
-                    
                     transaction.set(counterRef, { teamCount: nextNum }, { merge: true });
                     transaction.set(newTeamRef, { id: newId, ...teamData });
-                    
                     return { id: newId, ...teamData };
                 });
-                
                 setTeams(prev => [...prev, newTeamResult as Team]);
             }
             closeModal();
-        } catch (err: any) { 
-            console.error(err);
-            alert("Error saving team: " + err.message); 
-        }
+        } catch (err: any) { alert("Error saving team: " + err.message); }
     };
 
     const handleSavePlayer = async (e: React.FormEvent) => {
@@ -316,7 +303,7 @@ const AuctionManage: React.FC = () => {
         try {
             await db.collection('auctions').doc(id).update({
                 registrationConfig: regConfig,
-                bannerUrl: regConfig.bannerUrl // Sync banner to root for ease
+                bannerUrl: regConfig.bannerUrl
             });
             alert("Registration settings saved successfully!");
         } catch (e) {
@@ -325,17 +312,16 @@ const AuctionManage: React.FC = () => {
         }
     };
 
-    // --- NEW: Handle Auction Settings Save ---
     const handleSaveSettings = async () => {
         if (!id || !auction) return;
         try {
             const updates = {
                 ...settingsForm,
                 logoUrl: settingsLogo,
-                slabs: slabs // Save slabs as well
+                slabs: slabs
             };
             await db.collection('auctions').doc(id).update(updates);
-            setAuction({ ...auction, ...updates }); // Optimistic update
+            setAuction({ ...auction, ...updates });
             alert("Auction Details Updated!");
         } catch (e: any) {
             console.error(e);
@@ -346,10 +332,9 @@ const AuctionManage: React.FC = () => {
     const handleApproveRequest = async (reg: RegisteredPlayer) => {
         if (!id || !window.confirm(`Approve ${reg.fullName} and add to auction pool?`)) return;
         try {
-            // Create Player Object
             const newPlayer: any = {
                 name: reg.fullName,
-                category: 'Uncapped', // Default to Uncapped, admin can change later
+                category: 'Uncapped',
                 role: reg.playerType || 'All Rounder',
                 basePrice: auction?.basePrice || 0,
                 photoUrl: reg.profilePic || '',
@@ -358,23 +343,13 @@ const AuctionManage: React.FC = () => {
                 stats: { matches: 0, runs: 0, wickets: 0 },
                 speciality: reg.playerType
             };
-
-            // Add to Players Collection
             const playerRef = await db.collection('auctions').doc(id).collection('players').add(newPlayer);
             const playerWithId = { id: playerRef.id, ...newPlayer };
-
-            // Update Registration Status
             await db.collection('auctions').doc(id).collection('registrations').doc(reg.id).update({ status: 'APPROVED' });
-
-            // Update Local State
             setPlayers(prev => [...prev, playerWithId]);
             setRegistrations(prev => prev.map(r => r.id === reg.id ? { ...r, status: 'APPROVED' } : r));
-            
             alert("Player Approved!");
-        } catch (e: any) {
-            console.error(e);
-            alert("Error approving player: " + e.message);
-        }
+        } catch (e: any) { alert("Error approving player: " + e.message); }
     };
 
     const handleRejectRequest = async (regId: string) => {
@@ -382,9 +357,7 @@ const AuctionManage: React.FC = () => {
         try {
             await db.collection('auctions').doc(id).collection('registrations').doc(regId).update({ status: 'REJECTED' });
             setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, status: 'REJECTED' } : r));
-        } catch (e: any) {
-            alert("Error: " + e.message);
-        }
+        } catch (e: any) { alert("Error: " + e.message); }
     };
 
     const handleDeleteRequest = async (regId: string) => {
@@ -392,9 +365,7 @@ const AuctionManage: React.FC = () => {
         try {
             await db.collection('auctions').doc(id).collection('registrations').doc(regId).delete();
             setRegistrations(prev => prev.filter(r => r.id !== regId));
-        } catch (e: any) {
-            alert("Error: " + e.message);
-        }
+        } catch (e: any) { alert("Error: " + e.message); }
     };
 
     const handleDelete = async (collection: string, itemId: string) => {
@@ -434,11 +405,20 @@ const AuctionManage: React.FC = () => {
     const addCustomField = () => {
         if (!newField.label) return alert("Enter Field Label");
         const fieldId = newField.label.toLowerCase().replace(/\s+/g, '_');
+        
+        let processedOptions: string[] | undefined = undefined;
+        if (newField.type === 'select' && dropdownOptionsInput) {
+            processedOptions = dropdownOptionsInput.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
         setRegConfig(prev => ({
             ...prev,
-            customFields: [...prev.customFields, { ...newField, id: fieldId }]
+            customFields: [...prev.customFields, { ...newField, id: fieldId, options: processedOptions }]
         }));
+        
+        // Reset builder
         setNewField({ id: '', label: '', type: 'text', required: false });
+        setDropdownOptionsInput('');
     };
 
     const removeCustomField = (idx: number) => {
@@ -463,9 +443,7 @@ const AuctionManage: React.FC = () => {
     const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase()));
     const filteredRequests = registrations.filter(r => r.fullName.toLowerCase().includes(requestSearch.toLowerCase()));
 
-    const Loading = () => <div className="p-10 text-center text-gray-700">Loading...</div>;
-
-    if (loading) return <Loading />;
+    if (loading) return <div className="p-10 text-center text-gray-700">Loading...</div>;
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans pb-10 text-gray-900">
@@ -497,7 +475,6 @@ const AuctionManage: React.FC = () => {
                         <h2 className="text-lg font-bold mb-6 flex items-center border-b pb-2"><Settings className="w-5 h-5 mr-2"/> Auction Settings</h2>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* General Info */}
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-bold text-gray-600 mb-1">Auction Title</label>
@@ -534,13 +511,11 @@ const AuctionManage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Rules & Budget */}
                             <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
                                 <h3 className="font-bold text-sm text-gray-500 uppercase">Auction Rules</h3>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-600 mb-1">Default Team Purse</label>
                                     <input type="number" className="w-full border rounded p-2" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
-                                    <p className="text-xs text-gray-400 mt-1">Changes here affect new teams or resets only.</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -557,11 +532,10 @@ const AuctionManage: React.FC = () => {
                                     <input type="number" className="w-full border rounded p-2" value={settingsForm.playersPerTeam} onChange={e => setSettingsForm({...settingsForm, playersPerTeam: Number(e.target.value)})} />
                                 </div>
 
-                                {/* SLAB EDITOR */}
                                 <div>
                                     <label className="block text-xs font-bold text-gray-600 mb-2">Global Bid Slabs</label>
                                     <div className="bg-white p-3 rounded border border-gray-300">
-                                         {slabs.length === 0 && <p className="text-xs text-gray-400 italic text-center mb-2">No slabs defined. Using default increment.</p>}
+                                         {slabs.length === 0 && <p className="text-xs text-gray-400 italic text-center mb-2">No slabs defined.</p>}
                                          {slabs.map((slab, idx) => (
                                              <div key={idx} className="flex justify-between items-center text-sm mb-2 bg-gray-50 p-2 rounded">
                                                  <span>From <b>{slab.from}</b>: Increase <b>+{slab.increment}</b></span>
@@ -570,28 +544,14 @@ const AuctionManage: React.FC = () => {
                                                  </button>
                                              </div>
                                          ))}
-                                         
                                          <div className="grid grid-cols-2 gap-2 mt-2">
-                                             <input 
-                                                type="number" 
-                                                placeholder="Price >=" 
-                                                className="border p-2 rounded text-sm w-full" 
-                                                value={newSlab.from} 
-                                                onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
-                                             />
-                                             <input 
-                                                type="number" 
-                                                placeholder="+ Increment" 
-                                                className="border p-2 rounded text-sm w-full" 
-                                                value={newSlab.increment} 
-                                                onChange={e => setNewSlab({...newSlab, increment: e.target.value})} 
-                                             />
+                                             <input type="number" placeholder="Price >=" className="border p-2 rounded text-sm w-full" value={newSlab.from} onChange={e => setNewSlab({...newSlab, from: e.target.value})} />
+                                             <input type="number" placeholder="+ Increment" className="border p-2 rounded text-sm w-full" value={newSlab.increment} onChange={e => setNewSlab({...newSlab, increment: e.target.value})} />
                                          </div>
                                          <button type="button" onClick={addSlab} className="mt-2 w-full py-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-bold rounded hover:bg-green-100 flex items-center justify-center">
                                              <Plus className="w-3 h-3 mr-1"/> Add Rule
                                          </button>
                                     </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">Example: From 20000: Increase +2000</p>
                                 </div>
                             </div>
                         </div>
@@ -638,13 +598,7 @@ const AuctionManage: React.FC = () => {
                             <div className="flex gap-2 w-full md:w-auto">
                                 <div className="relative flex-grow md:flex-grow-0">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search players..." 
-                                        className="w-full md:w-64 border rounded pl-9 pr-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                        value={playerSearch}
-                                        onChange={(e) => setPlayerSearch(e.target.value)}
-                                    />
+                                    <input type="text" placeholder="Search players..." className="w-full md:w-64 border rounded pl-9 pr-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500" value={playerSearch} onChange={(e) => setPlayerSearch(e.target.value)} />
                                 </div>
                                 <button onClick={() => openModal({ name: '', basePrice: auction?.basePrice || 20, category: 'Uncapped', role: 'All Rounder' })} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center"><Plus className="w-4 h-4 mr-1"/> Add Player</button>
                             </div>
@@ -691,13 +645,7 @@ const AuctionManage: React.FC = () => {
                             <h2 className="text-lg font-bold flex items-center gap-2"><Clock className="w-5 h-5"/> Registration Requests ({registrations.length})</h2>
                             <div className="relative w-full md:w-64">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search requests..." 
-                                    className="w-full border rounded pl-9 pr-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                    value={requestSearch}
-                                    onChange={(e) => setRequestSearch(e.target.value)}
-                                />
+                                <input type="text" placeholder="Search requests..." className="w-full border rounded pl-9 pr-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500" value={requestSearch} onChange={(e) => setRequestSearch(e.target.value)} />
                             </div>
                         </div>
                         <div className="overflow-x-auto">
@@ -797,7 +745,7 @@ const AuctionManage: React.FC = () => {
                                          <button onClick={() => handleDelete('roles', String(r.id))} className="text-red-500"><Trash2 className="w-4 h-4"/></button>
                                      </div>
                                  </div>
-                             )) : <p className="text-gray-400 italic text-center p-4">No roles defined. (e.g. Batsman, Bowler)</p>}
+                             )) : <p className="text-gray-400 italic text-center p-4">No roles defined.</p>}
                         </div>
                     </div>
                 )}
@@ -827,9 +775,7 @@ const AuctionManage: React.FC = () => {
                 {/* REGISTRATION TAB */}
                 {activeTab === 'REGISTRATION' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Settings Column */}
                         <div className="lg:col-span-2 space-y-6">
-                            {/* General Settings */}
                             <div className="bg-white rounded shadow p-6">
                                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 flex items-center"><Settings className="w-5 h-5 mr-2"/> General Config</h3>
                                 <div className="space-y-4">
@@ -863,7 +809,6 @@ const AuctionManage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Terms & Images */}
                             <div className="bg-white rounded shadow p-6">
                                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 flex items-center"><FileText className="w-5 h-5 mr-2"/> Content & Terms</h3>
                                 <div className="space-y-4">
@@ -893,16 +838,13 @@ const AuctionManage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Custom Fields Column */}
                         <div className="lg:col-span-1">
                             <div className="bg-white rounded shadow p-6 h-full flex flex-col">
                                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-2 flex items-center"><AlignLeft className="w-5 h-5 mr-2"/> Custom Fields</h3>
-                                
-                                {/* NOTE FOR ADMIN */}
                                 <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
                                     <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                                     <p className="text-[10px] md:text-xs text-blue-800 leading-tight">
-                                        <b>Note:</b> Standard details like <b>Full Name, DOB, Mobile (WhatsApp), Player Type, Gender,</b> and <b>Profile Picture</b> are collected by default. Add only additional required fields here.
+                                        <b>Note:</b> Common fields are collected by default. Add unique tournament requirements here.
                                     </p>
                                 </div>
 
@@ -911,64 +853,73 @@ const AuctionManage: React.FC = () => {
                                         <div key={idx} className="bg-gray-50 p-2 rounded border flex justify-between items-center text-sm">
                                             <div>
                                                 <p className="font-bold">{field.label}</p>
-                                                <p className="text-xs text-gray-500 uppercase">{field.type} {field.required ? '(Required)' : ''}</p>
+                                                <p className="text-xs text-gray-500 uppercase">{field.type} {field.required ? '(Req)' : ''}</p>
+                                                {field.options && <p className="text-[9px] text-blue-500 truncate max-w-[150px]">Opts: {field.options.join(', ')}</p>}
                                             </div>
                                             <button onClick={() => removeCustomField(idx)} className="text-red-500 hover:bg-red-100 p-1 rounded"><Trash2 className="w-4 h-4"/></button>
                                         </div>
                                     ))}
-                                    {regConfig.customFields.length === 0 && <p className="text-gray-400 text-sm italic text-center py-4">No custom fields added.</p>}
+                                    {regConfig.customFields.length === 0 && <p className="text-gray-400 text-sm italic text-center py-4">No custom fields.</p>}
                                 </div>
-                                <div className="bg-gray-100 p-3 rounded border">
-                                    <input type="text" placeholder="Field Label (e.g. Jersey No)" className="w-full border rounded p-1.5 text-sm mb-2" value={newField.label} onChange={e => setNewField({...newField, label: e.target.value})} />
-                                    <div className="flex gap-2 mb-2">
-                                        <select className="flex-1 border rounded p-1.5 text-sm" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value as any})}>
+                                <div className="bg-gray-100 p-3 rounded border space-y-2">
+                                    <input type="text" placeholder="Field Label (e.g. Jersey No)" className="w-full border rounded p-1.5 text-sm" value={newField.label} onChange={e => setNewField({...newField, label: e.target.value})} />
+                                    <div className="flex gap-2">
+                                        <select className="flex-1 border rounded p-1.5 text-sm bg-white" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value as any})}>
                                             <option value="text">Text</option>
                                             <option value="number">Number</option>
                                             <option value="date">Date</option>
                                             <option value="file">File Upload</option>
                                             <option value="select">Dropdown</option>
                                         </select>
-                                        {newField.type === 'select' && <span className="text-xs text-red-500 flex items-center" title="Options managed in code for now">*</span>}
                                     </div>
-                                    <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
-                                        <input type="checkbox" checked={newField.required} onChange={e => setNewField({...newField, required: e.target.checked})} /> Required
+
+                                    {newField.type === 'select' && (
+                                        <div className="animate-fade-in space-y-1">
+                                            <label className="block text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
+                                                <ListPlus className="w-3 h-3"/> Dropdown Options
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Option 1, Option 2, Option 3..." 
+                                                className="w-full border rounded p-1.5 text-sm bg-blue-50 focus:bg-white transition-colors"
+                                                value={dropdownOptionsInput}
+                                                onChange={e => setDropdownOptionsInput(e.target.value)}
+                                            />
+                                            <p className="text-[9px] text-gray-500 italic">Separate choices with commas.</p>
+                                        </div>
+                                    )}
+
+                                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                                        <input type="checkbox" checked={newField.required} onChange={e => setNewField({...newField, required: e.target.checked})} className="w-4 h-4 accent-blue-600" /> Required
                                     </label>
-                                    <button onClick={addCustomField} className="w-full bg-blue-600 text-white text-xs font-bold py-2 rounded">Add Field</button>
+                                    <button onClick={addCustomField} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded shadow-sm transition-all active:scale-95">Add Field</button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Save Button */}
                         <div className="lg:col-span-3">
-                            <button onClick={handleSaveRegistrationConfig} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded shadow-lg flex items-center justify-center text-lg">
+                            <button onClick={handleSaveRegistrationConfig} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded shadow-lg flex items-center justify-center text-lg transition-all active:scale-[0.99]">
                                 <Save className="w-6 h-6 mr-2" /> Save Configuration
                             </button>
                         </div>
                     </div>
                 )}
-
             </main>
 
-            {/* MODALS */}
             {isEditing && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900">
                                 {editItem.id ? 'Edit' : 'Add'} {activeTab === 'ROLES' ? 'Role' : activeTab.slice(0, -1)}
                             </h3>
                             <button onClick={closeModal}><X className="w-5 h-5 text-gray-500"/></button>
                         </div>
-                        
                         <form onSubmit={activeTab === 'TEAMS' ? handleSaveTeam : activeTab === 'PLAYERS' ? handleSavePlayer : activeTab === 'CATEGORIES' ? handleSaveCategory : activeTab === 'SPONSORS' ? handleSaveSponsor : handleSaveRole} className="space-y-4">
-                            
-                            {/* COMMON NAME FIELD */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1">Name</label>
                                 <input required type="text" className="w-full border rounded p-2 text-gray-900" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} />
                             </div>
-
-                            {/* IMAGE UPLOAD (Teams, Players, Sponsors) */}
                             {(activeTab === 'TEAMS' || activeTab === 'PLAYERS' || activeTab === 'SPONSORS') && (
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">Image</label>
@@ -978,8 +929,6 @@ const AuctionManage: React.FC = () => {
                                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
                                 </div>
                             )}
-
-                            {/* TEAMS SPECIFIC */}
                             {activeTab === 'TEAMS' && (
                                 <>
                                     <div>
@@ -992,14 +941,12 @@ const AuctionManage: React.FC = () => {
                                     </div>
                                 </>
                             )}
-
-                            {/* PLAYERS SPECIFIC */}
                             {activeTab === 'PLAYERS' && (
                                 <>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 mb-1">Role</label>
-                                            <select className="w-full border rounded p-2 text-gray-900" value={editItem.role} onChange={e => setEditItem({...editItem, role: e.target.value})}>
+                                            <select className="w-full border rounded p-2 text-gray-900 bg-white" value={editItem.role} onChange={e => setEditItem({...editItem, role: e.target.value})}>
                                                 <option value="Batsman">Batsman</option>
                                                 <option value="Bowler">Bowler</option>
                                                 <option value="All Rounder">All Rounder</option>
@@ -1009,7 +956,7 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 mb-1">Category</label>
-                                            <select className="w-full border rounded p-2 text-gray-900" value={editItem.category} onChange={e => setEditItem({...editItem, category: e.target.value})}>
+                                            <select className="w-full border rounded p-2 text-gray-900 bg-white" value={editItem.category} onChange={e => setEditItem({...editItem, category: e.target.value})}>
                                                 <option value="Uncapped">Uncapped</option>
                                                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                             </select>
@@ -1021,36 +968,29 @@ const AuctionManage: React.FC = () => {
                                     </div>
                                 </>
                             )}
-
-                            {/* CATEGORIES SPECIFIC */}
                             {activeTab === 'CATEGORIES' && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Base Price</label>
-                                            <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Max Per Team</label>
-                                            <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Bid Increment</label>
-                                            <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.bidIncrement} onChange={e => setEditItem({...editItem, bidIncrement: e.target.value})} />
-                                        </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Base Price</label>
+                                        <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: e.target.value})} />
                                     </div>
-                                </>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Max Per Team</label>
+                                        <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Bid Increment</label>
+                                        <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.bidIncrement} onChange={e => setEditItem({...editItem, bidIncrement: e.target.value})} />
+                                    </div>
+                                </div>
                             )}
-
-                            {/* ROLES SPECIFIC */}
                             {activeTab === 'ROLES' && (
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">Default Base Price (Optional)</label>
                                     <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.basePrice || 0} onChange={e => setEditItem({...editItem, basePrice: e.target.value})} placeholder="0" />
                                 </div>
                             )}
-
-                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 shadow">Save</button>
+                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 shadow shadow-blue-200 transition-all">Save</button>
                         </form>
                     </div>
                 </div>
