@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, Filter, ChevronUp, FileSpreadsheet } from 'lucide-react';
 import firebase from 'firebase/compat/app';
+import * as XLSX from 'xlsx';
 
 // Helper for image compression
 const compressImage = (file: File): Promise<string> => {
@@ -74,6 +75,12 @@ const AuctionManage: React.FC = () => {
     // Search States
     const [playerSearch, setPlayerSearch] = useState('');
     const [requestSearch, setRequestSearch] = useState('');
+
+    // Export UI States
+    const [showPlayerExport, setShowPlayerExport] = useState(false);
+    const [playerExportFilters, setPlayerExportFilters] = useState({ categories: [] as string[], roles: [] as string[] });
+    const [showRequestExport, setShowRequestExport] = useState(false);
+    const [requestExportFilters, setRequestExportFilters] = useState({ statuses: ['APPROVED', 'PENDING', 'REJECTED'] as string[], fields: [] as string[] });
 
     // Registration State
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
@@ -155,6 +162,15 @@ const AuctionManage: React.FC = () => {
             return () => unsub();
         }
     }, [id, activeTab]);
+
+    // Initial fields setup for request export
+    useEffect(() => {
+        if (activeTab === 'REQUESTS' && regConfig) {
+            const baseFields = ['Full Name', 'Mobile', 'Player Type', 'Gender', 'DOB', 'Status', 'Submitted At'];
+            const customFields = regConfig.customFields.map(f => f.label);
+            setRequestExportFilters(prev => ({ ...prev, fields: [...baseFields, ...customFields] }));
+        }
+    }, [activeTab, regConfig]);
 
     const addSlab = () => {
         const fromVal = Number(newSlab.from);
@@ -418,6 +434,96 @@ const AuctionManage: React.FC = () => {
         setPreviewImage('');
     };
 
+    // --- EXPORT LOGIC ---
+    
+    const exportPlayersExcel = () => {
+        let filtered = players;
+        if (playerExportFilters.categories.length > 0) {
+            filtered = filtered.filter(p => playerExportFilters.categories.includes(p.category));
+        }
+        if (playerExportFilters.roles.length > 0) {
+            filtered = filtered.filter(p => playerExportFilters.roles.includes(p.role));
+        }
+
+        const data = filtered.map(p => ({
+            'Name': p.name,
+            'Category (Set)': p.category,
+            'Role (Skill)': p.role,
+            'Base Price': p.basePrice,
+            'Nationality': p.nationality,
+            'Status': p.status || 'AVAILABLE',
+            'Sold To': p.soldTo || '-',
+            'Sold Price': p.soldPrice || 0,
+            'Matches': p.stats?.matches || 0,
+            'Runs': p.stats?.runs || 0,
+            'Wickets': p.stats?.wickets || 0
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Players Pool");
+        XLSX.writeFile(wb, `${auction?.title}_Players_Pool.xlsx`);
+    };
+
+    const exportRequestsExcel = () => {
+        let filtered = registrations.filter(r => requestExportFilters.statuses.includes(r.status));
+        
+        const data = filtered.map(r => {
+            const row: any = {};
+            if (requestExportFilters.fields.includes('Full Name')) row['Full Name'] = r.fullName;
+            if (requestExportFilters.fields.includes('Mobile')) row['Mobile'] = r.mobile;
+            if (requestExportFilters.fields.includes('Player Type')) row['Player Type'] = r.playerType;
+            if (requestExportFilters.fields.includes('Gender')) row['Gender'] = r.gender;
+            if (requestExportFilters.fields.includes('DOB')) row['DOB'] = r.dob;
+            if (requestExportFilters.fields.includes('Status')) row['Status'] = r.status;
+            if (requestExportFilters.fields.includes('Submitted At')) row['Submitted At'] = new Date(r.submittedAt).toLocaleString();
+            
+            // Map custom fields
+            regConfig.customFields.forEach(f => {
+                if (requestExportFilters.fields.includes(f.label)) {
+                    row[f.label] = r[f.id] || '-';
+                }
+            });
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Registration Requests");
+        XLSX.writeFile(wb, `${auction?.title}_Registrations.xlsx`);
+    };
+
+    const togglePlayerExportFilter = (type: 'categories' | 'roles', value: string) => {
+        setPlayerExportFilters(prev => {
+            const current = (prev as any)[type] as string[];
+            if (current.includes(value)) {
+                return { ...prev, [type]: current.filter(v => v !== value) };
+            } else {
+                return { ...prev, [type]: [...current, value] };
+            }
+        });
+    };
+
+    const toggleRequestExportStatus = (status: string) => {
+        setRequestExportFilters(prev => {
+            if (prev.statuses.includes(status)) {
+                return { ...prev, statuses: prev.statuses.filter(s => s !== status) };
+            } else {
+                return { ...prev, statuses: [...prev.statuses, status] };
+            }
+        });
+    };
+
+    const toggleRequestExportField = (field: string) => {
+        setRequestExportFilters(prev => {
+            if (prev.fields.includes(field)) {
+                return { ...prev, fields: prev.fields.filter(f => f !== field) };
+            } else {
+                return { ...prev, fields: [...prev.fields, field] };
+            }
+        });
+    };
+
     const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase()));
     const filteredRequests = registrations.filter(r => r.fullName.toLowerCase().includes(requestSearch.toLowerCase()));
 
@@ -642,10 +748,69 @@ const AuctionManage: React.FC = () => {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <input type="text" className="w-full border rounded-full pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search players..." value={playerSearch} onChange={e => setPlayerSearch(e.target.value)} />
                             </div>
-                            <button onClick={() => openModal('PLAYERS', { name: '', category: categoriesList[0], role: rolesList[0], basePrice: auction?.basePrice || 20, photoUrl: '', nationality: 'India' })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow">
-                                <Plus className="w-5 h-5"/> Add Player
-                            </button>
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={() => setShowPlayerExport(!showPlayerExport)} 
+                                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow border ${showPlayerExport ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                >
+                                    <Download className="w-5 h-5"/> Export Excel
+                                </button>
+                                <button onClick={() => openModal('PLAYERS', { name: '', category: categoriesList[0], role: rolesList[0], basePrice: auction?.basePrice || 20, photoUrl: '', nationality: 'India' })} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow">
+                                    <Plus className="w-5 h-5"/> Add Player
+                                </button>
+                            </div>
                         </div>
+
+                        {showPlayerExport && (
+                            <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-200 mb-6 animate-slide-up">
+                                <div className="flex justify-between items-start mb-4">
+                                    <h3 className="text-sm font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
+                                        <FileSpreadsheet className="w-4 h-4"/> Export Configuration
+                                    </h3>
+                                    <button onClick={() => setShowPlayerExport(false)} className="text-emerald-400 hover:text-emerald-600"><X className="w-5 h-5"/></button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Filter by Set (Category)</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {categoriesList.map(cat => (
+                                                <button 
+                                                    key={cat} 
+                                                    onClick={() => togglePlayerExportFilter('categories', cat)}
+                                                    className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${playerExportFilters.categories.includes(cat) ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm' : 'bg-white border-emerald-200 text-emerald-500'}`}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                            {categoriesList.length === 0 && <span className="text-xs text-gray-400 italic">No categories defined</span>}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Filter by Skill (Role)</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {rolesList.map(role => (
+                                                <button 
+                                                    key={role} 
+                                                    onClick={() => togglePlayerExportFilter('roles', role)}
+                                                    className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${playerExportFilters.roles.includes(role) ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm' : 'bg-white border-emerald-200 text-emerald-500'}`}
+                                                >
+                                                    {role}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-6 pt-4 border-t border-emerald-100 flex justify-end">
+                                    <button 
+                                        onClick={exportPlayersExcel}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-8 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4"/> Generate Excel Sheet
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {filteredPlayers.map(p => (
                                 <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
@@ -928,11 +1093,74 @@ const AuctionManage: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                             <h2 className="text-xl font-bold text-gray-800">Registration Requests ({registrations.length})</h2>
-                            <div className="relative w-full md:w-80">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input type="text" className="w-full border rounded-full pl-10 pr-4 py-2 text-sm" placeholder="Search requests..." value={requestSearch} onChange={e => setRequestSearch(e.target.value)} />
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={() => setShowRequestExport(!showRequestExport)} 
+                                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow border ${showRequestExport ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                >
+                                    <Download className="w-5 h-5"/> Bulk Export
+                                </button>
+                                <div className="relative flex-grow md:w-80">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input type="text" className="w-full border rounded-full pl-10 pr-4 py-2 text-sm" placeholder="Search requests..." value={requestSearch} onChange={e => setRequestSearch(e.target.value)} />
+                                </div>
                             </div>
                         </div>
+
+                        {showRequestExport && (
+                            <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-200 mb-6 animate-slide-up">
+                                <div className="flex justify-between items-start mb-4">
+                                    <h3 className="text-sm font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
+                                        <FileSpreadsheet className="w-4 h-4"/> Registration Export Protocol
+                                    </h3>
+                                    <button onClick={() => setShowRequestExport(false)} className="text-emerald-400 hover:text-emerald-600"><X className="w-5 h-5"/></button>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-3">1. Select Status Categories</p>
+                                        <div className="flex gap-3">
+                                            {['APPROVED', 'PENDING', 'REJECTED'].map(status => (
+                                                <button 
+                                                    key={status} 
+                                                    onClick={() => toggleRequestExportStatus(status)}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all border ${requestExportFilters.statuses.includes(status) ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-emerald-100 text-emerald-400'}`}
+                                                >
+                                                    {status}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase mb-3">2. Select Data Fields to Include</p>
+                                        <div className="bg-white/50 border border-emerald-100 rounded-2xl p-4">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {['Full Name', 'Mobile', 'Player Type', 'Gender', 'DOB', 'Status', 'Submitted At', ...regConfig.customFields.map(f => f.label)].map(field => (
+                                                    <button 
+                                                        key={field} 
+                                                        onClick={() => toggleRequestExportField(field)}
+                                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all border ${requestExportFilters.fields.includes(field) ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-gray-100 text-gray-400'}`}
+                                                    >
+                                                        {requestExportFilters.fields.includes(field) ? <CheckSquare className="w-3 h-3"/> : <Square className="w-3 h-3"/>}
+                                                        {field}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-4 border-t border-emerald-100 flex justify-end">
+                                    <button 
+                                        onClick={exportRequestsExcel}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-10 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Download className="w-5 h-5"/> Download Excel Sheet
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                             <table className="w-full text-left">
