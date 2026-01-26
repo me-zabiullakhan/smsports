@@ -301,14 +301,17 @@ const AuctionManage: React.FC = () => {
     const handleSaveRegistrationConfig = async () => {
         if (!id) return;
         try {
+            // Create a sanitized object to avoid 'undefined' field errors in Firestore
+            const sanitizedConfig = JSON.parse(JSON.stringify(regConfig));
+            
             await db.collection('auctions').doc(id).update({
-                registrationConfig: regConfig,
-                bannerUrl: regConfig.bannerUrl
+                registrationConfig: sanitizedConfig,
+                bannerUrl: sanitizedConfig.bannerUrl || ''
             });
             alert("Registration settings saved successfully!");
-        } catch (e) {
-            console.error(e);
-            alert("Failed to save settings");
+        } catch (e: any) {
+            console.error("Save Registration Config Error:", e);
+            alert("Failed to save settings: " + (e.message || "Unknown error"));
         }
     };
 
@@ -976,7 +979,7 @@ const AuctionManage: React.FC = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">Max Per Team</label>
-                                        <input type="number" className="w-full border rounded p-2 text-gray-900" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
+                                        <input type="number" className="w-full border rounded p-2" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: e.target.value})} />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1">Bid Increment</label>
