@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter, CreditCard as CardIcon, Key, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter, Key, ExternalLink, LayoutList, ToggleRight, ToggleLeft } from 'lucide-react';
 import firebase from 'firebase/compat/app';
-import * as XLSX from 'xlsx';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -42,14 +40,14 @@ const DEFAULT_REG_CONFIG: RegistrationConfig = {
     upiId: '',
     upiName: '',
     qrCodeUrl: '',
-    terms: '1. Registration fee is non-refundable.\n2. Players must report 30 mins before match.\n3. Umpire decision is final.',
+    terms: '1. Registration fee is non-refundable.\n2. Players must reporting 30 mins before match.',
     customFields: []
 };
 
 const AuctionManage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'ROLES' | 'REGISTRATION'>('SETTINGS');
+    const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'ROLES' | 'SPONSORS' | 'REGISTRATION'>('SETTINGS');
     const [loading, setLoading] = useState(true);
     const [auction, setAuction] = useState<AuctionSetup | null>(null);
 
@@ -57,10 +55,9 @@ const AuctionManage: React.FC = () => {
     const [players, setPlayers] = useState<Player[]>([]);
     const [categories, setCategories] = useState<AuctionCategory[]>([]);
     const [roles, setRoles] = useState<PlayerRole[]>([]);
+    const [sponsors, setSponsors] = useState<Sponsor[]>([]);
     const [registrations, setRegistrations] = useState<RegisteredPlayer[]>([]);
     
-    const [playerSearch, setPlayerSearch] = useState('');
-    const [requestSearch, setRequestSearch] = useState('');
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
 
     const [settingsForm, setSettingsForm] = useState({
@@ -71,12 +68,8 @@ const AuctionManage: React.FC = () => {
     const [settingsLogo, setSettingsLogo] = useState('');
     const settingsLogoRef = useRef<HTMLInputElement>(null);
 
-    // --- INLINE EDITING STATES ---
-    const [isAddingTeam, setIsAddingTeam] = useState(false);
-    const [isAddingPlayer, setIsAddingPlayer] = useState(false);
-    const [isAddingRole, setIsAddingRole] = useState(false);
-    
     const [editItem, setEditItem] = useState<any>(null);
+    const [isAdding, setIsAdding] = useState(false);
     const [previewImage, setPreviewImage] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -96,550 +89,439 @@ const AuctionManage: React.FC = () => {
                     setSettingsLogo(data.logoUrl || '');
                     if (data.slabs) setSlabs(data.slabs);
                 }
-                const teamsSnap = await db.collection('auctions').doc(id).collection('teams').get();
-                setTeams(teamsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
-                const playersSnap = await db.collection('auctions').doc(id).collection('players').get();
-                setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
-                const catSnap = await db.collection('auctions').doc(id).collection('categories').get();
-                setCategories(catSnap.docs.map(d => ({ id: d.id, ...d.data() } as AuctionCategory)));
-                const roleSnap = await db.collection('auctions').doc(id).collection('roles').get();
-                setRoles(roleSnap.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRole)));
+                
+                // Real-time listeners for all sub-collections
+                const unsubTeams = db.collection('auctions').doc(id).collection('teams').onSnapshot(s => setTeams(s.docs.map(d => ({id: d.id, ...d.data()}) as Team)));
+                const unsubPlayers = db.collection('auctions').doc(id).collection('players').onSnapshot(s => setPlayers(s.docs.map(d => ({id: d.id, ...d.data()}) as Player)));
+                const unsubCats = db.collection('auctions').doc(id).collection('categories').onSnapshot(s => setCategories(s.docs.map(d => ({id: d.id, ...d.data()}) as AuctionCategory)));
+                const unsubRoles = db.collection('auctions').doc(id).collection('roles').onSnapshot(s => setRoles(s.docs.map(d => ({id: d.id, ...d.data()}) as PlayerRole)));
+                const unsubSponsors = db.collection('auctions').doc(id).collection('sponsors').onSnapshot(s => setSponsors(s.docs.map(d => ({id: d.id, ...d.data()}) as Sponsor)));
+
                 setLoading(false);
             } catch (e) { console.error(e); setLoading(false); }
         };
         fetchAll();
     }, [id]);
 
-    useEffect(() => {
-        if (id && activeTab === 'REQUESTS') {
-            const unsub = db.collection('auctions').doc(id).collection('registrations').orderBy('submittedAt', 'desc').onSnapshot(snap => {
-                setRegistrations(snap.docs.map(d => ({ id: d.id, ...d.data() } as RegisteredPlayer)));
-            });
-            return () => unsub();
-        }
-    }, [id, activeTab]);
-
-    // Added missing handler for settings logo change
-    const handleSettingsLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const base64 = await compressImage(e.target.files[0]);
-            setSettingsLogo(base64);
-        }
-    };
-
-    const handleSaveTeam = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!id) return;
-        const teamData = { name: editItem.name, budget: Number(editItem.budget), logoUrl: previewImage || editItem.logoUrl || '', players: editItem.players || [], password: editItem.password || '' };
-        try {
-            if (editItem.id) {
-                await db.collection('auctions').doc(id).collection('teams').doc(editItem.id).update(teamData);
-                setTeams(prev => prev.map(t => t.id === editItem.id ? { ...t, ...teamData } : t));
-            } else {
-                const newTeamResult = await db.runTransaction(async (transaction) => {
-                    const counterRef = db.collection('appConfig').doc('globalCounters');
-                    const counterDoc = await transaction.get(counterRef);
-                    let nextNum = (counterDoc.data()?.teamCount || 0) + 1;
-                    const newId = `T${String(nextNum).padStart(3, '0')}`;
-                    const newTeamRef = db.collection('auctions').doc(id).collection('teams').doc(newId);
-                    transaction.set(counterRef, { teamCount: nextNum }, { merge: true });
-                    transaction.set(newTeamRef, { id: newId, ...teamData });
-                    return { id: newId, ...teamData };
-                });
-                setTeams(prev => [...prev, newTeamResult as Team]);
-            }
-            setIsAddingTeam(false);
-            setEditItem(null);
-        } catch (err: any) { alert("Error saving team: " + err.message); }
-    };
-
-    const handleSavePlayer = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!id) return;
-        const playerData = { 
-            name: editItem.name, 
-            category: editItem.category || (categoriesList[0] || 'Uncapped'), 
-            role: editItem.role || (rolesList[0] || 'All Rounder'), 
-            basePrice: Number(editItem.basePrice), 
-            photoUrl: previewImage || editItem.photoUrl || '', 
-            nationality: editItem.nationality || 'India', 
-            status: editItem.status || 'UNSOLD', 
-            stats: editItem.stats || { matches: 0, runs: 0, wickets: 0 } 
-        };
-        try {
-            if (editItem.id) {
-                await db.collection('auctions').doc(id).collection('players').doc(String(editItem.id)).update(playerData);
-                setPlayers(prev => prev.map(p => p.id === editItem.id ? { ...p, ...playerData } : p));
-            } else {
-                const newRef = db.collection('auctions').doc(id).collection('players').doc();
-                await newRef.set({ id: newRef.id, ...playerData });
-                setPlayers(prev => [...prev, { id: newRef.id, ...playerData } as Player]);
-            }
-            setIsAddingPlayer(false);
-            setEditItem(null);
-        } catch (err) { alert("Error saving player"); }
-    };
-
-    const handleSaveRole = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!id) return;
-        const roleData = { name: editItem.name, basePrice: Number(editItem.basePrice) };
-        try {
-            if (editItem.id) {
-                await db.collection('auctions').doc(id).collection('roles').doc(editItem.id).update(roleData);
-                setRoles(prev => prev.map(r => r.id === editItem.id ? { ...r, ...roleData } : r));
-            } else {
-                const newRef = db.collection('auctions').doc(id).collection('roles').doc();
-                await newRef.set({ id: newRef.id, ...roleData });
-                setRoles(prev => [...prev, { id: newRef.id, ...roleData } as PlayerRole]);
-            }
-            setIsAddingRole(false);
-            setEditItem(null);
-        } catch (err) { alert("Error saving role"); }
-    };
-
     const handleSaveSettings = async () => {
         if (!id || !auction) return;
         try {
-            const updates = { ...settingsForm, logoUrl: settingsLogo, slabs: slabs, totalTeams: Number(settingsForm.totalTeams) };
+            const updates = { ...settingsForm, logoUrl: settingsLogo, slabs: slabs };
             await db.collection('auctions').doc(id).update(updates);
-            setAuction({ ...auction, ...updates });
-            alert("Updated!");
+            alert("Configuration Updated!");
         } catch (e: any) { alert("Failed: " + e.message); }
     };
 
-    const handleSaveRegConfig = async () => {
-        if (!id) return;
-        try {
-            await db.collection('auctions').doc(id).update({ registrationConfig: regConfig });
-            alert("Settings Saved!");
-        } catch (e: any) { alert("Failed: " + e.message); }
-    };
-
-    const copyRegLink = () => {
-        if (!id) return;
-        const baseUrl = window.location.href.split('#')[0];
-        const url = `${baseUrl}#/auction/${id}/register`;
-        navigator.clipboard.writeText(url);
-        alert("✅ Copied!");
-    };
-
-    const handleDelete = async (collection: string, itemId: string) => {
-        if (!window.confirm("Confirm?")) return;
-        if (!id) return;
-        try {
-            await db.collection('auctions').doc(id).collection(collection).doc(String(itemId)).delete();
-            if (collection === 'teams') setTeams(prev => prev.filter(t => t.id !== itemId));
-            if (collection === 'players') setPlayers(prev => prev.filter(p => p.id !== itemId));
-            if (collection === 'roles') setRoles(prev => prev.filter(r => r.id !== itemId));
-            if (collection === 'registrations') setRegistrations(prev => prev.filter(r => r.id !== itemId));
-        } catch (e) { alert("Failed"); }
-    };
-
-    const handleUpdateRegStatus = async (requestId: string, approve: boolean) => {
-        if (!id) return;
-        try {
-            if (!approve) { await handleDelete('registrations', requestId); return; }
-            const regDoc = await db.collection('auctions').doc(id).collection('registrations').doc(requestId).get();
-            if (!regDoc.exists) return;
-            const regData = regDoc.data() as RegisteredPlayer;
-            const existing = players.find(p => (p as any).mobile === regData.mobile);
-            if (!existing) {
-                const newPlayer: Omit<Player, 'id'> = {
-                    name: regData.fullName, photoUrl: regData.profilePic, category: categories[0]?.name || 'Uncapped',
-                    role: regData.playerType, basePrice: auction?.basePrice || 20, nationality: 'India', speciality: regData.playerType,
-                    status: 'UNSOLD', stats: { matches: 0, runs: 0, wickets: 0 }, ...({ mobile: regData.mobile, regId: requestId } as any)
-                };
-                const newRef = db.collection('auctions').doc(id).collection('players').doc();
-                await newRef.set({ id: newRef.id, ...newPlayer });
-                setPlayers(prev => [...prev, { id: newRef.id, ...newPlayer } as Player]);
-                await db.collection('auctions').doc(id).collection('registrations').doc(requestId).delete();
-                setRegistrations(prev => prev.filter(r => r.id !== requestId));
-            }
-        } catch (e: any) { alert("Failed: " + e.message); }
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) { setPreviewImage(await compressImage(e.target.files[0])); }
-    };
-
-    const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const base64 = await compressImage(e.target.files[0]);
-            setRegConfig({ ...regConfig, qrCodeUrl: base64 });
+    const handleAddSlab = () => {
+        const from = Number(newSlab.from);
+        const inc = Number(newSlab.increment);
+        if (from >= 0 && inc > 0) {
+            setSlabs([...slabs, { from, increment: inc }]);
+            setNewSlab({ from: '', increment: '' });
         }
     };
 
-    const rolesList = roles.length > 0 ? roles.map(r => r.name) : ['Batsman', 'Bowler', 'All Rounder'];
-    const categoriesList = categories.length > 0 ? categories.map(c => c.name) : ['Uncapped'];
+    const handleSaveCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!id) return;
+        const catData = { 
+            name: editItem.name, 
+            basePrice: Number(editItem.basePrice), 
+            maxPerTeam: Number(editItem.maxPerTeam), 
+            bidIncrement: Number(editItem.bidIncrement),
+            slabs: [] 
+        };
+        try {
+            if (editItem.id) {
+                await db.collection('auctions').doc(id).collection('categories').doc(editItem.id).update(catData);
+            } else {
+                await db.collection('auctions').doc(id).collection('categories').add(catData);
+            }
+            setIsAdding(false); setEditItem(null);
+        } catch (e) { alert("Error saving category"); }
+    };
 
-    const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase()));
-    const filteredRequests = registrations.filter(r => r.fullName.toLowerCase().includes(requestSearch.toLowerCase()));
+    const handleSaveRegistration = async () => {
+        if (!id) return;
+        try {
+            await db.collection('auctions').doc(id).update({ registrationConfig: regConfig });
+            alert("Registration Protocol Deployed!");
+        } catch (e: any) { alert("Failed to deploy: " + e.message); }
+    };
 
-    if (loading) return <div className="p-10 text-center text-gray-700">Loading Management...</div>;
+    const addCustomField = () => {
+        const newField: FormField = {
+            id: Date.now().toString(),
+            label: '',
+            type: 'text',
+            required: true,
+            options: []
+        };
+        setRegConfig({ ...regConfig, customFields: [...regConfig.customFields, newField] });
+    };
 
-    const InlineFormHeader = ({ title, onClose }: { title: string, onClose: () => void }) => (
-        <div className="flex justify-between items-center mb-4 pb-2 border-b">
-            <h3 className="font-bold text-gray-800 uppercase text-xs tracking-widest">{title}</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-red-500"><XCircle className="w-5 h-5"/></button>
-        </div>
-    );
+    const removeCustomField = (fid: string) => {
+        setRegConfig({ ...regConfig, customFields: regConfig.customFields.filter(f => f.id !== fid) });
+    };
+
+    const updateField = (fid: string, key: keyof FormField, value: any) => {
+        setRegConfig({
+            ...regConfig,
+            customFields: regConfig.customFields.map(f => f.id === fid ? { ...f, [key]: value } : f)
+        });
+    };
+
+    const handleDelete = async (coll: string, itemId: string) => {
+        if (!window.confirm("Confirm deletion?")) return;
+        try {
+            await db.collection('auctions').doc(id!).collection(coll).doc(itemId).delete();
+        } catch (e) { alert("Delete failed"); }
+    };
+
+    if (loading) return <div className="p-10 text-center text-gray-500 font-bold uppercase tracking-widest animate-pulse">Accessing Core...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans pb-10 text-gray-900">
-            <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-                <div className="container mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-800"><ArrowLeft className="w-5 h-5"/></button>
-                        <h1 className="text-lg font-bold text-gray-700 truncate">{auction?.title}</h1>
-                    </div>
-                    <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto w-full md:w-auto custom-scrollbar">
-                        {['SETTINGS', 'TEAMS', 'PLAYERS', 'REQUESTS', 'ROLES', 'REGISTRATION'].map((tab) => (
-                            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-3 py-1 text-xs font-bold rounded whitespace-nowrap transition-all ${activeTab === tab ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab}</button>
-                        ))}
+        <div className="min-h-screen bg-[#f8f9fa] font-sans pb-20 text-gray-900">
+            {/* Header */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+                <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => navigate('/admin')} className="text-gray-400 hover:text-gray-800 transition-colors">
+                            <ArrowLeft className="w-5 h-5"/>
+                        </button>
+                        <h1 className="text-sm font-black uppercase tracking-widest text-gray-700">{auction?.title}</h1>
+                        <div className="hidden md:flex gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                            {['SETTINGS', 'TEAMS', 'PLAYERS', 'REQUESTS', 'CATEGORIES', 'ROLES', 'SPONSORS', 'REGISTRATION'].map(tab => (
+                                <button 
+                                    key={tab} 
+                                    onClick={() => setActiveTab(tab as any)}
+                                    className={`px-3 py-1 text-[10px] font-black uppercase transition-all rounded-md ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </header>
 
             <main className="container mx-auto px-4 py-8 max-w-5xl">
                 
+                {/* SETTINGS TAB */}
                 {activeTab === 'SETTINGS' && (
-                    <div className="bg-white rounded-xl shadow p-6 border border-gray-200 space-y-8 animate-fade-in">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Title</label>
-                                    <input className="w-full border rounded-lg p-2.5" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Purse</label>
-                                        <input type="number" className="w-full border rounded-lg p-2.5" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Teams</label>
-                                        <input type="number" className="w-full border rounded-lg p-2.5" value={settingsForm.totalTeams} onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})} />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Logo</label>
-                                <div className="w-24 h-24 rounded-2xl bg-gray-50 border border-dashed flex items-center justify-center relative group overflow-hidden">
-                                    {settingsLogo ? <img src={settingsLogo} className="w-full h-full object-contain" /> : <ImageIcon className="text-gray-300" />}
-                                    <button onClick={() => settingsLogoRef.current?.click()} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Upload className="text-white w-5 h-5"/></button>
-                                </div>
-                                <input ref={settingsLogoRef} type="file" className="hidden" accept="image/*" onChange={e => handleSettingsLogoChange(e)} />
-                            </div>
-                        </div>
-                        <button onClick={handleSaveSettings} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">Save Global Config</button>
-                    </div>
-                )}
-
-                {activeTab === 'TEAMS' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">Teams ({teams.length})</h2>
-                            {!isAddingTeam && (
-                                <button onClick={() => { setEditItem({ name: '', budget: auction?.purseValue || 10000, password: '' }); setPreviewImage(''); setIsAddingTeam(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Plus className="w-5 h-5"/> New Team</button>
-                            )}
-                        </div>
-
-                        {isAddingTeam && (
-                            <div className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl animate-slide-up">
-                                <InlineFormHeader title={editItem.id ? "Edit Team" : "Add Team Profile"} onClose={() => { setIsAddingTeam(false); setEditItem(null); }} />
-                                <form onSubmit={handleSaveTeam} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                                    <div className="flex flex-col items-center">
-                                        <div onClick={() => fileInputRef.current?.click()} className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center overflow-hidden relative cursor-pointer">
-                                            {previewImage ? <img src={previewImage} className="w-full h-full object-cover" /> : <Upload className="text-gray-300"/>}
-                                        </div>
-                                        <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                                    </div>
-                                    <div className="col-span-1 md:col-span-2 grid grid-cols-1 gap-4">
-                                        <input placeholder="Team Name" className="w-full border rounded-xl p-3" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} required />
-                                        <div className="flex gap-4">
-                                            <input type="number" placeholder="Budget" className="w-full border rounded-xl p-3" value={editItem.budget} onChange={e => setEditItem({...editItem, budget: Number(e.target.value)})} required />
-                                            <input placeholder="Password" title="Optional login code" className="w-full border rounded-xl p-3" value={editItem.password} onChange={e => setEditItem({...editItem, password: e.target.value})} />
-                                        </div>
-                                    </div>
-                                    <button type="submit" className="bg-green-600 text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-xs">Authorize Team</button>
-                                </form>
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-blue-500" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-gray-700">Auction Configuration</h2>
                             </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {teams.map(team => (
-                                <div key={team.id} className="bg-white p-4 rounded-2xl shadow-sm border flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <img src={team.logoUrl} className="w-12 h-12 rounded-full border p-1" />
-                                        <div><h3 className="font-bold text-gray-800 leading-none">{team.name}</h3><p className="text-[10px] text-gray-400 font-mono mt-1">{team.id}</p></div>
+                            <div className="p-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Auction Title</label>
+                                            <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold focus:border-blue-500 focus:bg-white outline-none transition-all" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Sport</label>
+                                            <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                                {['Cricket', 'Football', 'Kabaddi'].map(s => (
+                                                    <button 
+                                                        key={s} 
+                                                        onClick={() => setSettingsForm({...settingsForm, sport: s})}
+                                                        className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${settingsForm.sport === s ? 'bg-white text-blue-600 shadow-md' : 'text-gray-400'}`}
+                                                    >
+                                                        {s}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Purse Value</label>
+                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Total Teams</label>
+                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.totalTeams} onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})} />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Base Price</label>
+                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.basePrice} onChange={e => setSettingsForm({...settingsForm, basePrice: Number(e.target.value)})} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Bid Increment</label>
+                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.bidIncrement} onChange={e => setSettingsForm({...settingsForm, bidIncrement: Number(e.target.value)})} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-1">
-                                        <button onClick={() => { setEditItem(team); setPreviewImage(team.logoUrl); setIsAddingTeam(true); }} className="p-2 text-gray-400 hover:text-blue-600"><Edit className="w-4 h-4"/></button>
-                                        <button onClick={() => handleDelete('teams', String(team.id))} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+
+                                    <div className="flex flex-col items-center justify-start pt-6">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Auction Logo</label>
+                                        <div className="w-40 h-40 rounded-[2.5rem] bg-black border-8 border-white shadow-xl flex items-center justify-center relative group overflow-hidden">
+                                            {settingsLogo ? <img src={settingsLogo} className="w-full h-full object-contain p-4" /> : <ImageIcon className="text-zinc-800 w-12 h-12" />}
+                                            <button onClick={() => settingsLogoRef.current?.click()} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Upload className="text-white w-6 h-6"/></button>
+                                        </div>
+                                        <input ref={settingsLogoRef} type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                            if (e.target.files?.[0]) setSettingsLogo(await compressImage(e.target.files[0]));
+                                        }} />
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
-                {activeTab === 'PLAYERS' && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <h2 className="text-xl font-bold text-gray-800">Players Pool ({players.length})</h2>
-                            {!isAddingPlayer && (
-                                <button onClick={() => { setEditItem({ name: '', basePrice: auction?.basePrice || 20, nationality: 'India' }); setPreviewImage(''); setIsAddingPlayer(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Plus className="w-5 h-5"/> Register Player</button>
-                            )}
-                        </div>
-
-                        {isAddingPlayer && (
-                            <div className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl animate-slide-up">
-                                <InlineFormHeader title={editItem.id ? "Modify Record" : "New Player Record"} onClose={() => { setIsAddingPlayer(false); setEditItem(null); }} />
-                                <form onSubmit={handleSavePlayer} className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                        <div className="flex flex-col items-center">
-                                            <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden relative cursor-pointer bg-gray-50">
-                                                {previewImage ? <img src={previewImage} className="w-full h-full object-cover" /> : <Upload className="text-gray-300"/>}
-                                            </div>
-                                            <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                                        </div>
-                                        <div className="md:col-span-3 space-y-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <input placeholder="Full Name" className="w-full border rounded-xl p-3" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} required />
-                                                <input type="number" placeholder="Base Price" className="w-full border rounded-xl p-3" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: Number(e.target.value)})} required />
-                                            </div>
-                                            
-                                            {/* Role Chips */}
-                                            <div>
-                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Select Skill (Role)</label>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {rolesList.map(r => (
-                                                        <button key={r} type="button" onClick={() => setEditItem({...editItem, role: r})} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border ${editItem.role === r ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>{r}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Category Chips */}
-                                            <div>
-                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Select Set (Category)</label>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {categoriesList.map(c => (
-                                                        <button key={c} type="button" onClick={() => setEditItem({...editItem, category: c})} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border ${editItem.category === c ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>{c}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                                {/* Global Slabs Card */}
+                                <div className="mt-12 p-6 bg-gray-50 rounded-2xl border border-gray-200 relative">
+                                    <div className="flex items-center gap-2 mb-6">
+                                        <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                        <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-[0.2em]">Global Bid Increment Slabs</h3>
                                     </div>
-                                    <div className="flex justify-end pt-4 border-t"><button type="submit" className="bg-blue-600 text-white font-black py-4 px-12 rounded-xl shadow-lg uppercase tracking-widest text-xs">Verify & Register</button></div>
-                                </form>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {filteredPlayers.map(p => (
-                                <div key={p.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden group">
-                                    <div className="aspect-square bg-gray-50 relative">
-                                        <img src={p.photoUrl} className="w-full h-full object-cover" />
-                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex flex-col gap-1 transition-opacity">
-                                            <button onClick={() => { setEditItem(p); setPreviewImage(p.photoUrl); setIsAddingPlayer(true); }} className="p-2 bg-white rounded-lg shadow text-blue-600"><Edit className="w-4 h-4"/></button>
-                                            <button onClick={() => handleDelete('players', String(p.id))} className="p-2 bg-white rounded-lg shadow text-red-600"><Trash2 className="w-4 h-4"/></button>
-                                        </div>
-                                    </div>
-                                    <div className="p-3"><h4 className="font-bold text-gray-800 text-sm truncate">{p.name}</h4><div className="flex justify-between items-center mt-1"><span className="text-[10px] font-bold text-blue-600 uppercase">{p.role}</span><span className="text-xs font-bold text-gray-500">{p.basePrice}</span></div></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                {activeTab === 'ROLES' && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">Skill Categories</h2>
-                            {!isAddingRole && (
-                                <button onClick={() => { setEditItem({ name: '', basePrice: auction?.basePrice || 20 }); setIsAddingRole(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Plus className="w-5 h-5"/> New Role</button>
-                            )}
-                        </div>
-
-                        {isAddingRole && (
-                            <div className="bg-white border-2 border-blue-100 rounded-2xl p-6 shadow-xl animate-slide-up">
-                                <InlineFormHeader title="Define New Role" onClose={() => { setIsAddingRole(false); setEditItem(null); }} />
-                                <form onSubmit={handleSaveRole} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                    <input placeholder="Role Name (e.g. Batsman)" className="w-full border rounded-xl p-3" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} required />
-                                    <input type="number" placeholder="Default Base Price" className="w-full border rounded-xl p-3" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: Number(e.target.value)})} required />
-                                    <button type="submit" className="bg-blue-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-[10px]">Establish Role</button>
-                                </form>
-                            </div>
-                        )}
-
-                        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                            <table className="w-full text-left">
-                                <thead className="bg-gray-50 border-b"><tr><th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Role Protocol</th><th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Default Unit Value</th><th className="p-4 text-right">Action</th></tr></thead>
-                                <tbody className="divide-y">
-                                    {roles.map(r => (
-                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="p-4 font-bold text-gray-800 uppercase tracking-wider">{r.name}</td>
-                                            <td className="p-4 font-mono font-bold text-blue-600">{r.basePrice}</td>
-                                            <td className="p-4 text-right">
-                                                <button onClick={() => { setEditItem(r); setIsAddingRole(true); }} className="p-2 text-gray-400 hover:text-blue-600"><Edit className="w-4 h-4"/></button>
-                                                <button onClick={() => handleDelete('roles', r.id!)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'REGISTRATION' && (
-                    <div className="bg-white rounded-xl shadow p-6 border border-gray-200 space-y-8 animate-fade-in">
-                         <div className="flex justify-between items-center border-b pb-4 mb-6">
-                            <div><h2 className="text-xl font-bold text-gray-800">Registration Portal Config</h2><p className="text-xs text-gray-400">Secure automated payment and verification.</p></div>
-                            <div className="flex items-center gap-3">
-                                <button onClick={copyRegLink} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 shadow-lg"><Share2 className="w-4 h-4"/> Share Link</button>
-                                <div className="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-xl border">
-                                    <label className="text-xs font-black text-gray-500">TERMINAL ACTIVE</label>
-                                    <button onClick={() => setRegConfig({ ...regConfig, isEnabled: !regConfig.isEnabled })} className={`w-12 h-6 rounded-full relative flex items-center px-1 transition-colors ${regConfig.isEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${regConfig.isEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div></button>
-                                </div>
-                            </div>
-                         </div>
-
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                             <div className="space-y-6">
-                                 <div>
-                                    <label className="block text-xs font-black text-gray-400 uppercase mb-3">Gateway Parameters</label>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border">
-                                            <span className="text-sm font-bold text-gray-700">Include Automated Payment</span>
-                                            <button onClick={() => setRegConfig({...regConfig, includePayment: !regConfig.includePayment})} className={`p-1 rounded transition-colors ${regConfig.includePayment ? 'text-blue-600' : 'text-gray-300'}`}>{regConfig.includePayment ? <CheckSquare/> : <Square/>}</button>
-                                        </div>
-                                    </div>
-                                 </div>
-
-                                 {regConfig.includePayment && (
-                                     <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-4 animate-slide-up">
-                                         <h3 className="text-[10px] font-black uppercase text-blue-600 flex items-center gap-2"><Key className="w-3 h-3" /> Razorpay integrated Checkout</h3>
-                                         
-                                         <div className="mb-4">
-                                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">Select Process</label>
-                                            <div className="flex bg-white rounded-lg border p-1">
-                                                <button 
-                                                    onClick={() => setRegConfig({...regConfig, paymentMethod: 'MANUAL'})}
-                                                    className={`flex-1 py-1.5 rounded text-[10px] font-black transition-all ${regConfig.paymentMethod === 'MANUAL' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
-                                                >
-                                                    MANUAL (QR)
-                                                </button>
-                                                <button 
-                                                    onClick={() => setRegConfig({...regConfig, paymentMethod: 'RAZORPAY'})}
-                                                    className={`flex-1 py-1.5 rounded text-[10px] font-black transition-all ${regConfig.paymentMethod === 'RAZORPAY' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
-                                                >
-                                                    RAZORPAY MODAL
-                                                </button>
-                                            </div>
-                                         </div>
-
-                                         <div className="grid grid-cols-1 gap-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Fee (₹)</label>
-                                                <input type="number" className="w-full border rounded-lg p-2 text-sm" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} />
-                                            </div>
-                                            {regConfig.paymentMethod === 'RAZORPAY' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-4">Add New Bid Rule</p>
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Razorpay Key ID</label>
-                                                    <input type="text" className="w-full border rounded-lg p-2 text-sm font-mono" value={regConfig.razorpayKey || ''} onChange={e => setRegConfig({...regConfig, razorpayKey: e.target.value})} placeholder="rzp_live_..." />
-                                                    <p className="text-[8px] text-gray-500 mt-1 uppercase font-bold tracking-tighter">Found in Razorpay Dashboard > Settings > API Keys.</p>
+                                                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">When Price {'>='}</label>
+                                                    <input placeholder="e.g. 500" className="w-full border rounded-lg p-2 text-xs" value={newSlab.from} onChange={e => setNewSlab({...newSlab, from: e.target.value})} />
                                                 </div>
-                                            ) : (
-                                                <>
-                                                    <div>
-                                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">UPI ID</label>
-                                                        <input type="text" className="w-full border rounded-lg p-2 text-sm font-mono" value={regConfig.upiId || ''} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="merchant@upi" />
+                                                <div>
+                                                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Increment By</label>
+                                                    <input placeholder="e.g. 50" className="w-full border rounded-lg p-2 text-xs" value={newSlab.increment} onChange={e => setNewSlab({...newSlab, increment: e.target.value})} />
+                                                </div>
+                                            </div>
+                                            <button onClick={handleAddSlab} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-lg text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                                                <Plus className="w-4 h-4"/> Add Increment Rule
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-4">Active Rules ({slabs.length})</p>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                                {slabs.map((s, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-white border rounded-xl px-4 py-2 shadow-sm">
+                                                        <span className="text-[11px] font-bold text-gray-600">From <b className="text-gray-900">{s.from}</b> +<b className="text-blue-600">{s.increment}</b></span>
+                                                        <button onClick={() => setSlabs(slabs.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500"><X className="w-4 h-4"/></button>
                                                     </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">UPI Name</label>
-                                                        <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.upiName || ''} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} placeholder="Account Name" />
-                                                    </div>
-                                                </>
-                                            )}
-                                         </div>
-                                     </div>
-                                 )}
-                             </div>
-                             <div className="space-y-6">
-                                 <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-200">
-                                     <h3 className="text-[10px] font-black uppercase text-zinc-500 flex items-center gap-2 mb-4"><ShieldCheck className="w-3 h-3" /> Security Protocol</h3>
-                                     <p className="text-[10px] text-zinc-600 leading-relaxed font-bold">
-                                         Using "Razorpay Modal" prevents users from bypassing payment. The registration form data is only saved once Razorpay returns a success signature. Integrated checkout happens in a popup, so there is no "Success Page" link to share maliciously.
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-                         <div className="pt-8 border-t flex justify-end"><button onClick={handleSaveRegConfig} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-10 rounded-2xl shadow-xl flex items-center gap-2 transition-all active:scale-95"><Save className="w-5 h-5"/> Save Terminal Credentials</button></div>
+                                                ))}
+                                                {slabs.length === 0 && <div className="h-24 flex flex-col items-center justify-center text-gray-300 opacity-50"><TrendingUp className="w-8 h-8 mb-2"/><p className="text-[9px] font-bold uppercase">No custom slab rules defined</p></div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-start">
+                                <button onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-10 rounded-xl shadow-lg shadow-blue-900/20 text-xs uppercase tracking-[0.2em] flex items-center gap-2 transition-all active:scale-95">
+                                    <Save className="w-4 h-4" /> Update Configuration
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {activeTab === 'REQUESTS' && (
+                {/* CATEGORIES TAB */}
+                {activeTab === 'CATEGORIES' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <h2 className="text-xl font-bold text-gray-800">Registration Entries ({registrations.length})</h2>
-                            <div className="relative w-full md:w-80">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input type="text" className="w-full border rounded-full pl-10 pr-4 py-2 text-sm outline-none" placeholder="Search entries..." value={requestSearch} onChange={e => setRequestSearch(e.target.value)} />
-                            </div>
+                        <div className="flex justify-between items-center bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Auction Sets (Categories)</h2>
+                            <button onClick={() => { setEditItem({ name: '', basePrice: settingsForm.basePrice, maxPerTeam: 10, bidIncrement: settingsForm.bidIncrement }); setIsAdding(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
+                                <Plus className="w-4 h-4"/> New Set
+                            </button>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                        {isAdding && (
+                            <div className="bg-white border-2 border-blue-100 rounded-2xl p-8 shadow-2xl animate-slide-up">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="font-black text-gray-800 uppercase tracking-widest text-xs">Establish Player Set</h3>
+                                    <button onClick={() => setIsAdding(false)} className="text-gray-400 hover:text-red-500"><XCircle className="w-6 h-6"/></button>
+                                </div>
+                                <form onSubmit={handleSaveCategory} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                                    <div className="col-span-1 md:col-span-1">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Set Name</label>
+                                        <input className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} placeholder="e.g. Uncapped" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Base Price</label>
+                                        <input type="number" className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: Number(e.target.value)})} required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Max/Team</label>
+                                        <input type="number" className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.maxPerTeam} onChange={e => setEditItem({...editItem, maxPerTeam: Number(e.target.value)})} required />
+                                    </div>
+                                    <button type="submit" className="bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-[10px]">Authorize Set</button>
+                                </form>
+                            </div>
+                        )}
+
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <table className="w-full text-left">
-                                <thead className="bg-gray-50 border-b">
+                                <thead className="bg-gray-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                                     <tr>
-                                        <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Player</th>
-                                        <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
-                                        <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Status</th>
-                                        <th className="p-4 text-right">Actions</th>
+                                        <th className="p-5">Set Name</th>
+                                        <th className="p-5">Base Price</th>
+                                        <th className="p-5">Max/Team</th>
+                                        <th className="p-5">Increment</th>
+                                        <th className="p-5 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {filteredRequests.map(r => (
-                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <img src={r.profilePic} className="w-12 h-12 rounded-xl object-cover border" />
-                                                    <div><p className="font-bold text-gray-800">{r.fullName}</p><p className="text-[10px] font-bold text-gray-400 uppercase">{r.playerType}</p></div>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-xs font-mono text-gray-500">{r.mobile}</td>
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${r.razorpayPaymentId ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                                        {r.razorpayPaymentId ? 'PAID' : 'MANUAL/PENDING'}
-                                                    </span>
-                                                    {r.razorpayPaymentId && (
-                                                        <a 
-                                                            href={`https://dashboard.razorpay.com/app/payments/${r.razorpayPaymentId}`} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer" 
-                                                            className="text-[8px] font-mono text-blue-500 underline"
-                                                        >
-                                                            {r.razorpayPaymentId}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <button onClick={() => handleUpdateRegStatus(r.id, true)} className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all" title="Move to Auction Pool"><UserCheck className="w-4 h-4"/></button>
-                                                    <button onClick={() => handleUpdateRegStatus(r.id, false)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all" title="Delete entry"><Trash2 className="w-4 h-4"/></button>
+                                    {categories.map(cat => (
+                                        <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="p-5 font-black text-gray-700 text-sm uppercase">{cat.name}</td>
+                                            <td className="p-5 font-mono font-bold text-gray-500">{cat.basePrice}</td>
+                                            <td className="p-5 font-mono font-bold text-blue-600">{cat.maxPerTeam}</td>
+                                            <td className="p-5 font-mono font-bold text-emerald-600">{cat.bidIncrement}</td>
+                                            <td className="p-5 text-right">
+                                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => { setEditItem(cat); setIsAdding(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4"/></button>
+                                                    <button onClick={() => handleDelete('categories', cat.id!)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))}
-                                    {filteredRequests.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-gray-400 italic text-sm">No entries detected.</td></tr>}
+                                    {categories.length === 0 && <tr><td colSpan={5} className="p-20 text-center text-gray-300 italic text-xs uppercase font-black tracking-widest">No sets established in registry</td></tr>}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 )}
+
+                {/* REGISTRATION TAB */}
+                {activeTab === 'REGISTRATION' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {/* Registration Header */}
+                            <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Public Player Registration</h2>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Configure the form players will use to sign up.</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button onClick={() => {
+                                        const url = `${window.location.origin}/#/auction/${id}/register`;
+                                        navigator.clipboard.writeText(url);
+                                        alert("Public link copied!");
+                                    }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-6 rounded-lg text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
+                                        <Share2 className="w-4 h-4"/> Copy Public Link
+                                    </button>
+                                    <div className="flex items-center gap-3 bg-gray-50 border rounded-xl px-4 py-2">
+                                        <label className="text-[10px] font-black text-gray-500 uppercase">Form Enabled</label>
+                                        <button 
+                                            onClick={() => setRegConfig({...regConfig, isEnabled: !regConfig.isEnabled})}
+                                            className={`transition-colors ${regConfig.isEnabled ? 'text-blue-600' : 'text-gray-300'}`}
+                                        >
+                                            {regConfig.isEnabled ? <ToggleRight className="w-8 h-8"/> : <ToggleLeft className="w-8 h-8"/>}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                    {/* Left: Core Features */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Core Features</h3>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 border rounded-2xl group cursor-pointer hover:border-blue-400 transition-all" onClick={() => setRegConfig({...regConfig, includePayment: !regConfig.includePayment})}>
+                                                <span className="text-xs font-bold text-gray-700">Collect Payment (QR Code)</span>
+                                                {regConfig.includePayment ? <CheckCircle className="w-6 h-6 text-blue-600"/> : <Square className="w-6 h-6 text-gray-300"/>}
+                                            </div>
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 border rounded-2xl group cursor-pointer hover:border-blue-400 transition-all" onClick={() => setRegConfig({...regConfig, isPublic: !regConfig.isPublic})}>
+                                                <span className="text-xs font-bold text-gray-700">Public Access (Show on Home)</span>
+                                                {regConfig.isPublic ? <CheckCircle className="w-6 h-6 text-blue-600"/> : <Square className="w-6 h-6 text-gray-300"/>}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Brand & Legal */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Brand & Legal</h3>
+                                        <div className="flex gap-6">
+                                            <div className="flex-1 bg-gray-100 border border-dashed border-gray-300 rounded-2xl h-24 flex items-center justify-center relative overflow-hidden group">
+                                                {regConfig.bannerUrl ? <img src={regConfig.bannerUrl} className="w-full h-full object-cover" /> : <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg"><ImageIcon className="text-gray-200" /></div>}
+                                                <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                                                    <Upload className="text-white w-5 h-5"/>
+                                                    <input type="file" className="hidden" accept="image/*" onChange={async e => {
+                                                        if (e.target.files?.[0]) setRegConfig({...regConfig, bannerUrl: await compressImage(e.target.files[0])});
+                                                    }} />
+                                                </label>
+                                            </div>
+                                            <div className="flex-[2] flex flex-col justify-center">
+                                                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Banner Logo</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Terms & Conditions (One per line)</label>
+                                            <textarea 
+                                                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs font-bold text-gray-600 min-h-[100px] outline-none focus:bg-white focus:border-blue-500 transition-all"
+                                                value={regConfig.terms}
+                                                onChange={e => setRegConfig({...regConfig, terms: e.target.value})}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Custom Form Fields */}
+                                <div className="mt-12 pt-12 border-t border-gray-100">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Custom Form Fields</h3>
+                                        <button onClick={addCustomField} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 transition-all">
+                                            <ListPlus className="w-4 h-4"/> Add Dynamic Field
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {regConfig.customFields.map(field => (
+                                            <div key={field.id} className="bg-gray-50/50 border border-gray-100 rounded-[2rem] p-6 relative group hover:bg-white hover:shadow-xl hover:border-blue-100 transition-all">
+                                                <button onClick={() => removeCustomField(field.id)} className="absolute -top-3 -right-3 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110"><X className="w-4 h-4"/></button>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1.5">Label</label>
+                                                        <input className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-tighter outline-none focus:border-blue-400" value={field.label} onChange={e => updateField(field.id, 'label', e.target.value.toUpperCase())} placeholder="ENTER FIELD NAME" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1.5">Type</label>
+                                                        <select className="w-full bg-white border border-gray-100 rounded-lg px-3 py-2 text-xs font-black outline-none focus:border-blue-400" value={field.type} onChange={e => updateField(field.id, 'type', e.target.value)}>
+                                                            <option value="text">Short Text</option>
+                                                            <option value="number">Number</option>
+                                                            <option value="select">Dropdown</option>
+                                                            <option value="date">Date</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4 flex items-center justify-between">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input type="checkbox" checked={field.required} onChange={e => updateField(field.id, 'required', e.target.checked)} className="accent-blue-600" />
+                                                        <span className="text-[9px] font-black text-gray-500 uppercase">Required</span>
+                                                    </label>
+                                                </div>
+                                                {/* Inline Dropdown Options */}
+                                                {field.type === 'select' && (
+                                                    <div className="mt-4 animate-fade-in">
+                                                        <label className="block text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Dropdown Options (Comma separated)</label>
+                                                        <input className="w-full bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-[10px] font-bold outline-none" value={(field.options || []).join(',')} onChange={e => updateField(field.id, 'options', e.target.value.split(','))} placeholder="S,M,L,XL,2XL..." />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-10 bg-white border-t border-gray-100 flex justify-center">
+                                <button onClick={handleSaveRegistration} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-16 rounded-2xl shadow-2xl shadow-blue-900/40 text-sm uppercase tracking-[0.3em] flex items-center gap-3 transition-all active:scale-95 group">
+                                    <Save className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Deploy Registration Protocol
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TEAMS, PLAYERS, REQUESTS, ROLES, SPONSORS placeholder tabs */}
+                {['TEAMS', 'PLAYERS', 'REQUESTS', 'ROLES', 'SPONSORS'].includes(activeTab) && (
+                    <div className="p-20 text-center text-gray-300 italic font-black uppercase tracking-widest border border-dashed border-gray-200 rounded-3xl animate-pulse">
+                        Synchronizing {activeTab} Data Interface...
+                    </div>
+                )}
+
             </main>
         </div>
     );
