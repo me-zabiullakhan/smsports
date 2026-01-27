@@ -67,6 +67,7 @@ const AuctionManage: React.FC = () => {
     const [newSlab, setNewSlab] = useState<{from: string, increment: string}>({from: '', increment: ''});
     const [settingsLogo, setSettingsLogo] = useState('');
     const settingsLogoRef = useRef<HTMLInputElement>(null);
+    const qrInputRef = useRef<HTMLInputElement>(null);
 
     const [editItem, setEditItem] = useState<any>(null);
     const [isAdding, setIsAdding] = useState(false);
@@ -184,23 +185,24 @@ const AuctionManage: React.FC = () => {
         <div className="min-h-screen bg-[#f8f9fa] font-sans pb-20 text-gray-900">
             {/* Header */}
             <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-                <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+                <div className="container mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-center gap-4">
                         <button onClick={() => navigate('/admin')} className="text-gray-400 hover:text-gray-800 transition-colors">
                             <ArrowLeft className="w-5 h-5"/>
                         </button>
                         <h1 className="text-sm font-black uppercase tracking-widest text-gray-700">{auction?.title}</h1>
-                        <div className="hidden md:flex gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
-                            {['SETTINGS', 'TEAMS', 'PLAYERS', 'REQUESTS', 'CATEGORIES', 'ROLES', 'SPONSORS', 'REGISTRATION'].map(tab => (
-                                <button 
-                                    key={tab} 
-                                    onClick={() => setActiveTab(tab as any)}
-                                    className={`px-3 py-1 text-[10px] font-black uppercase transition-all rounded-md ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                >
-                                    {tab}
-                                </button>
-                            ))}
-                        </div>
+                    </div>
+                    {/* Responsive Tab Bar - Scrollable on mobile */}
+                    <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200 overflow-x-auto custom-scrollbar no-scrollbar">
+                        {['SETTINGS', 'TEAMS', 'PLAYERS', 'REQUESTS', 'CATEGORIES', 'ROLES', 'SPONSORS', 'REGISTRATION'].map(tab => (
+                            <button 
+                                key={tab} 
+                                onClick={() => setActiveTab(tab as any)}
+                                className={`px-3 py-1.5 md:py-1 text-[10px] font-black uppercase transition-all rounded-md whitespace-nowrap ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </header>
@@ -351,8 +353,8 @@ const AuctionManage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <table className="w-full text-left">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
+                            <table className="w-full text-left min-w-[600px]">
                                 <thead className="bg-gray-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                                     <tr>
                                         <th className="p-5">Set Name</th>
@@ -394,7 +396,7 @@ const AuctionManage: React.FC = () => {
                                     <h2 className="text-xl font-black text-gray-800 tracking-tight">Public Player Registration</h2>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Configure the form players will use to sign up.</p>
                                 </div>
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-wrap items-center gap-4">
                                     <button onClick={() => {
                                         const url = `${window.location.origin}/#/auction/${id}/register`;
                                         navigator.clipboard.writeText(url);
@@ -429,6 +431,45 @@ const AuctionManage: React.FC = () => {
                                                 {regConfig.isPublic ? <CheckCircle className="w-6 h-6 text-blue-600"/> : <Square className="w-6 h-6 text-gray-300"/>}
                                             </div>
                                         </div>
+
+                                        {/* PAYMENT CONFIG - SHOWN ONLY IF includePayment IS TRUE */}
+                                        {regConfig.includePayment && (
+                                            <div className="mt-6 p-6 bg-blue-50/50 border border-blue-100 rounded-3xl animate-slide-up space-y-5">
+                                                <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                                                    <QrCode className="w-4 h-4"/> UPI Configuration
+                                                </h3>
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-1">Registration Fee (₹)</label>
+                                                        <input type="number" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} placeholder="e.g. 500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-1">UPI Name (Payee Name)</label>
+                                                        <input type="text" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} placeholder="e.g. John Doe" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-1">UPI ID (VPA)</label>
+                                                        <input type="text" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="e.g. name@upi" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-2">QR Code Graphic</label>
+                                                        <div onClick={() => qrInputRef.current?.click()} className="w-full h-40 bg-white border-2 border-dashed border-blue-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-all overflow-hidden relative">
+                                                            {regConfig.qrCodeUrl ? (
+                                                                <img src={regConfig.qrCodeUrl} className="w-full h-full object-contain p-2" />
+                                                            ) : (
+                                                                <>
+                                                                    <Upload className="w-8 h-8 text-blue-300 mb-2"/>
+                                                                    <span className="text-[10px] font-black text-blue-400 uppercase">Upload UPI QR</span>
+                                                                </>
+                                                            )}
+                                                            <input ref={qrInputRef} type="file" className="hidden" accept="image/*" onChange={async e => {
+                                                                if (e.target.files?.[0]) setRegConfig({...regConfig, qrCodeUrl: await compressImage(e.target.files[0])});
+                                                            }} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Right: Brand & Legal */}
@@ -461,9 +502,9 @@ const AuctionManage: React.FC = () => {
 
                                 {/* Custom Form Fields */}
                                 <div className="mt-12 pt-12 border-t border-gray-100">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Custom Form Fields</h3>
-                                        <button onClick={addCustomField} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 transition-all">
+                                    <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+                                        <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest text-center sm:text-left">Custom Form Fields</h3>
+                                        <button onClick={addCustomField} className="w-full sm:w-auto bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-100 transition-all">
                                             <ListPlus className="w-4 h-4"/> Add Dynamic Field
                                         </button>
                                     </div>
@@ -471,7 +512,7 @@ const AuctionManage: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         {regConfig.customFields.map(field => (
                                             <div key={field.id} className="bg-gray-50/50 border border-gray-100 rounded-[2rem] p-6 relative group hover:bg-white hover:shadow-xl hover:border-blue-100 transition-all">
-                                                <button onClick={() => removeCustomField(field.id)} className="absolute -top-3 -right-3 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110"><X className="w-4 h-4"/></button>
+                                                <button onClick={() => removeCustomField(field.id)} className="absolute -top-3 -right-3 bg-red-500 text-white p-1.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shadow-lg hover:scale-110"><X className="w-4 h-4"/></button>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div>
                                                         <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1.5">Label</label>
@@ -507,7 +548,7 @@ const AuctionManage: React.FC = () => {
                             </div>
 
                             <div className="p-10 bg-white border-t border-gray-100 flex justify-center">
-                                <button onClick={handleSaveRegistration} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-16 rounded-2xl shadow-2xl shadow-blue-900/40 text-sm uppercase tracking-[0.3em] flex items-center gap-3 transition-all active:scale-95 group">
+                                <button onClick={handleSaveRegistration} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-16 rounded-2xl shadow-2xl shadow-blue-900/40 text-sm uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all active:scale-95 group">
                                     <Save className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Deploy Registration Protocol
                                 </button>
                             </div>
