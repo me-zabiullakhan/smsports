@@ -1,7 +1,7 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Upload, CheckCircle, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+// Added RefreshCw to the imports from lucide-react
+import { ArrowLeft, Calendar, Upload, CheckCircle, AlertTriangle, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, BidIncrementSlab } from '../types';
 import { useAuction } from '../hooks/useAuction';
@@ -12,6 +12,7 @@ const CreateAuction: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [dbPlans, setDbPlans] = useState<any[]>([]);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -26,11 +27,27 @@ const CreateAuction: React.FC = () => {
       playersPerTeam: 15
   });
 
+  // Fetch available plans from DB to show as chips
+  useEffect(() => {
+      const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
+          if (snap.empty) {
+              setDbPlans([
+                  { id: 'Free', name: 'Free (Demo)' },
+                  { id: 'Basic', name: 'Basic' },
+                  { id: 'Premium', name: 'Premium' }
+              ]);
+          } else {
+              setDbPlans(snap.docs.map(d => ({ id: d.data().name, ...d.data() })));
+          }
+      });
+      return () => unsub();
+  }, []);
+
   // Global Slabs State
   const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]);
   const [newSlab, setNewSlab] = useState<{from: string, increment: string}>({from: '', increment: ''});
 
-  // File State (Mocking upload for UI feedback)
+  // File State
   const [logoName, setLogoName] = useState<string>("");
   const [bannerName, setBannerName] = useState<string>("");
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -79,11 +96,12 @@ const CreateAuction: React.FC = () => {
           return;
       }
 
+      if (!formData.sport) return alert("Please select a sport.");
+      if (!formData.plan) return alert("Please select a subscription plan.");
+
       setLoading(true);
       try {
-          // Fallback if userProfile is not loaded yet
           const uid = userProfile?.uid || 'unknown_user';
-
           const newAuction: AuctionSetup = {
               title: formData.title,
               sport: formData.sport,
@@ -94,27 +112,15 @@ const CreateAuction: React.FC = () => {
               basePrice: Number(formData.basePrice),
               bidIncrement: Number(formData.bidIncrement),
               playersPerTeam: Number(formData.playersPerTeam),
-              slabs: slabs, // Include slabs
+              slabs: slabs,
               status: 'DRAFT',
               createdAt: Date.now(),
               createdBy: uid
           };
-
-          console.log("Attempting to save auction:", newAuction);
-          // COMPAT SYNTAX FIX
-          const docRef = await db.collection('auctions').add(newAuction);
-          console.log("Auction Saved Successfully with ID:", docRef.id);
-          
+          await db.collection('auctions').add(newAuction);
           setShowSuccessModal(true);
       } catch (error: any) {
-          console.error("Error creating auction:", error);
-          let msg = "Failed to save to database.";
-          
-          if (error.code === 'permission-denied') msg = "Permission Denied: You do not have rights to create auctions. Check Rules.";
-          else if (error.code === 'unavailable') msg = "Network unavailable. Please check your connection.";
-          else if (error.message.includes("does not exist")) msg = "CRITICAL: Database not found. Please create it in Firebase Console.";
-          
-          setErrorMsg(`${msg} (${error.message})`);
+          setErrorMsg(`Failed to save: ${error.message}`);
       } finally {
           setLoading(false);
       }
@@ -150,18 +156,18 @@ const CreateAuction: React.FC = () => {
 
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
         <div className="container mx-auto px-6 py-3 flex items-center">
-             <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-800 mr-4">
+             <button onClick={() => navigate('/admin')} className="text-gray-500 hover:text-gray-800 mr-4 transition-colors">
                  <ArrowLeft />
              </button>
-             <h1 className="text-xl font-bold text-gray-700">New Auction</h1>
+             <h1 className="text-xl font-bold text-gray-700 uppercase tracking-tighter">Initialize New Protocol</h1>
         </div>
       </header>
 
       <main className="container mx-auto px-4 md:px-6 py-8 max-w-4xl">
-        <div className="bg-white rounded-lg shadow p-6 md:p-8 border border-gray-200">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Auction Info</h2>
+        <div className="bg-white rounded-2xl shadow p-6 md:p-8 border border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Auction Registry</h2>
             <p className="text-sm text-gray-500 mb-6 pb-4 border-b border-gray-100">
-                Fill in the details below to initialize your auction event.
+                Configure the technical parameters for your tournament's real-time auction room.
             </p>
             
             {errorMsg && (
@@ -174,43 +180,42 @@ const CreateAuction: React.FC = () => {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Sport */}
+            <form onSubmit={handleSubmit} className="space-y-8">
+                
+                {/* Sport Selection (Inline Chips) */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select a sport <span className="text-red-500">*</span></label>
-                    <select 
-                        name="sport" 
-                        required 
-                        value={formData.sport} 
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                        <option value="">Select an option</option>
-                        <option value="Cricket">Cricket</option>
-                        <option value="Football">Football</option>
-                        <option value="Kabaddi">Kabaddi</option>
-                    </select>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">1. Select Tournament Protocol (Sport) <span className="text-red-500">*</span></label>
+                    <div className="flex flex-wrap gap-2">
+                        {['Cricket', 'Football', 'Kabaddi'].map(s => (
+                            <button 
+                                key={s} 
+                                type="button"
+                                onClick={() => setFormData({...formData, sport: s})}
+                                className={`px-6 py-3 rounded-xl text-xs font-black uppercase transition-all border-2 ${formData.sport === s ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-[1.02]' : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'}`}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Title */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Auction title <span className="text-red-500">*</span></label>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">2. Identity Title <span className="text-red-500">*</span></label>
                     <input 
                         type="text" 
                         name="title" 
                         required
+                        placeholder="E.G. IPL 2025 MOCK AUCTION"
                         value={formData.title}
                         onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all uppercase placeholder:opacity-30"
                     />
                 </div>
 
                 {/* Date */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                        <span>Auction Date <span className="text-red-500">*</span></span>
-                        <span className="text-gray-400 font-normal text-xs">select tentative date if not confirm</span>
-                    </label>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">3. Activation Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <input 
                             type="date" 
@@ -218,224 +223,124 @@ const CreateAuction: React.FC = () => {
                             required
                             value={formData.date}
                             onChange={handleChange}
-                            className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                         />
-                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     </div>
                 </div>
 
-                {/* Plan */}
+                {/* Plan Selection (Inline Chips) */}
                 <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                        <span>Select a Plan <span className="text-red-500">*</span></span>
-                    </label>
-                    <select 
-                        name="plan" 
-                        required
-                        value={formData.plan}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    >
-                        <option value="">Select an option</option>
-                        <option value="Free">Free (Demo)</option>
-                        <option value="Basic">Basic</option>
-                        <option value="Premium">Premium</option>
-                    </select>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">4. Operational Plan <span className="text-red-500">*</span></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {dbPlans.map(plan => (
+                            <button 
+                                key={plan.id} 
+                                type="button"
+                                onClick={() => setFormData({...formData, plan: plan.id})}
+                                className={`px-4 py-3 rounded-xl text-xs font-black uppercase transition-all border-2 text-center flex flex-col ${formData.plan === plan.id ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+                            >
+                                <span>{plan.name}</span>
+                                {plan.teams && <span className="text-[8px] opacity-60 mt-1">UP TO {plan.teams} TEAMS</span>}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Total Teams */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Total teams <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" 
-                        name="totalTeams" 
-                        min="2"
-                        required
-                        value={formData.totalTeams}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                </div>
-
-                {/* File Uploads */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Logo Upload */}
+                {/* Number Inputs Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                            <span>Logo</span>
-                            <span className="text-gray-400 text-xs">Size : 500 x 500 pixel</span>
-                        </label>
-                        <div 
-                            onClick={() => logoInputRef.current?.click()}
-                            className="border border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer min-h-[100px]"
-                        >
-                             <input 
-                                ref={logoInputRef} 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={(e) => handleFileChange(e, 'logo')}
-                             />
-                             {logoName ? (
-                                 <div className="flex flex-col items-center text-green-600">
-                                    <p className="text-sm font-medium break-all">{logoName}</p>
-                                    <p className="text-xs mt-1 text-gray-400">Click to change</p>
-                                 </div>
-                             ) : (
-                                 <>
-                                    <Upload className="h-6 w-6 mb-2 text-gray-300"/>
-                                    <p className="text-xs text-center">Drag & Drop your files or <span className="underline text-gray-700">Browse</span></p>
-                                 </>
-                             )}
-                        </div>
+                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-2">Total Franchise Teams</label>
+                        <input type="number" name="totalTeams" min="2" required value={formData.totalTeams} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-xl py-2 px-4 text-sm font-bold outline-none focus:border-blue-500 transition-all" />
                     </div>
-
-                    {/* Banner Upload */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Banner</label>
-                        <div 
-                             onClick={() => bannerInputRef.current?.click()}
-                             className="border border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer min-h-[100px]"
-                        >
-                             <input 
-                                ref={bannerInputRef} 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={(e) => handleFileChange(e, 'banner')}
-                             />
-                             {bannerName ? (
-                                 <div className="flex flex-col items-center text-green-600">
-                                    <p className="text-sm font-medium break-all">{bannerName}</p>
-                                    <p className="text-xs mt-1 text-gray-400">Click to change</p>
-                                 </div>
-                             ) : (
-                                 <>
-                                    <Upload className="h-6 w-6 mb-2 text-gray-300"/>
-                                    <p className="text-xs text-center">Drag & Drop your files or <span className="underline text-gray-700">Browse</span></p>
-                                 </>
-                             )}
-                        </div>
+                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-2">Players per Squad</label>
+                        <input type="number" name="playersPerTeam" required value={formData.playersPerTeam} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-xl py-2 px-4 text-sm font-bold outline-none focus:border-blue-500 transition-all" />
                     </div>
-                </div>
-
-                {/* Default Team Purse */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Default team purse value <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" 
-                        name="purseValue" 
-                        required
-                        value={formData.purseValue}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                </div>
-
-                {/* Player Base Price */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Player base price <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" 
-                        name="basePrice" 
-                        required
-                        value={formData.basePrice}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
+                    <div>
+                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-2">Starting Team Purse</label>
+                        <input type="number" name="purseValue" required value={formData.purseValue} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-xl py-2 px-4 text-sm font-bold outline-none focus:border-blue-500 transition-all" />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-gray-400 uppercase mb-2">Default Base Unit Price</label>
+                        <input type="number" name="basePrice" required value={formData.basePrice} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-xl py-2 px-4 text-sm font-bold outline-none focus:border-blue-500 transition-all" />
+                    </div>
                 </div>
 
                 {/* Bid Increment & Slabs */}
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Bid Rules</label>
+                <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
+                    <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <Plus className="w-4 h-4"/> Bid Increment Protocol
+                    </h3>
                     
-                    <div className="mb-4">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Default Bid Increment <span className="text-red-500">*</span></label>
+                    <div className="mb-6">
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Standard Step Increment <span className="text-red-500">*</span></label>
                         <input 
                             type="number" 
                             name="bidIncrement" 
                             required
                             value={formData.bidIncrement}
                             onChange={handleChange}
-                            className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:border-blue-500"
                         />
                     </div>
                     
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-2">Global Bid Slabs (Optional)</label>
-                        <div className="bg-white p-3 rounded border border-gray-300">
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-2">Dynamic Bid Slabs (Optional)</label>
+                        <div className="bg-white p-4 rounded-2xl border border-gray-200 space-y-2">
                              {slabs.map((slab, idx) => (
-                                 <div key={idx} className="flex justify-between items-center text-sm mb-2 bg-gray-50 p-2 rounded">
-                                     <span>From <b>{slab.from}</b>: Increase by <b>+{slab.increment}</b></span>
-                                     <button type="button" onClick={() => removeSlab(idx)} className="text-red-500 hover:text-red-700">
+                                 <div key={idx} className="flex justify-between items-center text-xs font-bold bg-gray-50 p-3 rounded-xl border border-gray-100 animate-slide-up">
+                                     <span className="text-gray-600">From <b className="text-blue-600">{slab.from}</b>: Step <b className="text-emerald-600">+{slab.increment}</b></span>
+                                     <button type="button" onClick={() => removeSlab(idx)} className="text-red-400 hover:text-red-600 transition-colors">
                                          <Trash2 className="w-4 h-4"/>
                                      </button>
                                  </div>
                              ))}
                              
-                             <div className="grid grid-cols-2 gap-2 mt-2">
-                                 <input 
-                                    type="number" 
-                                    placeholder="Price {'>='}" 
-                                    className="border p-2 rounded text-sm" 
-                                    value={newSlab.from} 
-                                    onChange={e => setNewSlab({...newSlab, from: e.target.value})} 
-                                 />
-                                 <input 
-                                    type="number" 
-                                    placeholder="+ Increment" 
-                                    className="border p-2 rounded text-sm" 
-                                    value={newSlab.increment} 
-                                    onChange={e => setNewSlab({...newSlab, increment: e.target.value})} 
-                                 />
+                             <div className="grid grid-cols-2 gap-3 pt-2">
+                                 <div className="space-y-1">
+                                     <span className="text-[8px] font-bold text-gray-400 uppercase px-1">When Price {'>='}</span>
+                                     <input type="number" placeholder="500" className="w-full border border-gray-100 bg-gray-50 rounded-xl p-2 text-xs font-bold outline-none focus:border-blue-300" value={newSlab.from} onChange={e => setNewSlab({...newSlab, from: e.target.value})} />
+                                 </div>
+                                 <div className="space-y-1">
+                                     <span className="text-[8px] font-bold text-gray-400 uppercase px-1">Step Amount</span>
+                                     <input type="number" placeholder="100" className="w-full border border-gray-100 bg-gray-50 rounded-xl p-2 text-xs font-bold outline-none focus:border-blue-300" value={newSlab.increment} onChange={e => setNewSlab({...newSlab, increment: e.target.value})} />
+                                 </div>
                              </div>
-                             <button type="button" onClick={addSlab} className="mt-2 w-full py-2 bg-green-50 border border-green-200 text-green-700 text-sm font-bold rounded hover:bg-green-100 flex items-center justify-center">
-                                 <Plus className="w-3 h-3 mr-1"/> Add Slab Rule
+                             <button type="button" onClick={addSlab} className="mt-4 w-full py-3 bg-blue-600 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
+                                 Authorize Slab Rule
                              </button>
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">E.g. If current bid is 500, and you have a slab "From 500: +50", next bid will be 550.</p>
                     </div>
-                </div>
-
-                 {/* Total Players per team */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Total players per team <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" 
-                        name="playersPerTeam" 
-                        required
-                        value={formData.playersPerTeam}
-                        onChange={handleChange}
-                        className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
                 </div>
 
                 {/* Captcha */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                        <span>Captcha <span className="text-red-500">*</span></span>
-                    </label>
-                    <input 
-                        type="text" 
-                        value={captchaInput}
-                        onChange={(e) => { setCaptchaInput(e.target.value); setCaptchaError(false); }}
-                        className={`w-full bg-white border ${captchaError ? 'border-red-500' : 'border-gray-300'} rounded-md py-2 px-3 mb-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500`}
-                        placeholder="Enter the text below"
-                    />
-                    {captchaError && <p className="text-red-500 text-xs mb-2">Incorrect captcha. Please try again.</p>}
-                    
-                    <div className="w-40 h-12 bg-gray-200 select-none flex items-center justify-center font-mono text-xl tracking-widest text-gray-500 line-through italic border border-gray-300 rounded relative overflow-hidden">
-                        j g m u j
+                <div className="bg-gray-100 p-8 rounded-[2rem] border border-gray-200">
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Security Verification <span className="text-red-500">*</span></label>
+                    <div className="flex flex-col sm:flex-row gap-4 items-center">
+                        <div className="w-full sm:w-48 h-16 bg-white select-none flex items-center justify-center font-mono text-3xl tracking-widest text-gray-400 line-through italic border border-gray-200 rounded-2xl relative overflow-hidden shadow-inner">
+                             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                             jgmuj
+                        </div>
+                        <input 
+                            type="text" 
+                            required
+                            value={captchaInput}
+                            onChange={(e) => { setCaptchaInput(e.target.value); setCaptchaError(false); }}
+                            className={`flex-1 w-full bg-white border-2 ${captchaError ? 'border-red-500' : 'border-transparent'} rounded-2xl py-4 px-6 font-black uppercase text-center outline-none focus:ring-4 ring-blue-500/10 transition-all`}
+                            placeholder="RETYPE STRING"
+                        />
                     </div>
                 </div>
 
-                <div className="pt-4">
+                <div className="pt-6">
                     <button 
                         type="submit" 
                         disabled={loading}
-                        className={`bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded shadow-lg w-full md:w-auto transition-all ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`w-full bg-black hover:bg-blue-700 text-white font-black py-5 px-10 rounded-[2rem] shadow-2xl transition-all active:scale-95 uppercase tracking-[0.3em] text-sm flex items-center justify-center gap-3 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
-                        {loading ? 'Saving...' : 'Create Auction'}
+                        {loading ? <RefreshCw className="animate-spin h-5 w-5"/> : <CheckCircle className="h-5 w-5"/>}
+                        Deploy Auction Protocol
                     </button>
                 </div>
 

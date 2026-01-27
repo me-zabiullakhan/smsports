@@ -25,10 +25,19 @@ const AdminDashboard: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // Fetch Dynamic Plans
+  // Fetch Dynamic Plans or fallback to defaults
   useEffect(() => {
       const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
-          setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          if (snap.empty) {
+              // Seed defaults if empty in state (will be overwritten if user seeds DB via SuperAdmin)
+              setDbPlans([
+                  { id: 'free', name: 'Free (Demo)', price: 0, teams: 2, features: ['2 Teams Max', 'Standard Overlays', 'Local Storage Only'] },
+                  { id: 'basic', name: 'Basic Protocol', price: 499, teams: 10, features: ['10 Teams Max', 'OBS Overlays', 'Dynamic Categories'] },
+                  { id: 'premium', name: 'Premium Elite', price: 999, teams: 25, features: ['25 Teams Max', 'Projector Mode', 'Secure Registration'] }
+              ]);
+          } else {
+              setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
       });
       return () => unsub();
   }, []);
@@ -68,7 +77,7 @@ const AdminDashboard: React.FC = () => {
       if (plan.price === 0) return alert("You are already on the Free Plan.");
 
       const options = {
-          key: "rzp_test_replace_me", 
+          key: "rzp_test_pnZyMfa3h3mMXR", // Updated with user provided key
           amount: plan.price * 100,
           currency: "INR",
           name: "SM SPORTS",
@@ -154,7 +163,7 @@ const AdminDashboard: React.FC = () => {
               <p className="text-gray-500 text-sm font-medium">Professional grade features for every tournament size.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {dbPlans.length > 0 ? dbPlans.map(plan => (
+              {dbPlans.map(plan => (
                   <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col border-gray-100`}>
                       <h3 className="text-xl font-black text-gray-800 uppercase mb-2">{plan.name}</h3>
                       <div className="flex items-baseline mb-6">
@@ -178,15 +187,13 @@ const AdminDashboard: React.FC = () => {
                           {plan.price === 0 ? 'Current Plan' : 'Purchase Plan'}
                       </button>
                   </div>
-              )) : (
-                  <div className="col-span-full py-20 text-center text-gray-400 italic">No subscription protocols available at this time.</div>
-              )}
+              ))}
           </div>
       </div>
   );
 
   const renderLegal = () => (
-      <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
+      <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
           <div className="bg-slate-900 p-8 text-white">
               <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Legal Protocol</h2>
               <p className="text-slate-400 text-sm">Terms of Service and Operational Guidelines for SM SPORTS Developers & Hosts.</p>
