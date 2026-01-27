@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -172,8 +171,6 @@ const PlayerRegistration: React.FC = () => {
             name: auction?.title || "Cricket Auction",
             description: `Registration Fee for ${formData.fullName}`,
             handler: function (response: any) {
-                // Success Callback: THIS is where the security happens.
-                // Form data is only saved when the modal returns success.
                 submitToFirebase(response.razorpay_payment_id);
             },
             prefill: {
@@ -223,13 +220,20 @@ const PlayerRegistration: React.FC = () => {
         const commonClasses = "w-full border border-gray-300 rounded p-2 bg-white outline-none focus:ring-2 focus:ring-green-500 transition-shadow text-gray-900";
         switch (field.type) {
             case 'select':
+                // Change custom field selects to inline buttons
                 return (
-                    <select required={field.required} value={customData[field.id] || ''} onChange={(e) => handleCustomChange(field.id, e.target.value)} className={commonClasses}>
-                        <option value="">Select an option</option>
+                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl">
                         {field.options?.map((opt, i) => (
-                            <option key={i} value={opt}>{opt}</option>
+                            <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleCustomChange(field.id, opt)}
+                                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all border ${customData[field.id] === opt ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-400'}`}
+                            >
+                                {opt}
+                            </button>
                         ))}
-                    </select>
+                    </div>
                 );
             case 'file':
                 return (
@@ -370,13 +374,13 @@ const PlayerRegistration: React.FC = () => {
                                 {/* Inline Role Chip Selection */}
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-2">Player Type (Role) <span className="text-red-500">*</span></label>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl">
                                         {(roles.length > 0 ? roles.map(r => r.name) : ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper']).map(r => (
                                             <button 
                                                 key={r} 
                                                 type="button" 
                                                 onClick={() => setFormData({...formData, playerType: r})}
-                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border ${formData.playerType === r ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
+                                                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all border ${formData.playerType === r ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
                                             >
                                                 {r}
                                             </button>
@@ -387,13 +391,13 @@ const PlayerRegistration: React.FC = () => {
                                 {/* Inline Gender Selection */}
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-2">Gender <span className="text-red-500">*</span></label>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 p-2 bg-gray-50 border rounded-xl">
                                         {['Male', 'Female'].map(g => (
                                             <button 
                                                 key={g} 
                                                 type="button" 
                                                 onClick={() => setFormData({...formData, gender: g})}
-                                                className={`flex-1 py-2 rounded-lg text-xs font-black uppercase transition-all border ${formData.gender === g ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}
+                                                className={`flex-1 py-3 rounded-lg text-xs font-black uppercase transition-all border ${formData.gender === g ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}
                                             >
                                                 {g}
                                             </button>

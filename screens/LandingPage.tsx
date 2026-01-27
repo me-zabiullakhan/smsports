@@ -6,7 +6,8 @@ import { AuctionStatus, AuctionSetup } from '../types';
 import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users, BookOpen } from 'lucide-react';
 import { db } from '../firebase';
 
-const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.Node }> = ({ auction, navigate, getStatusBadge }) => {
+// Fix: Changed React.Node to React.ReactNode
+const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.ReactNode }> = ({ auction, navigate, getStatusBadge }) => {
     const [teamCount, setTeamCount] = useState<number | null>(null);
 
     useEffect(() => {
