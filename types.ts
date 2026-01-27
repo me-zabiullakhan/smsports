@@ -39,7 +39,8 @@ export interface RegisteredPlayer {
     gender: string;
     dob: string;
     profilePic: string;
-    paymentScreenshot: string;
+    paymentScreenshot?: string;
+    razorpayPaymentId?: string;
     status: 'PENDING' | 'APPROVED' | 'REJECTED';
     submittedAt: number;
     [key: string]: any; // For custom fields
@@ -175,14 +176,16 @@ export interface FormField {
 
 export interface RegistrationConfig {
     isEnabled: boolean;
-    includePayment: boolean; // Controls visibility of payment section
-    isPublic: boolean; // Controls visibility of registration link on home page
+    includePayment: boolean; 
+    paymentMethod?: 'MANUAL' | 'RAZORPAY';
+    razorpayKey?: string;
+    isPublic: boolean; 
     fee: number;
     upiId: string;
     upiName: string;
     qrCodeUrl: string;
     terms: string;
-    bannerUrl?: string; // Optional tournament logo
+    bannerUrl?: string; 
     customFields: FormField[];
 }
 

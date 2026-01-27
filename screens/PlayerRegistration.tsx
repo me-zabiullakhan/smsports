@@ -1,9 +1,9 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, RegistrationConfig, FormField, PlayerRole } from '../types';
-import { Upload, Calendar, CheckCircle, AlertTriangle, ArrowUpCircle, FileText, Home, ArrowLeft } from 'lucide-react';
+// Fixed missing QrCode import
+import { Upload, Calendar, CheckCircle, AlertTriangle, ArrowUpCircle, FileText, Home, ArrowLeft, Loader2, CreditCard, QrCode } from 'lucide-react';
 
 const PlayerRegistration: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -15,6 +15,7 @@ const PlayerRegistration: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
 
     // Fixed Form Data
     const [formData, setFormData] = useState({
@@ -35,6 +36,18 @@ const PlayerRegistration: React.FC = () => {
 
     const profileInputRef = useRef<HTMLInputElement>(null);
     const paymentInputRef = useRef<HTMLInputElement>(null);
+
+    // Load Razorpay Script
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.onload = () => setIsRazorpayLoaded(true);
+        document.body.appendChild(script);
+        return () => {
+            document.body.removeChild(script);
+        };
+    }, []);
 
     // Helper to compress images
     const compressImage = (file: File): Promise<string> => {
@@ -142,61 +155,88 @@ const PlayerRegistration: React.FC = () => {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        if (!id) {
-            alert("Error: Auction ID is missing.");
-            return;
-        }
-
-        // Robust Captcha Check: Remove ALL spaces and ignore case
-        const inputCaptcha = formData.captcha.replace(/\s+/g, '').toLowerCase();
-        const expectedCaptcha = 'dej7ym'; // 'de j 7ym' without spaces
-
-        if (inputCaptcha !== expectedCaptcha) { 
-            alert("Incorrect Captcha. Please enter the characters shown in the box.");
-            return;
-        }
-        if (!profilePic) return alert("Please upload profile picture");
-        
-        // Conditionally check payment screenshot
-        if (config?.includePayment && !paymentScreenshot) return alert("Please upload payment screenshot");
-
+    const submitToFirebase = async (paymentId?: string) => {
+        if (!id) return;
         setSubmitting(true);
         try {
-            // Merge fixed fields and custom fields for submission
             const submissionData = {
                 ...formData,
                 profilePic,
-                paymentScreenshot: config?.includePayment ? paymentScreenshot : '',
+                paymentScreenshot: config?.paymentMethod === 'MANUAL' ? paymentScreenshot : '',
+                razorpayPaymentId: paymentId || '',
                 ...customData,
                 submittedAt: Date.now(),
                 status: 'PENDING'
             };
 
-            // COMPAT SYNTAX
             await db.collection('auctions').doc(id).collection('registrations').add(submissionData);
             
             setSuccess(true);
             window.scrollTo(0,0);
-
-            // Auto redirect after 5 seconds
-            setTimeout(() => {
-                navigate('/');
-            }, 5000);
-
+            setTimeout(() => navigate('/'), 5000);
         } catch (e: any) {
             console.error("Submission Error:", e);
-            let msg = e.message;
-            if (e.code === 'permission-denied') {
-                msg = "Permission Denied. Please ensure Firestore Security Rules allow public 'create' on the registrations collection.";
-            } else if (e.message.includes("maximum allowed size")) {
-                msg = "Data too large. Please try uploading smaller images.";
-            }
-            alert("Submission failed: " + msg);
+            alert("Database Error: " + e.message);
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleRazorpayPayment = () => {
+        if (!isRazorpayLoaded || !config?.razorpayKey) {
+            alert("Payment system not ready. Please refresh.");
+            return;
+        }
+
+        const options = {
+            key: config.razorpayKey,
+            amount: config.fee * 100, // amount in paise
+            currency: 'INR',
+            name: auction?.title || 'SM SPORTS',
+            description: 'Player Registration Fee',
+            handler: (response: any) => {
+                // Payment success!
+                submitToFirebase(response.razorpay_payment_id);
+            },
+            prefill: {
+                name: formData.fullName,
+                contact: formData.mobile
+            },
+            theme: {
+                color: '#16a34a'
+            },
+            modal: {
+                ondismiss: () => {
+                    setSubmitting(false);
+                }
+            }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!id) return alert("Auction ID missing.");
+
+        const inputCaptcha = formData.captcha.replace(/\s+/g, '').toLowerCase();
+        const expectedCaptcha = 'dej7ym'; 
+        if (inputCaptcha !== expectedCaptcha) return alert("Incorrect Captcha.");
+        
+        if (!profilePic) return alert("Please upload profile picture");
+        
+        if (config?.includePayment) {
+            if (config.paymentMethod === 'MANUAL' && !paymentScreenshot) return alert("Please upload payment screenshot");
+            if (config.paymentMethod === 'RAZORPAY' && (!config.razorpayKey || !isRazorpayLoaded)) return alert("Razorpay is not configured correctly by organizer.");
+        }
+
+        if (config?.includePayment && config.paymentMethod === 'RAZORPAY') {
+            setSubmitting(true);
+            handleRazorpayPayment();
+        } else {
+            submitToFirebase();
         }
     };
 
@@ -347,18 +387,38 @@ const PlayerRegistration: React.FC = () => {
                         </ul>
                     </div>
 
-                    {/* UPI Section - Conditionally Rendered */}
-                    {config?.includePayment && (
-                        <div className="mt-8">
-                            <p className="text-sm font-bold underline mb-4">UPI Details:</p>
-                            <p className="text-sm font-semibold">{config?.upiName}</p>
-                            <p className="text-xl font-bold mb-4">{config?.upiId}</p>
+                    {/* Manual UPI Section */}
+                    {config?.includePayment && config.paymentMethod === 'MANUAL' && (
+                        <div className="mt-8 bg-zinc-50 border border-zinc-200 p-6 rounded-2xl animate-fade-in">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4 flex items-center justify-center gap-2">
+                                <QrCode className="w-4 h-4"/> Manual Payment Instructions
+                            </p>
+                            <p className="text-sm font-semibold text-zinc-900">{config?.upiName}</p>
+                            <p className="text-xl font-black text-blue-600 mb-4 font-mono">{config?.upiId}</p>
                             {config?.qrCodeUrl && (
                                 <div className="flex justify-center">
-                                    <img src={config.qrCodeUrl} alt="UPI QR" className="w-48 h-48 object-contain border-2 border-gray-800 p-2 rounded-lg" />
+                                    <div className="bg-white p-4 rounded-3xl shadow-xl border border-zinc-200 group relative overflow-hidden">
+                                        <img src={config.qrCodeUrl} alt="UPI QR" className="w-44 h-44 object-contain" />
+                                    </div>
                                 </div>
                             )}
-                            <p className="text-xs font-bold mt-2 uppercase text-gray-700">{config?.upiName}</p>
+                            <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl border border-blue-100">
+                                Scan the QR code to pay ₹{config.fee}. You MUST upload the screenshot below to complete registration.
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Razorpay Info Header */}
+                    {config?.includePayment && config.paymentMethod === 'RAZORPAY' && (
+                        <div className="mt-8 bg-green-50 border border-green-200 p-6 rounded-2xl animate-fade-in flex flex-col items-center">
+                            <div className="w-12 h-12 bg-green-600 text-white rounded-2xl flex items-center justify-center mb-3 shadow-lg">
+                                <CreditCard className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-black text-green-800 uppercase tracking-tighter text-lg">Secure Auto Payment</h3>
+                            <p className="text-xs text-green-600 font-bold mb-1">Registration Fee: ₹{config.fee}</p>
+                            <p className="text-[10px] text-green-500 max-w-xs leading-tight">
+                                Pay securely using Razorpay (Cards, UPI, Netbanking). Your registration will be instantly processed after payment.
+                            </p>
                         </div>
                     )}
                 </div>
@@ -395,7 +455,6 @@ const PlayerRegistration: React.FC = () => {
                                                 <option key={role.id} value={role.name}>{role.name}</option>
                                             ))
                                         ) : (
-                                            // Fallback default options
                                             <>
                                                 <option value="Batsman">Batsman</option>
                                                 <option value="Bowler">Bowler</option>
@@ -428,10 +487,10 @@ const PlayerRegistration: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Conditionally Render Payment Screenshot Upload */}
-                                {config?.includePayment && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Screenshot of Successful Payment (Rs {config?.fee}) <span className="text-red-500">*</span></label>
+                                {/* Conditionally Render Manual Payment Upload */}
+                                {config?.includePayment && config.paymentMethod === 'MANUAL' && (
+                                    <div className="animate-fade-in">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Screenshot of Successful Payment (₹{config?.fee}) <span className="text-red-500">*</span></label>
                                         <div 
                                             onClick={() => paymentInputRef.current?.click()}
                                             className="border border-dashed border-gray-300 rounded p-3 text-center cursor-pointer hover:bg-gray-50 flex items-center justify-center text-sm text-gray-500"
@@ -479,9 +538,22 @@ const PlayerRegistration: React.FC = () => {
                         <button 
                             type="submit" 
                             disabled={submitting}
-                            className={`w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3 rounded shadow transition-all ${submitting ? 'opacity-70 cursor-wait' : ''}`}
+                            className={`w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-black py-4 rounded-xl shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 ${submitting ? 'opacity-70 cursor-wait' : ''}`}
                         >
-                            {submitting ? 'Submitting...' : 'Submit'}
+                            {submitting ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin"/> 
+                                    {config?.paymentMethod === 'RAZORPAY' ? 'PROCESSING PAYMENT...' : 'SUBMITTING...'}
+                                </>
+                            ) : (
+                                <>
+                                    {config?.includePayment && config.paymentMethod === 'RAZORPAY' ? (
+                                        <><CreditCard className="w-5 h-5"/> PAY ₹{config.fee} & REGISTER</>
+                                    ) : (
+                                        'SUBMIT REGISTRATION'
+                                    )}
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>
@@ -490,18 +562,12 @@ const PlayerRegistration: React.FC = () => {
                 <div className="p-6 bg-gray-50 border-t border-gray-200 text-xs text-gray-600 leading-relaxed">
                     <p className="font-bold mb-2">Important Disclaimer</p>
                     <p className="mb-2">- SM SPORTS is a platform for auction organizers to put their player auction online.</p>
-                    <p className="mb-2">- We DO NOT accept payments or organize any auctions ourselves.</p>
                     <p className="mb-2">- Before registering for an auction, please carefully review all auction details...</p>
                     <p className="font-bold mt-2">Proceed with caution and at your own risk.</p>
                     
-                    <div className="flex justify-center gap-4 mt-6 text-blue-600 font-semibold">
-                         <span>Discover more</span>
-                         <a href="#" className="flex items-center gap-1 hover:underline"><ArrowUpCircle className="w-3 h-3"/> SM SPORTS</a>
-                    </div>
-
                     <div className="text-center mt-8">
-                        <p className="font-bold text-gray-800">Player Registration Form Provided by</p>
-                        <div className="w-12 h-12 bg-[#38b2ac] text-white font-black flex items-center justify-center rounded mx-auto mt-2 text-xs">
+                        <p className="font-bold text-gray-800">Registration System Provided by</p>
+                        <div className="w-12 h-12 bg-[#38b2ac] text-white font-black flex items-center justify-center rounded mx-auto mt-2 text-xs shadow-lg">
                             SM
                         </div>
                         <p className="font-bold text-gray-800 mt-1">SM SPORTS</p>
@@ -511,7 +577,7 @@ const PlayerRegistration: React.FC = () => {
             </div>
             
             {/* Scroll to Top Button */}
-            <button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="fixed bottom-6 right-6 bg-[#84cc16] hover:bg-[#65a30d] text-white p-3 rounded-full shadow-lg transition-all">
+            <button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="fixed bottom-6 right-6 bg-[#84cc16] hover:bg-[#65a30d] text-white p-3 rounded-full shadow-lg transition-all active:scale-90 z-10">
                 <ArrowUpCircle className="w-6 h-6" />
             </button>
         </div>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, Team, Player, AuctionCategory, Sponsor, PlayerRole, RegistrationConfig, FormField, RegisteredPlayer, BidIncrementSlab, FieldType } from '../types';
-import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Edit, Save, X, Upload, Users, Layers, Trophy, DollarSign, Image as ImageIcon, Briefcase, FileText, Settings, QrCode, AlignLeft, CheckSquare, Square, Palette, ChevronDown, Search, CheckCircle, XCircle, Clock, Calendar, Info, ListPlus, Eye, EyeOff, Copy, Link as LinkIcon, Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter, CreditCard as CardIcon } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import * as XLSX from 'xlsx';
 
@@ -48,6 +48,7 @@ const compressImage = (file: File): Promise<string> => {
 const DEFAULT_REG_CONFIG: RegistrationConfig = {
     isEnabled: false,
     includePayment: false,
+    paymentMethod: 'MANUAL',
     isPublic: true,
     fee: 0,
     upiId: '',
@@ -669,7 +670,7 @@ const AuctionManage: React.FC = () => {
                                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-3">Add New Bid Rule</label>
                                          <div className="grid grid-cols-2 gap-3 mb-4">
                                              <div>
-                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">When Price {">="}</label>
+                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">When Price >=</label>
                                                  <input 
                                                     type="number" 
                                                     placeholder="e.g. 500" 
@@ -993,7 +994,7 @@ const AuctionManage: React.FC = () => {
                                     <label className="block text-xs font-black text-gray-400 uppercase mb-3">Core Features</label>
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border">
-                                            <span className="text-sm font-bold text-gray-700">Collect Payment (QR Code)</span>
+                                            <span className="text-sm font-bold text-gray-700">Collect Payment</span>
                                             <button onClick={() => setRegConfig({...regConfig, includePayment: !regConfig.includePayment})} className={`p-1 rounded transition-colors ${regConfig.includePayment ? 'text-blue-600' : 'text-gray-300'}`}>{regConfig.includePayment ? <CheckSquare/> : <Square/>}</button>
                                         </div>
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border">
@@ -1005,31 +1006,70 @@ const AuctionManage: React.FC = () => {
 
                                  {regConfig.includePayment && (
                                      <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-4 animate-slide-up">
-                                         <h3 className="text-[10px] font-black uppercase text-blue-600">Payment Gateway Details</h3>
+                                         <h3 className="text-[10px] font-black uppercase text-blue-600 flex items-center gap-2">
+                                            <CardIcon className="w-3 h-3" /> Payment Gateway Configuration
+                                         </h3>
+                                         
+                                         <div className="mb-4">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">Select Method</label>
+                                            <div className="flex bg-white rounded-lg border p-1">
+                                                <button 
+                                                    onClick={() => setRegConfig({...regConfig, paymentMethod: 'MANUAL'})}
+                                                    className={`flex-1 py-1.5 rounded text-[10px] font-black transition-all ${regConfig.paymentMethod === 'MANUAL' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+                                                >
+                                                    MANUAL (QR)
+                                                </button>
+                                                <button 
+                                                    onClick={() => setRegConfig({...regConfig, paymentMethod: 'RAZORPAY'})}
+                                                    className={`flex-1 py-1.5 rounded text-[10px] font-black transition-all ${regConfig.paymentMethod === 'RAZORPAY' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+                                                >
+                                                    RAZORPAY
+                                                </button>
+                                            </div>
+                                         </div>
+
                                          <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Registration Fee</label>
+                                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Registration Fee (₹)</label>
                                                 <input type="number" className="w-full border rounded-lg p-2 text-sm" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} />
                                             </div>
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">UPI ID</label>
-                                                <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="merchant@upi" />
-                                            </div>
+                                            {regConfig.paymentMethod === 'RAZORPAY' ? (
+                                                <div className="col-span-1">
+                                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Razorpay Key ID</label>
+                                                    <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.razorpayKey || ''} onChange={e => setRegConfig({...regConfig, razorpayKey: e.target.value})} placeholder="rzp_live_..." />
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">UPI ID</label>
+                                                    <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="merchant@upi" />
+                                                </div>
+                                            )}
                                          </div>
-                                         <div>
-                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">UPI Name / Display Name</label>
-                                            <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} />
-                                         </div>
-                                         <div className="flex flex-col items-center pt-2">
-                                             <div className="w-24 h-24 bg-white border border-dashed rounded-lg flex items-center justify-center relative overflow-hidden group">
-                                                 {regConfig.qrCodeUrl ? <img src={regConfig.qrCodeUrl} className="w-full h-full object-contain" /> : <QrCode className="text-gray-300"/>}
-                                                 <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                                                     <Upload className="text-white w-5 h-5" />
-                                                     <input type="file" className="hidden" accept="image/*" onChange={handleQRUpload} />
-                                                 </label>
-                                             </div>
-                                             <span className="text-[9px] font-black text-blue-400 mt-2 uppercase tracking-widest">Payment QR Code</span>
-                                         </div>
+
+                                         {regConfig.paymentMethod === 'MANUAL' && (
+                                             <>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">UPI Name / Display Name</label>
+                                                    <input type="text" className="w-full border rounded-lg p-2 text-sm" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} />
+                                                </div>
+                                                <div className="flex flex-col items-center pt-2">
+                                                    <div className="w-24 h-24 bg-white border border-dashed rounded-lg flex items-center justify-center relative overflow-hidden group">
+                                                        {regConfig.qrCodeUrl ? <img src={regConfig.qrCodeUrl} className="w-full h-full object-contain" /> : <QrCode className="text-gray-300"/>}
+                                                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                                                            <Upload className="text-white w-5 h-5" />
+                                                            <input type="file" className="hidden" accept="image/*" onChange={handleQRUpload} />
+                                                        </label>
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-blue-400 mt-2 uppercase tracking-widest">Payment QR Code</span>
+                                                </div>
+                                             </>
+                                         )}
+
+                                         {regConfig.paymentMethod === 'RAZORPAY' && (
+                                             <p className="text-[9px] text-zinc-500 font-medium leading-relaxed mt-2 bg-white/50 p-2 rounded border border-blue-100 italic">
+                                                * Razorpay integration requires a valid Key ID. The system will automatically trigger the payment window during registration and verify successful transactions.
+                                             </p>
+                                         )}
                                      </div>
                                  )}
                              </div>
@@ -1227,7 +1267,11 @@ const AuctionManage: React.FC = () => {
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex justify-end items-center gap-2">
-                                                    {r.paymentScreenshot && (
+                                                    {r.razorpayPaymentId ? (
+                                                         <div className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black uppercase border border-emerald-100 flex items-center gap-1">
+                                                            <CheckIcon className="w-3 h-3"/> Paid via RZP
+                                                         </div>
+                                                    ) : r.paymentScreenshot && (
                                                         <button 
                                                             onClick={() => window.open(r.paymentScreenshot, '_blank')}
                                                             className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-100 transition-all"

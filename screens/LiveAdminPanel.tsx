@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, Team, Player, ProjectorLayout, OBSLayout } from '../types';
 import TeamStatusCard from '../components/TeamStatusCard';
-import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap, Undo2, RefreshCw } from 'lucide-react';
+// Fixed missing LayoutList import
+import { Play, Check, X, ArrowLeft, Loader2, RotateCcw, AlertOctagon, DollarSign, Cast, Lock, Unlock, Monitor, ChevronDown, Shuffle, Search, User, Palette, Trophy, Gavel, Wallet, Eye, EyeOff, Clock, Zap, Undo2, RefreshCw, LayoutList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const LiveAdminPanel: React.FC = () => {
@@ -211,6 +212,11 @@ const LiveAdminPanel: React.FC = () => {
       updateSponsorConfig(newConfig);
   };
 
+  const toggleHighlights = () => {
+    const current = state.sponsorConfig || { showOnOBS: false, showOnProjector: false, loopInterval: 5, showHighlights: false };
+    updateSponsorConfig({ ...current, showHighlights: !current.showHighlights });
+  };
+
   const handleSponsorLoopChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = Number(e.target.value);
       setSponsorLoop(val);
@@ -230,8 +236,7 @@ const LiveAdminPanel: React.FC = () => {
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
       const unsoldCount = players.filter(p => p.status === 'UNSOLD').length;
 
-      // NEW: Finish Auction Option
-      // Show this if no players are left AND we are not currently bidding on one (isRoundActive is false)
+      // Finish Auction Option
       if (availablePlayersCount === 0 && state.status !== AuctionStatus.NotStarted && !isRoundActive) {
           return (
              <div className="space-y-4 animate-fade-in">
@@ -356,7 +361,7 @@ const LiveAdminPanel: React.FC = () => {
                           UNSOLD
                       </button>
                   </div>
-                  {/* Cancel / Change Player Button */}
+                  {/* Inline Cancel / Change Player Button */}
                   <button 
                     onClick={handleCancelSelection} 
                     disabled={isProcessing}
@@ -368,9 +373,8 @@ const LiveAdminPanel: React.FC = () => {
           );
       }
 
-      // 2. NEXT PLAYER SELECTION (Based on Mode)
+      // 2. NEXT PLAYER SELECTION (Fully Inline Options)
       if (playerSelectionMode === 'MANUAL') {
-           // Filter based on search term and unsold toggle
            let availablePlayers = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD');
            if (showUnsold) {
                const unsoldList = players.filter(p => p.status === 'UNSOLD');
@@ -395,7 +399,7 @@ const LiveAdminPanel: React.FC = () => {
                            </label>
                        </div>
                        
-                       {/* Search Input */}
+                       {/* Inline Search Input */}
                        <div className="relative mb-2">
                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                            <input 
@@ -407,7 +411,7 @@ const LiveAdminPanel: React.FC = () => {
                            />
                        </div>
 
-                       {/* Options listed directly per instructions */}
+                       {/* Options listed directly as per instructions */}
                        <div className="max-h-40 overflow-y-auto border border-gray-700 rounded bg-gray-900 custom-scrollbar mb-2">
                             {filteredPlayers.length > 0 ? filteredPlayers.map(p => (
                                 <div 
@@ -460,7 +464,7 @@ const LiveAdminPanel: React.FC = () => {
       );
   }
 
-  // --- RENDER QUICK BID BUTTONS ---
+  // --- RENDER QUICK BID BUTTONS (Inline Grid) ---
   const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
   const renderQuickBidButtons = () => {
         if (!isRoundActive || isSellingMode) return null;
@@ -472,18 +476,11 @@ const LiveAdminPanel: React.FC = () => {
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                     {teams.map(team => {
-                        // Logic Check
                         let allowed = true;
                         let reason = '';
-                        
-                        // 1. Budget
                         if (team.budget < nextBid) { allowed = false; reason = 'NO FUNDS'; }
-                        // 2. Highest
                         else if (state.highestBidder?.id === team.id) { allowed = false; reason = 'LEADING'; }
-                        // 3. Squad Full
                         else if (team.players.length >= (maxPlayersPerTeam || 25)) { allowed = false; reason = 'FULL'; }
-                        
-                        // 4. Bid Limit & Category
                         else if (currentPlayer) {
                             if (currentPlayer.category) {
                                 const catConfig = categories.find(c => c.name === currentPlayer.category);
@@ -564,7 +561,7 @@ const LiveAdminPanel: React.FC = () => {
                 </button>
               </div>
               
-              {/* Quick Actions & Status Segments */}
+              {/* Quick Actions & Inline Status Segments */}
               <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full">
                   <div className="flex items-center gap-1">
                     <button 
@@ -582,7 +579,7 @@ const LiveAdminPanel: React.FC = () => {
                         <Monitor className="w-4 h-4" />
                     </button>
                     
-                    {/* Bidding Segments listed directly */}
+                    {/* Bidding Status Segmented Buttons listed directly */}
                     <div className="flex bg-gray-800 rounded p-1 ml-1">
                         <button 
                             onClick={() => updateBiddingStatus('ON')}
@@ -600,7 +597,7 @@ const LiveAdminPanel: React.FC = () => {
                   </div>
               </div>
 
-              {/* Display & Sponsors Toolbar */}
+              {/* Display & Sponsors Toolbar (Fully Inline Buttons) */}
               <div className="flex flex-wrap gap-2 items-center bg-primary/50 rounded-lg p-2 w-full mt-1 border-t border-gray-700">
                   <div className="flex items-center gap-2 flex-grow">
                       <div className="flex-1">
@@ -669,7 +666,7 @@ const LiveAdminPanel: React.FC = () => {
           </div>
       </div>
       
-      {/* SELECTION MODE TOGGLE */}
+      {/* SELECTION MODE TOGGLE (Inline Segments) */}
       <div className="bg-primary/40 rounded-lg p-2 mb-4 flex justify-between items-center border border-gray-700">
           <span className="text-xs font-bold text-text-secondary uppercase ml-1">Selection Mode</span>
           <div className="flex bg-gray-800 rounded p-1">
@@ -721,4 +718,30 @@ const LiveAdminPanel: React.FC = () => {
                     className="flex flex-col items-center justify-center bg-yellow-600 hover:bg-yellow-700 text-xs text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Clears bids for current player only"
                  >
-                    <RotateCcw className={`mb-1 h-4 w-4
+                    <RotateCcw className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
+                    Reset Current
+                 </button>
+                 <button 
+                    onClick={handleResetFull} 
+                    disabled={isProcessing}
+                    className="flex flex-col items-center justify-center bg-red-900/80 hover:bg-red-900 text-xs text-red-200 border border-red-800 py-2 rounded transition-colors disabled:opacity-50"
+                    title="Resets auction status to Not Started"
+                 >
+                    <AlertOctagon className={`mb-1 h-4 w-4 ${isProcessing ? 'animate-spin' : ''}`}/>
+                    Reset Full
+                 </button>
+             </div>
+         )}
+      </div>
+
+      <h3 className="text-sm font-bold mb-3 text-text-secondary uppercase">Teams Overview</h3>
+      <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+        {teams.map((team: Team) => (
+          <TeamStatusCard key={team.id} team={team} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default LiveAdminPanel;
