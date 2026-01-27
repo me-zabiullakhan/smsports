@@ -2,9 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon } from 'lucide-react';
+// Added Users and Gavel to the imports
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel } from 'lucide-react';
 import { db } from '../firebase';
-import { AuctionSetup } from '../types';
+import { AuctionSetup, UserPlan } from '../types';
+
+const PLANS = [
+    { id: 'FREE', name: 'Free Starter', price: 0, auctions: 1, teams: 2, features: ['Core Auction Engine', 'Public Registration', 'Standard Overlay'] },
+    { id: 'BASIC', name: 'Basic Pro', price: 999, auctions: 5, teams: 10, features: ['Multiple Auctions', 'Up to 10 Teams', 'Custom Slabs', 'Priority Support'] },
+    { id: 'PREMIUM', name: 'Premium Elite', price: 2499, auctions: 20, teams: 30, features: ['Bulk Auctions', 'Squad Management', 'Branding Removal', 'OBS Overlays', '24/7 Support'] }
+];
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
@@ -13,42 +20,43 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDbMissing, setIsDbMissing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
+  const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
 
-  // Function to setup the listener
+  // Load Razorpay Script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setIsRazorpayLoaded(true);
+    document.body.appendChild(script);
+    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
+  }, []);
+
   const setupListener = () => {
         if (!userProfile?.uid) return () => {};
-
         setLoading(true);
         setError(null);
         setIsDbMissing(false);
-
         try {
             const unsubscribe = db.collection('auctions')
                 .where('createdBy', '==', userProfile.uid)
                 .onSnapshot((snapshot) => {
                     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
                     data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    
                     setAuctions(data);
                     setLoading(false);
                 }, (error: any) => {
-                    console.error("Error fetching auctions:", error);
                     setLoading(false);
-                    
                     if (error.message && (error.message.includes("The database (default) does not exist") || error.code === 'not-found')) {
                         setIsDbMissing(true);
                         setError("Firestore Database not created yet.");
-                    } else if (error.code === 'permission-denied') {
-                        setError("Permission Denied: Check Firestore Security Rules.");
-                    } else if (error.code === 'unavailable') {
-                        setError("Network unavailable. Trying to reconnect...");
                     } else {
                         setError("Failed to load auctions: " + error.message);
                     }
                 });
             return unsubscribe;
         } catch (e: any) {
-            console.error("Error setting up listener", e);
             setError(e.message);
             setLoading(false);
             return () => {};
@@ -56,163 +64,69 @@ const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    let unsubscribe: () => void | undefined;
-    if (userProfile && userProfile.uid) {
-        unsubscribe = setupListener();
-    } else {
-        const timer = setTimeout(() => setLoading(false), 2000);
-        return () => clearTimeout(timer);
-    }
-    return () => {
-        if (unsubscribe) unsubscribe();
-    };
+    let unsubscribe: any;
+    if (userProfile?.uid) { unsubscribe = setupListener(); }
+    return () => { if (unsubscribe) unsubscribe(); };
   }, [userProfile]);
 
-  const handleLive = (id: string) => {
-      navigate(`/auction/${id}`);
-  }
+  const handleSubscription = (plan: typeof PLANS[0]) => {
+      if (!isRazorpayLoaded) return alert("Payment system initializing...");
+      if (plan.price === 0) return alert("You are already on the Free Plan.");
 
-  const handleManualRefresh = () => {
-      setupListener();
+      const options = {
+          key: "rzp_test_replace_me", // Super Admin should set this globally ideally
+          amount: plan.price * 100,
+          currency: "INR",
+          name: "SM SPORTS",
+          description: `Upgrade to ${plan.name}`,
+          handler: async (response: any) => {
+              // In a real app, verify signature on backend
+              const newPlan: UserPlan = {
+                  type: plan.id as any,
+                  maxAuctions: plan.auctions,
+                  maxTeams: plan.teams,
+                  expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000)
+              };
+              await db.collection('users').doc(userProfile?.uid).set({ plan: newPlan }, { merge: true });
+              alert("Payment Successful! Your plan has been upgraded.");
+              window.location.reload();
+          },
+          prefill: { email: userProfile?.email },
+          theme: { color: "#16a34a" }
+      };
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
   };
 
   const copyRegLink = (auctionId: string) => {
       const baseUrl = window.location.href.split('#')[0];
       const url = `${baseUrl}#/auction/${auctionId}/register`;
       navigator.clipboard.writeText(url);
-      alert("✅ Registration Link Copied!\n\nShare this URL with players so they can register for your auction.");
-  };
-
-  const copyOBSLink = (auctionId: string, type: 'transparent' | 'green') => {
-      if (window.location.protocol === 'blob:') {
-          alert("⚠️ PREVIEW MODE DETECTED\n\nOBS Overlays do not work in this preview environment because 'blob:' URLs are temporary.\n\nPlease DEPLOY this app (e.g. to Firebase Hosting) to use the Overlay feature.");
-          return;
-      }
-      const baseUrl = window.location.href.split('#')[0];
-      const route = type === 'green' ? 'obs-green' : 'obs-overlay';
-      const url = `${baseUrl}#/${route}/${auctionId}`;
-      navigator.clipboard.writeText(url);
-      
-      if (type === 'green') {
-          alert("🟩 GREEN SCREEN URL Copied!\n\nPaste into OBS and apply Chroma Key filter.");
-      } else {
-          alert("🎥 OBS Overlay URL Copied!\n\nPaste this as a Browser Source in OBS Studio.");
-      }
+      alert("✅ Registration Link Copied!");
   };
 
   const handleDeleteAuction = async (auctionId: string, title: string) => {
-      if (window.confirm(`Are you sure you want to delete the auction "${title}"?\n\nThis action cannot be undone.`)) {
-          try {
-              await db.collection('auctions').doc(auctionId).delete();
-          } catch (e: any) {
-              console.error("Error deleting auction:", e);
-              alert("Failed to delete auction: " + e.message);
-          }
+      if (window.confirm(`Delete auction "${title}"?`)) {
+          try { await db.collection('auctions').doc(auctionId).delete(); } 
+          catch (e: any) { alert("Delete failed: " + e.message); }
       }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-100 font-sans text-gray-800">
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
-        <div className="container mx-auto px-6 py-3 flex justify-between items-center">
-            <div className="flex items-center gap-4">
-                <button className="text-gray-500 hover:text-gray-700 lg:hidden"><Menu /></button>
-                <h1 className="text-xl font-bold text-gray-700 hidden sm:block">SM SPORTS<span className="text-gray-400 font-normal">/admin</span></h1>
-            </div>
-            <div className="flex-1 max-w-md mx-6 hidden md:block">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Search" 
-                        className="w-full bg-gray-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-green-500 focus:bg-white transition-all outline-none"
-                    />
-                </div>
-            </div>
-            <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-gray-700 transition-colors">
-                    {userProfile?.name?.charAt(0) || 'A'}
-                </div>
-            </div>
-        </div>
-      </header>
+  const renderAuctions = () => (
+      <div className="space-y-6 animate-fade-in">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <h2 className="text-2xl font-bold text-gray-800">My Auctions ({auctions.length})</h2>
+              <div className="flex gap-2">
+                  <button onClick={() => navigate('/scoring')} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center text-sm"><Activity className="w-4 h-4 mr-2" /> Scoring</button>
+                  <button onClick={() => navigate('/admin/new')} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center text-sm"><Plus className="w-4 h-4 mr-2" /> New Auction</button>
+              </div>
+          </div>
 
-      <main className="container mx-auto px-6 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
-            <div className="flex gap-2">
-                <button 
-                    onClick={() => navigate('/scoring')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center"
-                >
-                    <Activity className="w-4 h-4 mr-2" /> Cricket Scoring
-                </button>
-                <button 
-                    onClick={() => navigate('/admin/new')}
-                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center"
-                >
-                    <Plus className="w-4 h-4 mr-2" /> Create new auction
-                </button>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-lg">
-                        {userProfile?.name?.charAt(0) || 'A'}
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-lg">Welcome, {userProfile?.name || 'Admin'}</h3>
-                        <button onClick={logout} className="text-sm text-gray-500 hover:text-red-500 flex items-center mt-1 transition-colors">
-                             Sign out
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {isDbMissing && (
-                <div className="bg-red-600 text-white rounded-xl p-6 shadow-lg border-2 border-red-800 animate-pulse">
-                    <div className="flex items-start gap-4">
-                        <Database className="w-10 h-10 shrink-0" />
-                        <div>
-                            <h3 className="text-xl font-bold mb-2">Setup Required: Create Database</h3>
-                            <p className="mb-4">The Firestore database does not exist yet. The app cannot save or load auctions until you create it.</p>
-                            <ol className="list-decimal list-inside space-y-1 mb-4 text-sm bg-red-700/50 p-4 rounded-lg">
-                                <li>Go to the <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="underline font-bold hover:text-red-200">Firebase Console</a></li>
-                                <li>Click on your project (<b>sm-sports...</b>)</li>
-                                <li>In the left sidebar, click <b>Firestore Database</b></li>
-                                <li>Click the <b>Create Database</b> button</li>
-                                <li>Select a location (e.g., us-central1) and Start in <b>Test Mode</b> (or Production)</li>
-                            </ol>
-                            <button onClick={handleManualRefresh} className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-100">
-                                I've Created It - Refresh Now
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {error && !isDbMissing && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3 text-red-700">
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <p>{error}</p>
-                    <button onClick={handleManualRefresh} className="ml-auto text-sm underline hover:text-red-900">Retry</button>
-                </div>
-            )}
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-lg text-gray-800">My Auctions</h3>
-                    <button onClick={handleManualRefresh} className="text-gray-400 hover:text-green-600 transition-colors" title="Refresh List">
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
-                </div>
-                
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {loading ? (
-                    <div className="p-8 text-center text-gray-500 flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-2"></div>
-                        Loading auctions...
+                    <div className="p-12 text-center text-gray-500 flex flex-col items-center">
+                        <RefreshCw className="animate-spin h-8 w-8 text-green-600 mb-2"/>
+                        Syncing registry...
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
@@ -220,76 +134,168 @@ const AdminDashboard: React.FC = () => {
                             <div key={auction.id} className="p-6 hover:bg-gray-50 transition-colors group">
                                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                                     <div className="flex-1">
-                                        <h4 className="font-bold text-gray-700 text-lg group-hover:text-green-700 transition-colors">{auction.title}</h4>
-                                        <p className="text-sm text-gray-400 uppercase tracking-wider mt-1">{auction.sport} • {auction.date}</p>
+                                        <h4 className="font-bold text-gray-700 text-lg">{auction.title}</h4>
+                                        <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">{auction.sport} • {auction.date}</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        {/* Registration Link Button */}
-                                        <button 
-                                            onClick={() => copyRegLink(auction.id!)}
-                                            className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-100 flex items-center transition-all shadow-sm"
-                                            title="Copy Player Registration Link"
-                                        >
-                                            <LinkIcon className="w-3.5 h-3.5 mr-1.5" /> Reg Link
-                                        </button>
-
-                                        <div className="w-px h-6 bg-gray-200 mx-1"></div>
-
-                                        <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-blue-500 hover:bg-blue-50 px-3 py-1 rounded text-sm font-medium transition-colors">
-                                            View
-                                        </button>
-                                        <button 
-                                            onClick={() => navigate(`/admin/auction/${auction.id}/manage`)}
-                                            className="text-yellow-600 hover:bg-yellow-50 px-3 py-1 rounded text-sm font-medium transition-colors"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button 
-                                            onClick={() => handleLive(auction.id!)}
-                                            className="text-green-600 hover:bg-green-50 px-3 py-1 rounded text-sm font-medium transition-colors flex items-center"
-                                        >
-                                            Live
-                                        </button>
-                                        
-                                        <div className="flex bg-gray-100 rounded p-1">
-                                            <button 
-                                                onClick={() => copyOBSLink(auction.id!, 'transparent')}
-                                                className="text-purple-600 hover:bg-purple-50 px-2 py-1 rounded transition-colors"
-                                                title="Copy Transparent Overlay"
-                                            >
-                                                <Cast className="w-4 h-4" />
-                                            </button>
-                                            <div className="w-px h-4 bg-gray-300 mx-1"></div>
-                                            <button 
-                                                onClick={() => copyOBSLink(auction.id!, 'green')}
-                                                className="text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
-                                                title="Copy Green Screen Overlay"
-                                            >
-                                                <Monitor className="w-4 h-4" />
-                                            </button>
-                                        </div>
-
-                                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                                        <button 
-                                            onClick={() => handleDeleteAuction(auction.id!, auction.title)}
-                                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
-                                            title="Delete Auction"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        <button onClick={() => copyRegLink(auction.id!)} className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border border-emerald-100 flex items-center transition-all"><LinkIcon className="w-3 h-3 mr-1" /> Registration</button>
+                                        <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded text-xs font-bold transition-all uppercase">Live</button>
+                                        <button onClick={() => navigate(`/admin/auction/${auction.id}/manage`)} className="text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded text-xs font-bold transition-all uppercase">Manage</button>
+                                        <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="text-red-400 hover:text-red-600 p-2 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                 </div>
                             </div>
                         )) : (
-                            <div className="p-8 text-center text-gray-400 italic">
-                                {error ? "Could not load auctions." : "No auctions created yet. Click 'Create new auction' to start."}
-                            </div>
+                            <div className="p-20 text-center text-gray-400 italic">No auctions detected in your account.</div>
                         )}
                     </div>
                 )}
+          </div>
+      </div>
+  );
+
+  const renderPlans = () => (
+      <div className="animate-fade-in">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+              <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tighter mb-2">Elevate Your Auctions</h2>
+              <p className="text-gray-500 text-sm font-medium">Choose a professional plan tailored to your tournament size.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {PLANS.map(plan => (
+                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col ${plan.id === 'BASIC' ? 'border-green-500 shadow-2xl scale-105 z-10' : 'border-gray-100'}`}>
+                      {plan.id === 'BASIC' && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Most Popular</div>}
+                      <h3 className="text-xl font-black text-gray-800 uppercase mb-2">{plan.name}</h3>
+                      <div className="flex items-baseline mb-6">
+                          <span className="text-4xl font-black text-gray-900">₹{plan.price}</span>
+                          <span className="text-gray-400 text-xs font-bold ml-1">/Year</span>
+                      </div>
+                      <div className="space-y-4 mb-10 flex-grow">
+                          <div className="flex items-center gap-3 text-sm text-gray-600 font-bold">
+                              <Zap className="w-4 h-4 text-yellow-500" /> {plan.auctions} Full Auctions
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-600 font-bold">
+                              {/* Fix: Added missing Users component import from lucide-react */}
+                              <Users className="w-4 h-4 text-blue-500" /> Up to {plan.teams} Teams / Auction
+                          </div>
+                          {plan.features.map((f, i) => (
+                              <div key={i} className="flex items-center gap-3 text-sm text-gray-500">
+                                  <CheckCircle className="w-4 h-4 text-green-400" /> {f}
+                              </div>
+                          ))}
+                      </div>
+                      <button 
+                        onClick={() => handleSubscription(plan)}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 ${plan.id === 'BASIC' ? 'bg-green-600 text-white shadow-xl hover:bg-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                          {plan.id === 'FREE' ? 'Current Plan' : 'Purchase Plan'}
+                      </button>
+                  </div>
+              ))}
+          </div>
+      </div>
+  );
+
+  const renderLegal = () => (
+      <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
+          <div className="bg-slate-900 p-8 text-white">
+              <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Legal Protocol</h2>
+              <p className="text-slate-400 text-sm">Terms of Service and Operational Guidelines for SM SPORTS Developers & Hosts.</p>
+          </div>
+          <div className="p-10 space-y-10 max-h-[600px] overflow-y-auto custom-scrollbar">
+              <section>
+                  <h3 className="text-lg font-black uppercase tracking-widest text-blue-600 mb-4 flex items-center gap-2"><Scale className="w-5 h-5"/> 1. Service Agreement</h3>
+                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
+                      <p>By using the SM SPORTS platform, you agree to organize sports auctions in a fair and transparent manner. We provide the technical infrastructure, but the outcome and financial management of your local auctions are your responsibility.</p>
+                      <p>You may not use the platform for illegal gambling, betting, or any activity prohibited by your local jurisdiction.</p>
+                  </div>
+              </section>
+              <section>
+                  <h3 className="text-lg font-black uppercase tracking-widest text-emerald-600 mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5"/> 2. Data Privacy</h3>
+                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
+                      <p>User data, player registration details, and team information are stored securely in our cloud database. SM SPORTS does not sell your auction data to third parties.</p>
+                      <p>Admins are responsible for the privacy of the players who register through their custom registration links. Ensure you handle player mobile numbers and IDs with discretion.</p>
+                  </div>
+              </section>
+              <section>
+                  <h3 className="text-lg font-black uppercase tracking-widest text-red-600 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5"/> 3. Refund Policy</h3>
+                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
+                      <p>Subscription fees for professional plans are non-refundable once the service has been activated. If you encounter technical issues that prevent your auction from proceeding, our support team will provide credits or extension of service.</p>
+                  </div>
+              </section>
+              <section>
+                  <h3 className="text-lg font-black uppercase tracking-widest text-orange-600 mb-4 flex items-center gap-2"><FileText className="w-5 h-5"/> 4. Content Ownership</h3>
+                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
+                      <p>Logos, player photos, and auction titles uploaded by you remain your property. However, you grant SM SPORTS a non-exclusive license to display this content on our platform for your auction participants.</p>
+                  </div>
+              </section>
+              <div className="pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Last Updated: January 2025</div>
+          </div>
+      </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+                <div className="bg-slate-900 p-2 rounded-xl text-white"><Crown className="w-5 h-5" /></div>
+                <h1 className="text-xl font-black text-gray-700 uppercase tracking-tighter">SM SPORTS <span className="text-gray-300 font-medium">| Dashboard</span></h1>
+            </div>
+            
+            <div className="flex items-center gap-6">
+                <div className="hidden lg:flex bg-gray-100 rounded-xl p-1">
+                    {[
+                        /* Fix: Gavel is now correctly imported from lucide-react above */
+                        { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },
+                        { id: 'PLANS', icon: <Zap className="w-4 h-4"/>, label: 'Plans' },
+                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Legal' }
+                    ].map(tab => (
+                        <button 
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            {tab.icon} {tab.label}
+                        </button>
+                    ))}
+                </div>
+                <div onClick={logout} className="w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-red-600 transition-colors shadow-lg">
+                    {userProfile?.name?.charAt(0) || 'A'}
+                </div>
             </div>
         </div>
+      </header>
+
+      {/* Mobile Nav */}
+      <div className="lg:hidden flex bg-white border-b overflow-x-auto p-2 gap-2 sticky top-[73px] z-40">
+          {['AUCTIONS', 'PLANS', 'LEGAL'].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 min-w-[100px] py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTab === tab ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{tab}</button>
+          ))}
+      </div>
+
+      <main className="container mx-auto px-6 py-10 flex-grow max-w-6xl">
+        {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 flex items-center gap-3 text-red-700 animate-pulse">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p className="text-sm font-bold">{error}</p>
+            </div>
+        )}
+
+        {activeTab === 'AUCTIONS' && renderAuctions()}
+        {activeTab === 'PLANS' && renderPlans()}
+        {activeTab === 'LEGAL' && renderLegal()}
       </main>
+
+      <footer className="bg-white border-t py-8 mt-10">
+          <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
+              <p>© 2025 SM SPORTS OPERATIONAL CORE</p>
+              <div className="flex gap-6">
+                  <button onClick={() => setActiveTab('LEGAL')} className="hover:text-gray-600">Privacy Protocol</button>
+                  <button onClick={() => setActiveTab('LEGAL')} className="hover:text-gray-600">Operations Terms</button>
+                  <a href="mailto:support@smsports.com" className="hover:text-gray-600">Technical Support</a>
+              </div>
+          </div>
+      </footer>
     </div>
   );
 };

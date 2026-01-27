@@ -155,12 +155,20 @@ export enum UserRole {
   VIEWER = 'VIEWER'
 }
 
+export interface UserPlan {
+    type: 'FREE' | 'BASIC' | 'PREMIUM';
+    maxTeams: number;
+    maxAuctions: number;
+    expiresAt?: number;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
   name?: string;
   role: UserRole;
   teamId?: number | string; // If role is TEAM_OWNER
+  plan?: UserPlan;
 }
 
 export type FieldType = 'text' | 'number' | 'email' | 'select' | 'date' | 'file' | 'textarea';
@@ -214,13 +222,11 @@ export interface AuctionSetup {
     obsLayout?: OBSLayout;
 }
 
-export interface Tournament {
-    id?: string;
-    name: string;
-    createdAt: number;
-    createdBy: string;
-    teams?: Team[]; // For simplicity in standalone tournaments, teams might be nested or subcollection
-}
+// Added Scoring & Match Types
+export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'CWC_2023' | 'DEFAULT';
+export type OverlayView = 'DEFAULT' | 'I1BAT' | 'I1BALL' | 'I2BAT' | 'I2BALL' | 'SUMMARY' | 'FOW' | 'B1' | 'B2' | 'BOWLER' | 'TARGET' | 'PARTNERSHIP' | 'DECISION' | 'ANIMATION' | 'POINTS_TABLE' | 'TOP_BATTERS' | 'TOP_BOWLERS' | 'TOP_STRIKERS' | 'MOM' | 'PLAYER_STATS';
+export type OverlayAnimation = 'NONE' | 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT';
+export type DecisionStatus = 'NONE' | 'PENDING' | 'OUT' | 'NOT_OUT';
 
 export interface ScoringAsset {
     id: string;
@@ -228,35 +234,22 @@ export interface ScoringAsset {
     url: string;
     type: 'FRAME' | 'BACKGROUND' | 'LOGO';
     createdBy: string;
+    createdAt: number;
 }
 
-export interface AuctionContextType {
-    state: AuctionState;
-    userProfile: UserProfile | null;
-    setUserProfile: (profile: UserProfile) => void;
-    placeBid: (teamId: number | string, amount: number) => Promise<void>;
-    sellPlayer: (teamId?: string | number, customPrice?: number) => Promise<void>;
-    passPlayer: () => Promise<void>;
-    correctPlayerSale: (playerId: string, newTeamId: string | null, newPrice: number) => Promise<void>;
-    startAuction: (specificPlayerId?: string | number) => Promise<boolean>;
-    undoPlayerSelection: () => Promise<void>;
-    endAuction: () => Promise<void>;
-    resetAuction: () => Promise<void>;
-    resetCurrentPlayer: () => Promise<void>;
-    resetUnsoldPlayers: () => Promise<void>;
-    updateBiddingStatus: (status: BiddingStatus) => Promise<void>; // Updated from toggleBidding
-    updateSponsorConfig: (config: SponsorConfig) => Promise<void>; // Added
-    toggleSelectionMode: () => Promise<void>; // Toggle Auto/Manual
-    updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
-    setAdminView: (view: AdminViewOverride | null) => Promise<void>;
-    logout: () => void;
-    error: string | null;
-    joinAuction: (id: string) => void;
-    activeAuctionId: string | null;
-    nextBid: number; 
+export interface BallRecord {
+    ballNumber: number;
+    overNumber: number;
+    bowlerId: string;
+    batsmanId: string;
+    runs: number;
+    isWide: boolean;
+    isNoBall: boolean;
+    isWicket: boolean;
+    isBye: boolean;
+    isLegBye: boolean;
+    extras: number;
 }
-
-// --- SCORING TYPES ---
 
 export interface BatsmanStats {
     playerId: string;
@@ -266,33 +259,17 @@ export interface BatsmanStats {
     fours: number;
     sixes: number;
     isStriker: boolean;
-    outBy?: string; // If out, how/who
+    outBy?: string;
 }
 
 export interface BowlerStats {
     playerId: string;
     name: string;
-    overs: number; // 1.2
-    ballsBowled: number; // actual valid balls in current over
+    overs: number;
+    ballsBowled: number;
     runsConceded: number;
     wickets: number;
     maidens: number;
-}
-
-export interface BallEvent {
-    ballNumber: number;
-    overNumber: number; // 0, 1, 2...
-    bowlerId: string;
-    batsmanId: string;
-    runs: number;
-    isWide: boolean;
-    isNoBall: boolean;
-    isBye?: boolean;
-    isLegBye?: boolean;
-    isWicket: boolean;
-    wicketType?: string;
-    extras: number;
-    commentary?: string;
 }
 
 export interface InningsState {
@@ -300,8 +277,8 @@ export interface InningsState {
     bowlingTeamId: string;
     totalRuns: number;
     wickets: number;
-    overs: number; // e.g., 10.4
-    ballsInCurrentOver: number; // 0-6 (valid balls)
+    overs: number;
+    ballsInCurrentOver: number;
     currentRunRate: number;
     extras: {
         wides: number;
@@ -312,51 +289,69 @@ export interface InningsState {
     strikerId: string | null;
     nonStrikerId: string | null;
     currentBowlerId: string | null;
-    batsmen: { [playerId: string]: BatsmanStats };
-    bowlers: { [playerId: string]: BowlerStats };
-    recentBalls: BallEvent[];
-}
-
-export type OverlayView = 'DEFAULT' | 'B1' | 'B2' | 'BOWLER' | 'SUMMARY' | 'TARGET' | 'DECISION' | 'ANIMATION' | 'FOW' | 'PARTNERSHIP' | 'TEAMS_PLAYERS' | 'PLAYER_STATS' | 'POINTS_TABLE' | 'TOP_BATTERS' | 'TOP_BOWLERS' | 'TOP_STRIKERS' | 'MOM' | 'I1BAT' | 'I1BALL' | 'I2BAT' | 'I2BALL' | 'CUSTOM';
-
-export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'CWC_2023' | 'DEFAULT';
-
-export type DecisionStatus = 'PENDING' | 'OUT' | 'NOT_OUT' | 'NONE';
-export type OverlayAnimation = 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT' | 'HAT_TRICK' | 'TOUR_BOUNDARIES' | 'NONE';
-
-export interface OverlayState {
-    currentView: OverlayView; 
-    theme: ScoreboardTheme; 
-    animation: OverlayAnimation; 
-    customMessage?: string;
-    decision?: DecisionStatus;
-    momId?: string;
-    statsPlayerId?: string; // For tournament stats player
-    autoRefresh?: boolean;
-    backgroundGraphicUrl?: string;
-    teamAColor?: string;
-    teamBColor?: string;
-    showPP?: boolean;
+    batsmen: { [key: string]: BatsmanStats };
+    bowlers: { [key: string]: BowlerStats };
+    recentBalls: BallRecord[];
 }
 
 export interface Match {
     id: string;
-    auctionId: string; // ID of the Auction OR the Tournament
-    sourceType?: 'AUCTION' | 'TOURNAMENT'; // Distinguish between sources
+    auctionId: string;
+    sourceType: 'AUCTION' | 'TOURNAMENT';
     teamAId: string;
     teamBId: string;
     teamAName: string;
     teamBName: string;
     totalOvers: number;
-    status: 'SCHEDULED' | 'TOSS' | 'LIVE' | 'COMPLETED';
-    tossWinnerId?: string;
-    tossChoice?: 'BAT' | 'BOWL';
+    status: 'SCHEDULED' | 'LIVE' | 'COMPLETED';
     currentInnings: 1 | 2;
-    innings: {
-        1: InningsState;
-        2: InningsState;
-    };
-    winnerId?: string;
     createdAt: number;
-    overlay?: OverlayState;
+    innings: {
+        [key: number]: InningsState;
+    };
+    overlay?: {
+        theme: ScoreboardTheme;
+        currentView: OverlayView;
+        decision?: DecisionStatus;
+        animation?: OverlayAnimation;
+        backgroundGraphicUrl?: string;
+        momId?: string;
+        statsPlayerId?: string;
+        customMessage?: string;
+        teamAColor?: string;
+        teamBColor?: string;
+    };
+}
+
+export interface Tournament {
+    id?: string;
+    name: string;
+    createdAt: number;
+    createdBy?: string;
+}
+
+export interface AuctionContextType {
+  state: AuctionState;
+  userProfile: UserProfile | null;
+  setUserProfile: (profile: UserProfile | null) => void;
+  placeBid: (teamId: string | number, amount: number) => Promise<void>;
+  sellPlayer: (teamId?: string | number, customPrice?: number) => Promise<void>;
+  passPlayer: () => Promise<void>;
+  correctPlayerSale: (playerId: string, newTeamId: string | null, newPrice: number) => Promise<void>;
+  startAuction: (specificPlayerId?: string | number) => Promise<boolean>;
+  undoPlayerSelection: () => Promise<void>;
+  endAuction: () => Promise<void>;
+  resetAuction: () => Promise<void>;
+  resetCurrentPlayer: () => Promise<void>;
+  resetUnsoldPlayers: () => Promise<void>;
+  updateBiddingStatus: (status: BiddingStatus) => Promise<void>;
+  updateSponsorConfig: (config: SponsorConfig) => Promise<void>;
+  toggleSelectionMode: () => Promise<void>;
+  updateTheme: (type: 'PROJECTOR' | 'OBS', layout: string) => Promise<void>;
+  setAdminView: (view: AdminViewOverride | null) => Promise<void>;
+  logout: () => Promise<void>;
+  error: string | null;
+  joinAuction: (id: string) => void;
+  activeAuctionId: string | null;
+  nextBid: number;
 }
