@@ -1,25 +1,17 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-// Added Users and Gavel to the imports
 import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan } from '../types';
-
-const PLANS = [
-    { id: 'FREE', name: 'Free Starter', price: 0, auctions: 1, teams: 2, features: ['Core Auction Engine', 'Public Registration', 'Standard Overlay'] },
-    { id: 'BASIC', name: 'Basic Pro', price: 999, auctions: 5, teams: 10, features: ['Multiple Auctions', 'Up to 10 Teams', 'Custom Slabs', 'Priority Support'] },
-    { id: 'PREMIUM', name: 'Premium Elite', price: 2499, auctions: 20, teams: 30, features: ['Bulk Auctions', 'Squad Management', 'Branding Removal', 'OBS Overlays', '24/7 Support'] }
-];
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
   const navigate = useNavigate();
   const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
+  const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDbMissing, setIsDbMissing] = useState(false);
   const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
 
@@ -33,11 +25,18 @@ const AdminDashboard: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
+  // Fetch Dynamic Plans
+  useEffect(() => {
+      const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
+          setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+      return () => unsub();
+  }, []);
+
   const setupListener = () => {
         if (!userProfile?.uid) return () => {};
         setLoading(true);
         setError(null);
-        setIsDbMissing(false);
         try {
             const unsubscribe = db.collection('auctions')
                 .where('createdBy', '==', userProfile.uid)
@@ -48,12 +47,7 @@ const AdminDashboard: React.FC = () => {
                     setLoading(false);
                 }, (error: any) => {
                     setLoading(false);
-                    if (error.message && (error.message.includes("The database (default) does not exist") || error.code === 'not-found')) {
-                        setIsDbMissing(true);
-                        setError("Firestore Database not created yet.");
-                    } else {
-                        setError("Failed to load auctions: " + error.message);
-                    }
+                    setError("Failed to load auctions: " + error.message);
                 });
             return unsubscribe;
         } catch (e: any) {
@@ -69,21 +63,20 @@ const AdminDashboard: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, [userProfile]);
 
-  const handleSubscription = (plan: typeof PLANS[0]) => {
+  const handleSubscription = (plan: any) => {
       if (!isRazorpayLoaded) return alert("Payment system initializing...");
       if (plan.price === 0) return alert("You are already on the Free Plan.");
 
       const options = {
-          key: "rzp_test_replace_me", // Super Admin should set this globally ideally
+          key: "rzp_test_replace_me", 
           amount: plan.price * 100,
           currency: "INR",
           name: "SM SPORTS",
           description: `Upgrade to ${plan.name}`,
           handler: async (response: any) => {
-              // In a real app, verify signature on backend
               const newPlan: UserPlan = {
                   type: plan.id as any,
-                  maxAuctions: plan.auctions,
+                  maxAuctions: 1, 
                   maxTeams: plan.teams,
                   expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000)
               };
@@ -158,26 +151,21 @@ const AdminDashboard: React.FC = () => {
       <div className="animate-fade-in">
           <div className="text-center max-w-2xl mx-auto mb-12">
               <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tighter mb-2">Elevate Your Auctions</h2>
-              <p className="text-gray-500 text-sm font-medium">Choose a professional plan tailored to your tournament size.</p>
+              <p className="text-gray-500 text-sm font-medium">Professional grade features for every tournament size.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {PLANS.map(plan => (
-                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col ${plan.id === 'BASIC' ? 'border-green-500 shadow-2xl scale-105 z-10' : 'border-gray-100'}`}>
-                      {plan.id === 'BASIC' && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Most Popular</div>}
+              {dbPlans.length > 0 ? dbPlans.map(plan => (
+                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col border-gray-100`}>
                       <h3 className="text-xl font-black text-gray-800 uppercase mb-2">{plan.name}</h3>
                       <div className="flex items-baseline mb-6">
                           <span className="text-4xl font-black text-gray-900">₹{plan.price}</span>
-                          <span className="text-gray-400 text-xs font-bold ml-1">/Year</span>
+                          <span className="text-gray-400 text-xs font-bold ml-1">/Auction</span>
                       </div>
                       <div className="space-y-4 mb-10 flex-grow">
-                          <div className="flex items-center gap-3 text-sm text-gray-600 font-bold">
-                              <Zap className="w-4 h-4 text-yellow-500" /> {plan.auctions} Full Auctions
+                          <div className="flex items-center gap-3 text-sm text-gray-800 font-black uppercase tracking-tight">
+                              <Users className="w-4 h-4 text-blue-500" /> Limit: Up to {plan.teams} Teams
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-gray-600 font-bold">
-                              {/* Fix: Added missing Users component import from lucide-react */}
-                              <Users className="w-4 h-4 text-blue-500" /> Up to {plan.teams} Teams / Auction
-                          </div>
-                          {plan.features.map((f, i) => (
+                          {(plan.features || []).map((f: string, i: number) => (
                               <div key={i} className="flex items-center gap-3 text-sm text-gray-500">
                                   <CheckCircle className="w-4 h-4 text-green-400" /> {f}
                               </div>
@@ -185,12 +173,14 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => handleSubscription(plan)}
-                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 ${plan.id === 'BASIC' ? 'bg-green-600 text-white shadow-xl hover:bg-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 ${plan.price > 0 ? 'bg-green-600 text-white shadow-xl hover:bg-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                       >
-                          {plan.id === 'FREE' ? 'Current Plan' : 'Purchase Plan'}
+                          {plan.price === 0 ? 'Current Plan' : 'Purchase Plan'}
                       </button>
                   </div>
-              ))}
+              )) : (
+                  <div className="col-span-full py-20 text-center text-gray-400 italic">No subscription protocols available at this time.</div>
+              )}
           </div>
       </div>
   );
@@ -245,7 +235,6 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-6">
                 <div className="hidden lg:flex bg-gray-100 rounded-xl p-1">
                     {[
-                        /* Fix: Gavel is now correctly imported from lucide-react above */
                         { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },
                         { id: 'PLANS', icon: <Zap className="w-4 h-4"/>, label: 'Plans' },
                         { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Legal' }
@@ -253,7 +242,7 @@ const AdminDashboard: React.FC = () => {
                         <button 
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                         >
                             {tab.icon} {tab.label}
                         </button>

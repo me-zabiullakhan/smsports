@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, AuctionSetup } from '../types';
-import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users } from 'lucide-react';
+import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users, BookOpen } from 'lucide-react';
 import { db } from '../firebase';
 
 const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.Node }> = ({ auction, navigate, getStatusBadge }) => {
@@ -61,7 +61,7 @@ const LandingPage: React.FC = () => {
           const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
           data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           const active = data.filter(a => { const s = (a.status || '').toUpperCase(); return s === 'DRAFT' || s === 'LIVE' || s === 'NOT_STARTED' || s === 'IN_PROGRESS'; });
-          const past = data.filter(a => { const s = (a.status || '').toUpperCase(); return s === 'COMPLETED' || s === 'FINISHED'; });
+          const past = data.filter(a => { const s = (a.status || '').toUpperCase(); return s === 'FINISHED' || s === 'COMPLETED'; });
           setUpcomingAuctions(active);
           setPastAuctions(past);
           setLoading(false);
@@ -81,7 +81,6 @@ const LandingPage: React.FC = () => {
       <nav className="border-b border-accent bg-secondary/50 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            {/* LOGO FRAME IN NAVBAR */}
             <div className="w-12 h-12 bg-black rounded-xl border-2 border-highlight p-1.5 shadow-lg flex items-center justify-center overflow-hidden">
                 {state.systemLogoUrl ? (
                     <img src={state.systemLogoUrl} className="max-w-full max-h-full object-contain" alt="SM Sports" />
@@ -105,7 +104,6 @@ const LandingPage: React.FC = () => {
           <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 tracking-tight">Manage Your <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-200">Cricket Auctions</span><br/> Professionally</h1>
           <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">Experience the thrill of a real-time auction room. Organize players, manage team budgets, and bid live with our advanced auction platform designed for sports enthusiasts.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            {/* Redirect to registration flow directly */}
             <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl"><Play className="w-5 h-5 mr-2 fill-current" /> Create Auction</Link>
           </div>
         </div>
@@ -127,7 +125,7 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      <footer id="features" className="bg-secondary border-t border-accent py-12 mt-auto">
+      <footer className="bg-secondary border-t border-accent py-12 mt-auto">
         <div className="container mx-auto px-6">
            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
               <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Users /></div><h4 className="text-white font-bold mb-2">Team Management</h4><p className="text-text-secondary text-sm">Owners can manage squads, view budgets, and strategize in real-time.</p></div>
@@ -135,7 +133,16 @@ const LandingPage: React.FC = () => {
               <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Shield /></div><h4 className="text-white font-bold mb-2">Admin Controls</h4><p className="text-text-secondary text-sm">Full control for auctioneers to sell, pass, or reset players instantly.</p></div>
               <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Play /></div><h4 className="text-white font-bold mb-2">OBS Integration</h4><p className="text-text-secondary text-sm">Broadcast professional overlays directly to your stream with our dedicated view.</p></div>
            </div>
-           <div className="border-t border-gray-700 pt-8 text-center text-text-secondary text-sm">&copy; 2025 SM SPORTS. All rights reserved.</div>
+           
+           <div className="border-t border-gray-700 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
+               <div className="text-text-secondary text-sm font-medium">&copy; 2025 SM SPORTS. All rights reserved.</div>
+               <div className="flex gap-8">
+                   <Link to="/guide" className="bg-highlight/10 text-highlight hover:bg-highlight hover:text-primary px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 border border-highlight/20 transition-all active:scale-95 shadow-lg">
+                       <BookOpen className="w-4 h-4"/> Platform Guide & Docs
+                   </Link>
+                   <Link to="/auth" className="text-text-secondary hover:text-white text-xs font-black uppercase tracking-widest flex items-center transition-colors">Admin Login</Link>
+               </div>
+           </div>
         </div>
       </footer>
     </div>

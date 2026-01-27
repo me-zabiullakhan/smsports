@@ -13,6 +13,7 @@ import PlayerRegistration from './screens/PlayerRegistration';
 import ScoringDashboard from './screens/ScoringDashboard';
 import MatchScorer from './screens/MatchScorer';
 import MatchOverlay from './screens/MatchOverlay';
+import PlatformGuide from './screens/PlatformGuide';
 import { useAuction } from './hooks/useAuction';
 import { auth } from './firebase';
 import firebase from 'firebase/compat/app';
@@ -62,6 +63,9 @@ const AppContent: React.FC = () => {
     <Routes>
         {/* Public Route: Landing Page */}
         <Route path="/" element={<LandingPage />} />
+
+        {/* Public Route: Platform Guide */}
+        <Route path="/guide" element={<PlatformGuide />} />
 
         {/* Public Route: Main Auction Room (Dynamic ID) */}
         <Route path="/auction/:auctionId" element={<Dashboard />} />
