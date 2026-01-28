@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole, PromoCode } from '../types';
 
@@ -494,7 +494,7 @@ const AdminDashboard: React.FC = () => {
                 <h1 className="text-xl font-bold text-gray-700 tracking-tighter">SM SPORTS <span className="text-gray-300 font-medium">| Dashboard</span></h1>
             </div>
             
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 md:gap-6">
                 {isSuperAdmin && (
                     <button 
                         onClick={() => navigate('/super-admin')}
@@ -519,8 +519,20 @@ const AdminDashboard: React.FC = () => {
                         </button>
                     ))}
                 </div>
-                <div onClick={logout} className="w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-red-600 transition-colors shadow-lg">
-                    {userProfile?.name?.charAt(0) || 'A'}
+                
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={logout}
+                        className="text-gray-400 hover:text-red-500 transition-colors p-2 flex items-center gap-2"
+                        title="Sign Out"
+                    >
+                        <LogOut className="w-5 h-5" />
+                        <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Logout</span>
+                    </button>
+
+                    <div className="w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm shadow-lg">
+                        {userProfile?.name?.charAt(0) || 'A'}
+                    </div>
                 </div>
             </div>
         </div>
