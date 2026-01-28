@@ -9,23 +9,26 @@ interface Props {
 
 const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const { state, placeBid, userProfile, nextBid } = useAuction();
-    const { currentPlayerIndex, unsoldPlayers, maxPlayersPerTeam, categories } = state;
+    const { currentPlayerId, players, maxPlayersPerTeam, categories, basePrice: globalBasePrice } = state;
     const isAdmin = userProfile?.role === UserRole.ADMIN || userProfile?.role === UserRole.SUPER_ADMIN;
     const isAuctionLive = state.status === 'IN_PROGRESS';
-    const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
+    const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // Check Eligibility
+    // --- ENHANCED ELIGIBILITY CHECK (Synced with BiddingPanel) ---
     let isLimitReached = false;
     let limitReason = "";
 
+    const maxSquadSize = maxPlayersPerTeam || 11;
+    const currentSquadSize = team.players.length;
+    const totalRemainingNeeded = maxSquadSize - currentSquadSize;
+
     // 1. Check Global Squad Limit
-    const squadLimit = maxPlayersPerTeam || 25;
-    if (team.players.length >= squadLimit) {
+    if (totalRemainingNeeded <= 0) {
         isLimitReached = true;
         limitReason = "Squad Full";
     }
 
-    // 2. Check Category Specific Max Limit (only if global not hit)
+    // 2. Check Category Specific Max Limit
     if (!isLimitReached && currentPlayer && currentPlayer.category) {
         const catConfig = categories.find(c => c.name === currentPlayer.category);
         if (catConfig && catConfig.maxPerTeam > 0) {
@@ -37,24 +40,31 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
         }
     }
 
-    // 3. ENHANCED AUTO CALCULATION (Minimum Category Protection)
-    let reservedBudgetForMins = 0;
+    // 3. Squad Filling Reserve Check
     if (!isLimitReached && currentPlayer) {
+        const absoluteMinBasePrice = categories.length > 0 
+            ? Math.min(...categories.map(c => c.basePrice))
+            : (globalBasePrice || 10);
+
+        let totalMinSlotsReserved = 0;
+        let totalMandatoryReserve = 0;
+
         categories.forEach(cat => {
-            const playersInCatCount = team.players.filter(p => p.category === cat.name).length;
-            const minNeeded = cat.minPerTeam || 0;
+            const alreadyHasCount = team.players.filter(p => p.category === cat.name).length;
+            let stillNeededInCat = Math.max(0, (cat.minPerTeam || 0) - alreadyHasCount);
             
-            let slotsToFill = Math.max(0, minNeeded - playersInCatCount);
-            
-            // If current player belongs to this category, one of the minimum slots is potentially filled
             if (currentPlayer.category === cat.name) {
-                slotsToFill = Math.max(0, slotsToFill - 1);
+                stillNeededInCat = Math.max(0, stillNeededInCat - 1);
             }
-            
-            reservedBudgetForMins += slotsToFill * cat.basePrice;
+
+            totalMinSlotsReserved += stillNeededInCat;
+            totalMandatoryReserve += stillNeededInCat * cat.basePrice;
         });
 
-        const maxAllowedBid = team.budget - reservedBudgetForMins;
+        const flexibleSlotsRemaining = Math.max(0, (totalRemainingNeeded - 1) - totalMinSlotsReserved);
+        totalMandatoryReserve += (flexibleSlotsRemaining * absoluteMinBasePrice);
+
+        const maxAllowedBid = team.budget - totalMandatoryReserve;
         if (nextBid > maxAllowedBid) {
             isLimitReached = true;
             limitReason = "Bid Cap Hit";
@@ -99,7 +109,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                 </p>
                 <p className="flex items-center text-text-secondary">
                     <Users className="w-4 h-4 mr-2 text-blue-400" />
-                    Players: <span className={`font-semibold ml-1 ${team.players.length >= squadLimit ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {squadLimit}</span>
+                    Players: <span className={`font-semibold ml-1 ${totalRemainingNeeded <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {maxSquadSize}</span>
                 </p>
             </div>
 
