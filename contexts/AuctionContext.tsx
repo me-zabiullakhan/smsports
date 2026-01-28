@@ -74,16 +74,32 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         setUserProfile({ uid: user.uid, email: 'viewer@smsports.com', role: UserRole.VIEWER });
                     }
                 } else {
+                    const SUPER_ADMIN_EMAIL = 'mezabiullakhan@gmail.com';
+                    const isSuperAdminAccount = user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
                     profileUnsub = db.collection('users').doc(user.uid).onSnapshot(doc => {
-                        const isSuperAdminAccount = user.email === 'mezabiullakhan@gmail.com';
                         const userData = doc.data();
-                        setUserProfile({
+                        
+                        // If user is the specified super admin, grant role even if doc doesn't exist
+                        const profile: UserProfile = {
                             uid: user.uid,
                             email: user.email || '',
-                            name: user.displayName || userData?.name || '',
+                            name: user.displayName || userData?.name || 'System Operator',
                             role: isSuperAdminAccount ? UserRole.SUPER_ADMIN : (userData?.role || UserRole.ADMIN),
                             plan: userData?.plan || { type: 'FREE', maxTeams: 2, maxAuctions: 1 }
-                        });
+                        };
+                        
+                        setUserProfile(profile);
+
+                        // Auto-create profile for super admin if it doesn't exist
+                        if (isSuperAdminAccount && !userData) {
+                            db.collection('users').doc(user.uid).set({
+                                name: user.displayName || 'System Operator',
+                                role: UserRole.SUPER_ADMIN,
+                                email: user.email,
+                                createdAt: Date.now()
+                            }, { merge: true });
+                        }
                     });
                 }
             } else {

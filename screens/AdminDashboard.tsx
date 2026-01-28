@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole, PromoCode } from '../types';
 
@@ -22,6 +22,8 @@ const AdminDashboard: React.FC = () => {
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
   const [promoError, setPromoError] = useState('');
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+
+  const isSuperAdmin = userProfile?.role === UserRole.SUPER_ADMIN;
 
   const COMMON_FEATURES = [
       { name: 'Online player registration', icon: <UserPlus2 className="w-4 h-4" /> },
@@ -493,6 +495,15 @@ const AdminDashboard: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-6">
+                {isSuperAdmin && (
+                    <button 
+                        onClick={() => navigate('/super-admin')}
+                        className="hidden md:flex items-center gap-2 bg-slate-900 hover:bg-black text-highlight font-black py-2 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg transition-all border border-highlight/30 active:scale-95"
+                    >
+                        <ShieldAlert className="w-4 h-4"/> MASTER CONTROL
+                    </button>
+                )}
+
                 <div className="hidden lg:flex bg-gray-100 rounded-xl p-1">
                     {[
                         { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },

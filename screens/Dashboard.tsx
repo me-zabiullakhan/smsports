@@ -6,7 +6,7 @@ import AdminPostAuctionView from '../components/AdminPostAuctionView';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, UserRole } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, Wallet, Users, LogOut, Trophy, Home } from 'lucide-react';
+import { AlertCircle, Wallet, Users, LogOut, Trophy, Home, ShieldAlert } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { state, userProfile, logout, error, joinAuction } = useAuction();
@@ -15,7 +15,8 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => { if (auctionId) joinAuction(auctionId); }, [auctionId]);
 
-  const isAdmin = userProfile?.role === UserRole.ADMIN;
+  const isSuperAdmin = userProfile?.role === UserRole.SUPER_ADMIN;
+  const isAdmin = userProfile?.role === UserRole.ADMIN || isSuperAdmin;
   const isTeamOwner = userProfile?.role === UserRole.TEAM_OWNER;
   const myTeam = isTeamOwner ? state.teams.find(t => t.id === userProfile.teamId) : null;
 
@@ -68,7 +69,7 @@ const Dashboard: React.FC = () => {
                      <>
                         <span className="text-lg font-bold text-white sm:hidden">SM SPORTS</span>
                         <span className="text-xs text-text-secondary uppercase bg-accent/50 px-2 py-0.5 rounded w-fit">
-                            {userProfile?.role === UserRole.ADMIN ? 'Administrator' : 'Spectator View'}
+                            {isSuperAdmin ? 'Root Operator' : (isAdmin ? 'Administrator' : 'Spectator View')}
                         </span>
                      </>
                  )}
@@ -87,6 +88,15 @@ const Dashboard: React.FC = () => {
            )}
 
            <div className="flex items-center space-x-4">
+             {isSuperAdmin && (
+                 <button 
+                    onClick={() => navigate('/super-admin')}
+                    className="hidden sm:flex items-center gap-2 bg-slate-900 border border-highlight/30 hover:border-highlight hover:bg-black text-highlight px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95"
+                 >
+                    <ShieldAlert className="w-3.5 h-3.5" /> MASTER ACCESS
+                 </button>
+             )}
+
              <div className="hidden lg:block text-right">
                 <p className="text-[10px] text-text-secondary uppercase tracking-widest">Auction Status</p>
                 <div className="flex items-center justify-end gap-2">

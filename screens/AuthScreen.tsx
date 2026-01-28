@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import { auth, db } from '../firebase';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
@@ -140,9 +140,20 @@ const AuthScreen: React.FC = () => {
                              </form>
                         ) : (
                             <div className="space-y-6">
-                                 <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-4 rounded-2xl flex items-center justify-center transition-all text-sm">
-                                    <Chrome className="mr-3 h-5 w-5 text-red-500" /> Sign in with Google
-                                </button>
+                                 <div className="grid grid-cols-1 gap-3">
+                                    <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 rounded-2xl flex items-center justify-center transition-all text-sm shadow-xl">
+                                        <Chrome className="mr-3 h-5 w-5 text-red-500" /> Sign in with Google
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={handleGoogleLogin} 
+                                        disabled={isLoading} 
+                                        className="w-full bg-slate-900 border border-highlight/50 hover:bg-black text-white font-black py-3.5 rounded-2xl flex items-center justify-center transition-all text-xs tracking-widest gap-2 shadow-[0_0_20px_rgba(56,178,172,0.2)] group"
+                                    >
+                                        <Zap className="h-4 w-4 text-highlight group-hover:scale-125 transition-transform" /> SUPER ADMIN ENTRANCE
+                                    </button>
+                                 </div>
+
                                 <div className="relative flex py-1 items-center"><div className="flex-grow border-t border-gray-700"></div><span className="mx-4 text-gray-500 text-[10px] font-bold uppercase">Or use email</span><div className="flex-grow border-t border-gray-700"></div></div>
                                 <form onSubmit={handleAdminSubmit} className="space-y-4">
                                     {isAdminRegister && <input type="text" placeholder="FULL NAME" value={adminName} onChange={(e) => setAdminName(e.target.value)} required
@@ -163,10 +174,10 @@ const AuthScreen: React.FC = () => {
                                     </div>
                                 </form>
                                 <div className="pt-4 border-t border-gray-700/50 flex flex-col items-center">
-                                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-2">System Maintenance</p>
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-2">Authorized Access Only</p>
                                     <div className="flex items-center gap-1.5 text-highlight">
                                         <ShieldCheck className="w-3.5 h-3.5" />
-                                        <span className="text-[10px] font-black uppercase tracking-tighter">Root Operator Authorized Entry</span>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter">Root Operator Portal active</span>
                                     </div>
                                 </div>
                             </div>
