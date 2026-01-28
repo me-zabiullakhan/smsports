@@ -67,7 +67,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
         const maxAllowedBid = team.budget - totalMandatoryReserve;
         if (nextBid > maxAllowedBid) {
             isLimitReached = true;
-            limitReason = "Bid Cap Hit";
+            limitReason = "Reserve Required";
         }
     }
 
@@ -131,7 +131,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                         {isHighest ? (
                             <>Leading</>
                         ) : isLimitReached ? (
-                            <>{limitReason}</>
+                            <span className="text-[8px] truncate">{limitReason}</span>
                         ) : !canAfford ? (
                             <>No Funds</>
                         ) : (

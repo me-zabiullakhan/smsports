@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
-import { Gavel, Lock, AlertCircle, Users, AlertTriangle } from 'lucide-react';
+import { Gavel, Lock, AlertCircle, Users, AlertTriangle, Info } from 'lucide-react';
 
 const BiddingPanel: React.FC = () => {
     const { state, userProfile, placeBid, nextBid } = useAuction();
@@ -118,9 +118,14 @@ const BiddingPanel: React.FC = () => {
                         </div>
                     )}
                     {!isSquadFull && (
-                        <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mt-2 hidden sm:block">
-                            Capacity: {Math.max(0, maxAllowedBid)}
-                        </p>
+                        <div className="mt-2 text-left hidden sm:block">
+                            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                                Max Bid Limit: {Math.max(0, maxAllowedBid)}
+                            </p>
+                            <p className="text-[8px] text-gray-500 uppercase font-medium mt-0.5 flex items-center">
+                                <Info className="w-2 h-2 mr-1"/> {totalMandatoryReserve} reserved for remaining squad
+                            </p>
+                        </div>
                     )}
                 </div>
 
@@ -149,7 +154,7 @@ const BiddingPanel: React.FC = () => {
                         ) : isCategoryMaxReached ? (
                             <><Lock className="mr-2 h-4 w-4"/> LIMIT REACHED</>
                         ) : isBidLimitExceeded ? (
-                            <><AlertTriangle className="mr-2 h-4 w-4"/> MAX BID EXCEEDED</>
+                            <><AlertTriangle className="mr-2 h-4 w-4"/> RESERVE REQUIRED</>
                         ) : !isActive ? (
                             <><Lock className="mr-2 h-4 w-4 md:h-5 md:w-5"/> PAUSED</>
                         ) : isLoadingBid ? (
@@ -160,7 +165,7 @@ const BiddingPanel: React.FC = () => {
                     </button>
                     {isBidLimitExceeded && (
                         <span className="text-[10px] text-red-400 font-bold mt-1 uppercase tracking-wide">
-                            Need {totalMandatoryReserve} for {totalRemainingNeeded - 1} more players
+                            Limit: {Math.max(0, maxAllowedBid)} (Squad Reserve)
                         </span>
                     )}
                 </div>
@@ -168,7 +173,14 @@ const BiddingPanel: React.FC = () => {
             
             {isSquadFull && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> Max Players ({maxSquadSize}) Reached</p>}
             {isCategoryMaxReached && !isSquadFull && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> {categoryLimitMsg}</p>}
-            {isBidLimitExceeded && <p className="text-red-400 text-[10px] mt-2 flex items-center justify-center sm:justify-start font-bold uppercase tracking-tight"><AlertCircle className="w-3 h-3 mr-1 shrink-0"/> Reserve funds ({totalMandatoryReserve}) are required to buy the remaining {totalRemainingNeeded - 1} players in your squad.</p>}
+            {isBidLimitExceeded && (
+                <div className="bg-red-950/20 border border-red-900/30 p-2 rounded mt-3">
+                    <p className="text-red-400 text-[10px] flex items-start font-bold uppercase tracking-tight">
+                        <AlertCircle className="w-3 h-3 mr-1.5 shrink-0 mt-0.5"/> 
+                        Bidding locked. You must keep {totalMandatoryReserve} to buy {totalRemainingNeeded - 1} more players to fill your required {maxSquadSize} player squad.
+                    </p>
+                </div>
+            )}
             {!canAfford && isActive && !isCategoryMaxReached && !isSquadFull && !isBidLimitExceeded && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold"><AlertCircle className="w-3 h-3 mr-1"/> Insufficient Budget</p>}
             {!isActive && <p className="hidden sm:flex text-red-300 text-xs mt-2 items-center justify-center sm:justify-start font-bold uppercase tracking-wide"><Lock className="w-3 h-3 mr-1"/> Bidding Paused by Admin</p>}
         </div>
