@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import LiveAdminPanel from '../components/LiveAdminPanel';
 import AuctionRoom from './AuctionRoom';
@@ -7,7 +6,7 @@ import AdminPostAuctionView from '../components/AdminPostAuctionView';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, UserRole } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Wallet, Users, LogOut, Trophy } from 'lucide-react';
+import { AlertCircle, Wallet, Users, LogOut, Trophy, Home } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { state, userProfile, logout, error, joinAuction } = useAuction();
@@ -20,19 +19,37 @@ const Dashboard: React.FC = () => {
   const isTeamOwner = userProfile?.role === UserRole.TEAM_OWNER;
   const myTeam = isTeamOwner ? state.teams.find(t => t.id === userProfile.teamId) : null;
 
+  // If there is a critical error (like auction not found), show a clean error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-primary flex items-center justify-center p-6">
+        <div className="bg-secondary p-8 rounded-3xl border border-accent/50 shadow-2xl max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Something went wrong</h2>
+          <p className="text-text-secondary mb-8 leading-relaxed">
+            {error === 'Auction not found' 
+              ? 'This auction room does not exist or has been removed. Please check the link and try again.' 
+              : 'We encountered an error loading the auction data. Please refresh the page.'}
+          </p>
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full bg-highlight hover:bg-teal-400 text-primary font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-sm shadow-xl"
+          >
+            <Home className="w-5 h-5" /> Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-primary font-sans flex flex-col">
-      {error && (
-        <div className="bg-red-600 text-white p-3 text-center font-bold flex items-center justify-center gap-2">
-           <AlertTriangle className="w-5 h-5" /><span>{error}</span>
-           <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="underline ml-2 text-red-100 hover:text-white">Open Firebase Console</a>
-        </div>
-      )}
       <header className="bg-secondary shadow-md border-b border-accent sticky top-0 z-40">
         <div className="container mx-auto px-4 py-2 flex justify-between items-center">
           
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-             {/* FRAMED LOGO IN DASHBOARD HEADER */}
              <div className="w-10 h-10 bg-black rounded-lg border border-highlight p-1 shadow flex items-center justify-center overflow-hidden">
                 {state.systemLogoUrl ? (
                     <img src={state.systemLogoUrl} className="max-w-full max-h-full object-contain" alt="Logo" />
