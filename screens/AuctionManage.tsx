@@ -503,9 +503,15 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Max Players Per Team</label>
+                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.playersPerTeam} onChange={e => setSettingsForm({...settingsForm, playersPerTeam: Number(e.target.value)})} />
+                                            </div>
+                                            <div>
                                                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Base Price</label>
                                                 <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.basePrice} onChange={e => setSettingsForm({...settingsForm, basePrice: Number(e.target.value)})} />
                                             </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Bid Increment</label>
                                                 <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.bidIncrement} onChange={e => setSettingsForm({...settingsForm, bidIncrement: Number(e.target.value)})} />
