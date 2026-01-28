@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuction } from '../hooks/useAuction';
 import { Gavel, Lock, AlertCircle, Users, AlertTriangle } from 'lucide-react';
@@ -28,8 +27,8 @@ const BiddingPanel: React.FC = () => {
     // Resolve current player using ID from full list (consistent with other views)
     const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // Check Category Limit
-    let isCategoryLimitReached = false;
+    // Check Category Max Limit
+    let isCategoryMaxReached = false;
     let categoryLimitMsg = "";
 
     if (currentPlayer && currentPlayer.category) {
@@ -37,33 +36,37 @@ const BiddingPanel: React.FC = () => {
         if (catConfig && catConfig.maxPerTeam > 0) {
             const currentCount = userTeam.players.filter(p => p.category === currentPlayer.category).length;
             if (currentCount >= catConfig.maxPerTeam) {
-                isCategoryLimitReached = true;
+                isCategoryMaxReached = true;
                 categoryLimitMsg = `Max ${catConfig.maxPerTeam} '${currentPlayer.category}' players reached`;
             }
         }
     }
 
-    // --- BID LIMIT RULE (Category-wise Squad Protection) ---
-    let reservedBudget = 0;
+    // --- ENHANCED BID LIMIT RULE (Category-wise Minimum Squad Protection) ---
+    // A team's bidding capacity is restricted by the need to reserve enough funds to fill 
+    // ALL minimum player requirements for EVERY category at their base prices.
+    let reservedBudgetForMins = 0;
     if (currentPlayer) {
         categories.forEach(cat => {
-            if (cat.maxPerTeam > 0) {
-                const playersInCat = userTeam.players.filter(p => p.category === cat.name).length;
-                let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
-                
-                // If current player belongs to this category, we count this potential bid as filling one slot
-                // So we don't need to reserve funds for *this* specific slot, only the remaining ones.
-                if (currentPlayer.category === cat.name) {
-                    slotsToFill = Math.max(0, slotsToFill - 1);
-                }
-                
-                reservedBudget += slotsToFill * cat.basePrice;
+            const playersInCat = userTeam.players.filter(p => p.category === cat.name).length;
+            const minRequired = cat.minPerTeam || 0;
+            
+            // Calculate how many MORE players are strictly required to meet the minimum for this category
+            let slotsToFill = Math.max(0, minRequired - playersInCat);
+            
+            // If the current player belongs to this category and we are bidding on them, 
+            // one of the required minimum slots is potentially being filled by THIS bid.
+            if (currentPlayer.category === cat.name) {
+                slotsToFill = Math.max(0, slotsToFill - 1);
             }
+            
+            reservedBudgetForMins += slotsToFill * cat.basePrice;
         });
     }
-    const maxAllowedBid = userTeam.budget - reservedBudget;
+
+    const maxAllowedBid = userTeam.budget - reservedBudgetForMins;
     const isBidLimitExceeded = nextBid > maxAllowedBid;
-    // -----------------------------------------------------
+    // -----------------------------------------------------------------------
 
     // Check Squad Limit
     const squadLimit = maxPlayersPerTeam || 25; // Default fallback
@@ -79,7 +82,7 @@ const BiddingPanel: React.FC = () => {
 
     const handleBid = async () => {
         // Strict Client-Side Check
-        if (canAfford && !isLeading && isActive && !isCategoryLimitReached && !isSquadFull && !isBidLimitExceeded) {
+        if (canAfford && !isLeading && isActive && !isCategoryMaxReached && !isSquadFull && !isBidLimitExceeded) {
             setIsBidding(true);
             try {
                 await placeBid(userTeam.id, nextBid);
@@ -112,12 +115,12 @@ const BiddingPanel: React.FC = () => {
                 <div className="flex flex-col items-center w-full sm:w-auto">
                     <button
                         onClick={handleBid}
-                        disabled={!canAfford || isLeading || isBidding || !isActive || isLoadingBid || isCategoryLimitReached || isSquadFull || isBidLimitExceeded}
+                        disabled={!canAfford || isLeading || isBidding || !isActive || isLoadingBid || isCategoryMaxReached || isSquadFull || isBidLimitExceeded}
                         className={`
                             w-full sm:w-auto flex-grow md:flex-grow-0 flex items-center justify-center py-3 md:py-4 px-6 md:px-8 rounded-lg font-black text-base md:text-xl tracking-wider transition-all transform
                             ${isLeading 
                                 ? 'bg-green-600 text-white cursor-default' 
-                                : isSquadFull || isCategoryLimitReached || isBidLimitExceeded
+                                : isSquadFull || isCategoryMaxReached || isBidLimitExceeded
                                     ? 'bg-gray-700 text-red-300 border border-red-500/30 cursor-not-allowed'
                                 : (!isActive)
                                     ? 'bg-red-900/50 border border-red-700 text-red-200 cursor-not-allowed opacity-75'
@@ -131,7 +134,7 @@ const BiddingPanel: React.FC = () => {
                             <>LEADING <span className="ml-2 text-sm font-normal hidden sm:inline">({currentBid})</span></>
                         ) : isSquadFull ? (
                             <><Users className="mr-2 h-4 w-4"/> SQUAD FULL</>
-                        ) : isCategoryLimitReached ? (
+                        ) : isCategoryMaxReached ? (
                             <><Lock className="mr-2 h-4 w-4"/> LIMIT REACHED</>
                         ) : isBidLimitExceeded ? (
                             <><AlertTriangle className="mr-2 h-4 w-4"/> MAX BID EXCEEDED</>
@@ -145,16 +148,16 @@ const BiddingPanel: React.FC = () => {
                     </button>
                     {isBidLimitExceeded && (
                         <span className="text-[10px] text-red-400 font-bold mt-1 uppercase tracking-wide">
-                            Max Allowed Bid: {maxAllowedBid}
+                            Capacity: {maxAllowedBid}
                         </span>
                     )}
                 </div>
             </div>
             
             {isSquadFull && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> Max Players ({squadLimit}) Reached</p>}
-            {isCategoryLimitReached && !isSquadFull && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> {categoryLimitMsg}</p>}
-            {isBidLimitExceeded && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> Reserve ({reservedBudget}) required for remaining players</p>}
-            {!canAfford && isActive && !isCategoryLimitReached && !isSquadFull && !isBidLimitExceeded && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold"><AlertCircle className="w-3 h-3 mr-1"/> Insufficient Budget</p>}
+            {isCategoryMaxReached && !isSquadFull && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> {categoryLimitMsg}</p>}
+            {isBidLimitExceeded && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold uppercase"><AlertCircle className="w-3 h-3 mr-1"/> Reserve ({reservedBudgetForMins}) required for minimum category needs</p>}
+            {!canAfford && isActive && !isCategoryMaxReached && !isSquadFull && !isBidLimitExceeded && <p className="text-red-400 text-xs mt-2 flex items-center justify-center sm:justify-start font-bold"><AlertCircle className="w-3 h-3 mr-1"/> Insufficient Budget</p>}
             {!isActive && <p className="hidden sm:flex text-red-300 text-xs mt-2 items-center justify-center sm:justify-start font-bold uppercase tracking-wide"><Lock className="w-3 h-3 mr-1"/> Bidding Paused by Admin</p>}
         </div>
     );

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Team, UserRole } from '../types';
 import { useAuction } from '../hooks/useAuction';
@@ -15,7 +14,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerIndex !== null ? unsoldPlayers[currentPlayerIndex] : null;
 
-    // Check Category Limit
+    // Check Eligibility
     let isLimitReached = false;
     let limitReason = "";
 
@@ -26,35 +25,39 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
         limitReason = "Squad Full";
     }
 
-    // 2. Check Category Specific Limit (only if global not hit)
+    // 2. Check Category Specific Max Limit (only if global not hit)
     if (!isLimitReached && currentPlayer && currentPlayer.category) {
         const catConfig = categories.find(c => c.name === currentPlayer.category);
         if (catConfig && catConfig.maxPerTeam > 0) {
             const count = team.players.filter(p => p.category === currentPlayer.category).length;
             if (count >= catConfig.maxPerTeam) {
                 isLimitReached = true;
-                limitReason = "Cat. Limit";
+                limitReason = "Cat. Full";
             }
         }
     }
 
-    // 3. Check Bid Limit Rule (Category-wise Squad Protection)
-    let reservedBudget = 0;
+    // 3. ENHANCED AUTO CALCULATION (Minimum Category Protection)
+    let reservedBudgetForMins = 0;
     if (!isLimitReached && currentPlayer) {
         categories.forEach(cat => {
-            if (cat.maxPerTeam > 0) {
-                const playersInCat = team.players.filter(p => p.category === cat.name).length;
-                let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
-                if (currentPlayer.category === cat.name) {
-                    slotsToFill = Math.max(0, slotsToFill - 1);
-                }
-                reservedBudget += slotsToFill * cat.basePrice;
+            const playersInCatCount = team.players.filter(p => p.category === cat.name).length;
+            const minNeeded = cat.minPerTeam || 0;
+            
+            let slotsToFill = Math.max(0, minNeeded - playersInCatCount);
+            
+            // If current player belongs to this category, one of the minimum slots is potentially filled
+            if (currentPlayer.category === cat.name) {
+                slotsToFill = Math.max(0, slotsToFill - 1);
             }
+            
+            reservedBudgetForMins += slotsToFill * cat.basePrice;
         });
-        const maxAllowedBid = team.budget - reservedBudget;
+
+        const maxAllowedBid = team.budget - reservedBudgetForMins;
         if (nextBid > maxAllowedBid) {
             isLimitReached = true;
-            limitReason = "Max Bid Limit";
+            limitReason = "Bid Cap Hit";
         }
     }
 

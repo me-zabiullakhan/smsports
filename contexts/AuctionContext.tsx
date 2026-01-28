@@ -205,20 +205,30 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (!activeAuctionId) return;
         const team = state.teams.find(t => String(t.id) === String(teamId));
         if (!team) throw new Error("Team not found");
+        
         const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (currentPlayer) {
-            let reservedBudget = 0;
+            // ENHANCED AUTO CALCULATION (Min Squad Protection)
+            let reservedBudgetForMins = 0;
             state.categories.forEach(cat => {
-                if (cat.maxPerTeam > 0) {
-                    const playersInCat = team.players.filter(p => p.category === cat.name).length;
-                    let slotsToFill = Math.max(0, cat.maxPerTeam - playersInCat);
-                    if (currentPlayer.category === cat.name) slotsToFill = Math.max(0, slotsToFill - 1);
-                    reservedBudget += slotsToFill * cat.basePrice;
+                const playersInCatCount = team.players.filter(p => p.category === cat.name).length;
+                const minNeeded = cat.minPerTeam || 0;
+                let slotsToFill = Math.max(0, minNeeded - playersInCatCount);
+                
+                // One slot filled by THIS player if they match the category
+                if (currentPlayer.category === cat.name) {
+                    slotsToFill = Math.max(0, slotsToFill - 1);
                 }
+                
+                reservedBudgetForMins += slotsToFill * cat.basePrice;
             });
-            const maxAllowedBid = team.budget - reservedBudget;
-            if (amount > maxAllowedBid) throw new Error(`Bid Limit Reached! Max allowable bid is ${maxAllowedBid} to ensure squad completion.`);
+
+            const maxAllowedBid = team.budget - reservedBudgetForMins;
+            if (amount > maxAllowedBid) {
+                throw new Error(`Bidding Capacity Hit! You must reserve ${reservedBudgetForMins} to fill minimum category requirements.`);
+            }
         }
+
         const log = { message: `${team.name} bid ${amount}`, timestamp: Date.now(), type: 'BID' };
         await db.collection('auctions').doc(activeAuctionId).update({
             currentBid: amount, highestBidder: team, timer: 10,

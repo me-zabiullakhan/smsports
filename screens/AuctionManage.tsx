@@ -357,9 +357,10 @@ const AuctionManage: React.FC = () => {
         const catData = { 
             name: editItem.name, 
             basePrice: Number(editItem.basePrice), 
+            minPerTeam: Number(editItem.minPerTeam || 0),
             maxPerTeam: Number(editItem.maxPerTeam), 
-            bidIncrement: Number(editItem.bidIncrement),
-            slabs: [] 
+            bidIncrement: Number(editItem.bidIncrement || settingsForm.bidIncrement),
+            slabs: editItem.slabs || [] 
         };
         try {
             if (editItem.id) {
@@ -1047,7 +1048,7 @@ const AuctionManage: React.FC = () => {
                                 </div>
                                 <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Auction Sets (Categories)</h2>
                             </div>
-                            <button onClick={() => { setEditItem({ name: '', basePrice: settingsForm.basePrice, maxPerTeam: 10, bidIncrement: settingsForm.bidIncrement }); setIsAdding(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
+                            <button onClick={() => { setEditItem({ name: '', basePrice: settingsForm.basePrice, minPerTeam: 1, maxPerTeam: 10, bidIncrement: settingsForm.bidIncrement }); setIsAdding(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
                                 <Plus className="w-4 h-4"/> New Set
                             </button>
                         </div>
@@ -1058,14 +1059,18 @@ const AuctionManage: React.FC = () => {
                                     <h3 className="font-black text-gray-800 uppercase tracking-widest text-xs">Establish Player Set</h3>
                                     <button onClick={() => setIsAdding(false)} className="text-gray-400 hover:text-red-500"><XCircle className="w-6 h-6"/></button>
                                 </div>
-                                <form onSubmit={handleSaveCategory} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                                    <div className="col-span-1 md:col-span-1">
+                                <form onSubmit={handleSaveCategory} className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+                                    <div className="col-span-1">
                                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Set Name</label>
                                         <input className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.name} onChange={e => setEditItem({...editItem, name: e.target.value})} placeholder="e.g. Uncapped" required />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Base Price</label>
                                         <input type="number" className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.basePrice} onChange={e => setEditItem({...editItem, basePrice: Number(e.target.value)})} required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Min/Team</label>
+                                        <input type="number" className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem.minPerTeam} onChange={e => setEditItem({...editItem, minPerTeam: Number(e.target.value)})} required />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Max/Team</label>
@@ -1082,6 +1087,7 @@ const AuctionManage: React.FC = () => {
                                     <tr>
                                         <th className="p-5">Set Name</th>
                                         <th className="p-5">Base Price</th>
+                                        <th className="p-5">Min/Team</th>
                                         <th className="p-5">Max/Team</th>
                                         <th className="p-5">Increment</th>
                                         <th className="p-5 text-right">Actions</th>
@@ -1092,7 +1098,8 @@ const AuctionManage: React.FC = () => {
                                         <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="p-5 font-black text-gray-700 text-sm uppercase">{cat.name}</td>
                                             <td className="p-5 font-mono font-bold text-gray-500">{cat.basePrice}</td>
-                                            <td className="p-5 font-mono font-bold text-blue-600">{cat.maxPerTeam}</td>
+                                            <td className="p-5 font-mono font-bold text-blue-600">{cat.minPerTeam || 0}</td>
+                                            <td className="p-5 font-mono font-bold text-indigo-600">{cat.maxPerTeam}</td>
                                             <td className="p-5 font-mono font-bold text-emerald-600">{cat.bidIncrement}</td>
                                             <td className="p-5 text-right">
                                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1102,7 +1109,7 @@ const AuctionManage: React.FC = () => {
                                             </td>
                                         </tr>
                                     ))}
-                                    {categories.length === 0 && <tr><td colSpan={5} className="p-20 text-center text-gray-300 italic text-xs uppercase font-black tracking-widest">No sets established in registry</td></tr>}
+                                    {categories.length === 0 && <tr><td colSpan={6} className="p-20 text-center text-gray-300 italic text-xs uppercase font-black tracking-widest">No sets established in registry</td></tr>}
                                 </tbody>
                             </table>
                         </div>
