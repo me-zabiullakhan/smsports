@@ -323,6 +323,15 @@ const LandingPage: React.FC = () => {
            </div>
         </div>
       </footer>
+
+      {/* Owner Attribution Highlighting */}
+      <div className="bg-highlight/10 py-6 border-t border-highlight/20 text-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-highlight/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+          <p className="text-text-secondary text-xs font-black uppercase tracking-[0.4em] relative z-10">
+              Owned and operated by <span className="text-highlight font-black border-b-2 border-highlight/50 pb-0.5">Zabiulla Khan</span>
+          </p>
+      </div>
+
       <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-6 right-6 bg-highlight text-primary p-3 rounded-full shadow-2xl z-50 hover:scale-110 active:scale-95 transition-transform"><Smartphone className="w-6 h-6"/></button>
     </div>
   );
