@@ -9,21 +9,21 @@ interface Props {
 
 const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const { state, placeBid, userProfile, nextBid } = useAuction();
-    const { currentPlayerId, players, maxPlayersPerTeam, categories, basePrice: globalBasePrice } = state;
+    const { currentPlayerId, players, maxPlayersPerTeam, categories, roles, basePrice: globalBasePrice } = state;
     const isAdmin = userProfile?.role === UserRole.ADMIN || userProfile?.role === UserRole.SUPER_ADMIN;
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // --- ENHANCED ELIGIBILITY CHECK (Synced with BiddingPanel) ---
+    // --- SQUAD FILLING RESERVE CALCULATION (SYNCED) ---
     let isLimitReached = false;
     let limitReason = "";
 
-    const maxSquadSize = maxPlayersPerTeam || 11;
-    const currentSquadSize = team.players.length;
-    const totalRemainingNeeded = maxSquadSize - currentSquadSize;
+    const targetSquadSize = maxPlayersPerTeam || 11;
+    const currentSquadCount = team.players.length;
+    const remainingToBuy = targetSquadSize - currentSquadCount;
 
     // 1. Check Global Squad Limit
-    if (totalRemainingNeeded <= 0) {
+    if (remainingToBuy <= 0) {
         isLimitReached = true;
         limitReason = "Squad Full";
     }
@@ -42,32 +42,35 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
 
     // 3. Squad Filling Reserve Check
     if (!isLimitReached && currentPlayer) {
-        const absoluteMinBasePrice = categories.length > 0 
-            ? Math.min(...categories.map(c => c.basePrice))
-            : (globalBasePrice || 10);
+        // Find absolute cheapest base price available
+        const absoluteMinBasePrice = Math.min(
+            globalBasePrice || 100,
+            ...(categories.length > 0 ? categories.map(c => c.basePrice) : [100]),
+            ...(roles.length > 0 ? roles.map(r => r.basePrice) : [100])
+        );
 
         let totalMinSlotsReserved = 0;
         let totalMandatoryReserve = 0;
 
         categories.forEach(cat => {
-            const alreadyHasCount = team.players.filter(p => p.category === cat.name).length;
-            let stillNeededInCat = Math.max(0, (cat.minPerTeam || 0) - alreadyHasCount);
+            const alreadyHasInCat = team.players.filter(p => p.category === cat.name).length;
+            let neededInCat = Math.max(0, cat.minPerTeam - alreadyHasInCat);
             
             if (currentPlayer.category === cat.name) {
-                stillNeededInCat = Math.max(0, stillNeededInCat - 1);
+                neededInCat = Math.max(0, neededInCat - 1);
             }
 
-            totalMinSlotsReserved += stillNeededInCat;
-            totalMandatoryReserve += stillNeededInCat * cat.basePrice;
+            totalMinSlotsReserved += neededInCat;
+            totalMandatoryReserve += neededInCat * cat.basePrice;
         });
 
-        const flexibleSlotsRemaining = Math.max(0, (totalRemainingNeeded - 1) - totalMinSlotsReserved);
-        totalMandatoryReserve += (flexibleSlotsRemaining * absoluteMinBasePrice);
+        const extraSlots = Math.max(0, (remainingToBuy - 1) - totalMinSlotsReserved);
+        totalMandatoryReserve += (extraSlots * absoluteMinBasePrice);
 
-        const maxAllowedBid = team.budget - totalMandatoryReserve;
-        if (nextBid > maxAllowedBid) {
+        const biddingCapacity = team.budget - totalMandatoryReserve;
+        if (nextBid > biddingCapacity) {
             isLimitReached = true;
-            limitReason = "Reserve Required";
+            limitReason = "Reserve Req.";
         }
     }
 
@@ -109,7 +112,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                 </p>
                 <p className="flex items-center text-text-secondary">
                     <Users className="w-4 h-4 mr-2 text-blue-400" />
-                    Players: <span className={`font-semibold ml-1 ${totalRemainingNeeded <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {maxSquadSize}</span>
+                    Players: <span className={`font-semibold ml-1 ${remainingToBuy <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {targetSquadSize}</span>
                 </p>
             </div>
 

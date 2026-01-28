@@ -209,55 +209,51 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (currentPlayer) {
             /**
-             * ENHANCED SQUAD FILLING AUTO-CALCULATION
-             * 1. Calculate how many players are still needed to reach 'maxPlayersPerTeam'.
-             * 2. Reserve funds for all category 'minPerTeam' requirements that are still unmet.
-             * 3. Reserve funds for remaining "flexible" slots (needed to reach maxPlayersPerTeam) 
-             *    using the absolute minimum base price found in any category.
+             * ROBUST SQUAD RESERVE CALCULATION
              */
-            const maxSquadSize = state.maxPlayersPerTeam || 11;
-            const currentSquadSize = team.players.length;
-            const totalRemainingNeeded = maxSquadSize - currentSquadSize;
+            const targetSquadSize = state.maxPlayersPerTeam || 11;
+            const currentCount = team.players.length;
+            const remainingToBuy = targetSquadSize - currentCount;
 
-            if (totalRemainingNeeded <= 0) {
-                throw new Error("Squad Limit Reached! You cannot buy more players.");
+            if (remainingToBuy <= 0) {
+                throw new Error("Squad Full! You cannot buy more players.");
             }
 
-            // Find absolute cheapest base price across all defined categories to use for flexible slots
-            const absoluteMinBasePrice = state.categories.length > 0 
-                ? Math.min(...state.categories.map(c => c.basePrice))
-                : (state.basePrice || 10);
+            // Find absolute cheapest base price available anywhere for flexible filling
+            const absoluteMinBasePrice = Math.min(
+                state.basePrice || 100,
+                ...(state.categories.length > 0 ? state.categories.map(c => c.basePrice) : [100]),
+                ...(state.roles.length > 0 ? state.roles.map(r => r.basePrice) : [100])
+            );
 
-            let totalMinSlotsReserved = 0;
-            let totalMinCostReserved = 0;
+            let totalMandatorySlots = 0;
+            let totalMandatoryCost = 0;
 
-            // Step A: Account for category-specific minimums
+            // 1. Calculate cost for specific Category Minimums
             state.categories.forEach(cat => {
-                const alreadyHasCount = team.players.filter(p => p.category === cat.name).length;
-                let stillNeededInCat = Math.max(0, (cat.minPerTeam || 0) - alreadyHasCount);
+                const alreadyOwnedInCat = team.players.filter(p => p.category === cat.name).length;
+                let neededInCat = Math.max(0, cat.minPerTeam - alreadyOwnedInCat);
                 
-                // If current player is in this category, this bid counts towards filling one of those min slots
+                // If current player is in this category, they fulfill 1 of these needed slots
                 if (currentPlayer.category === cat.name) {
-                    stillNeededInCat = Math.max(0, stillNeededInCat - 1);
+                    neededInCat = Math.max(0, neededInCat - 1);
                 }
 
-                totalMinSlotsReserved += stillNeededInCat;
-                totalMinCostReserved += stillNeededInCat * cat.basePrice;
+                totalMandatorySlots += neededInCat;
+                totalMandatoryCost += neededInCat * cat.basePrice;
             });
 
-            // Step B: Account for "any" remaining slots needed to reach the target squad size
-            // If we need 11 total, and cat mins only cover 4, we must still buy 7 more.
-            // But we already accounted for cat mins, so we only add the difference.
-            const flexibleSlotsRemaining = Math.max(0, (totalRemainingNeeded - 1) - totalMinSlotsReserved);
-            const flexibleCostReserved = flexibleSlotsRemaining * absoluteMinBasePrice;
+            // 2. Calculate flexible filling cost
+            // We need 'remainingToBuy - 1' more players after this one.
+            // If the category minimums don't cover all of those, the rest are "flexible".
+            const extraSlotsNeeded = Math.max(0, (remainingToBuy - 1) - totalMandatorySlots);
+            const extraSlotsCost = extraSlotsNeeded * absoluteMinBasePrice;
 
-            const totalMandatoryReserve = totalMinCostReserved + flexibleCostReserved;
-            const maxAllowedBid = team.budget - totalMandatoryReserve;
+            const totalReserveRequired = totalMandatoryCost + extraSlotsCost;
+            const biddingCapacity = team.budget - totalReserveRequired;
 
-            if (amount > maxAllowedBid) {
-                throw new Error(
-                    `Bidding Capacity Exceeded! You must reserve ${totalMandatoryReserve} to buy ${totalRemainingNeeded - 1} more players (Category Mins + Squad Filling) to complete your 11-player squad.`
-                );
+            if (amount > biddingCapacity) {
+                throw new Error(`Insufficient Reserve! You need ${totalReserveRequired} to buy ${remainingToBuy - 1} more players to reach your ${targetSquadSize} player squad.`);
             }
         }
 
