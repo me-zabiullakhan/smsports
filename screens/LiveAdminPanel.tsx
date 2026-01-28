@@ -11,6 +11,9 @@ const LiveAdminPanel: React.FC = () => {
   const { teams, players, biddingStatus, playerSelectionMode, categories, maxPlayersPerTeam } = state;
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Move isRoundActive to component scope to ensure it's accessible by all inner functions
+  const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
   
   // Inline Sell State
   const [isSellingMode, setIsSellingMode] = useState(false);
@@ -231,7 +234,7 @@ const LiveAdminPanel: React.FC = () => {
   const currentPlayer = state.currentPlayerId ? state.players.find(p => String(p.id) === String(state.currentPlayerId)) : null;
 
   const getControlButtons = () => {
-      const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
+      // Removed local isRoundActive definition as it's now in component scope
       const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
       const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
       const unsoldCount = players.filter(p => p.status === 'UNSOLD').length;
@@ -465,7 +468,6 @@ const LiveAdminPanel: React.FC = () => {
   }
 
   // --- RENDER QUICK BID BUTTONS (Inline Grid) ---
-  const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
   const renderQuickBidButtons = () => {
         if (!isRoundActive || isSellingMode) return null;
 

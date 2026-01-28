@@ -1,4 +1,3 @@
-
 export enum PlayerCategory {
   Batsman = "Batsman",
   Bowler = "Bowler",
@@ -146,6 +145,8 @@ export interface AuctionState {
   adminViewOverride: AdminViewOverride | null;
   maxPlayersPerTeam?: number; // Global Squad Limit
   systemLogoUrl?: string; // Global System Branding Logo
+  isPaid?: boolean; // Per-auction payment status
+  planId?: string; // Plan ID associated with auction
 }
 
 export enum UserRole {
@@ -220,6 +221,8 @@ export interface AuctionSetup {
     sponsorConfig?: SponsorConfig;
     projectorLayout?: ProjectorLayout;
     obsLayout?: OBSLayout;
+    isPaid?: boolean; // Per-auction payment status
+    planId?: string; // Plan ID associated with auction
 }
 
 // Added Scoring & Match Types

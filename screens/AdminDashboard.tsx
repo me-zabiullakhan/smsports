@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles } from 'lucide-react';
 import { db } from '../firebase';
-import { AuctionSetup, UserPlan } from '../types';
+import { AuctionSetup, UserPlan, UserRole } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
@@ -14,6 +14,7 @@ const AdminDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
+  const [selectedAuctionForUpgrade, setSelectedAuctionForUpgrade] = useState<string | null>(null);
 
   // Load Razorpay Script
   useEffect(() => {
@@ -29,11 +30,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
       const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
           if (snap.empty) {
-              // Seed defaults if empty in state (will be overwritten if user seeds DB via SuperAdmin)
               setDbPlans([
-                  { id: 'free', name: 'Free (Demo)', price: 0, teams: 2, features: ['2 Teams Max', 'Standard Overlays', 'Local Storage Only'] },
-                  { id: 'basic', name: 'Basic Protocol', price: 499, teams: 10, features: ['10 Teams Max', 'OBS Overlays', 'Dynamic Categories'] },
-                  { id: 'premium', name: 'Premium Elite', price: 999, teams: 25, features: ['25 Teams Max', 'Projector Mode', 'Secure Registration'] }
+                  { id: 'free', name: 'Free Plan', price: 0, teams: 2, features: ['Up to 2 Teams', 'Standard Overlays'] },
+                  { id: 'basic', name: 'Basic Plan', price: 499, teams: 10, features: ['Up to 10 Teams', 'OBS Overlays'] },
+                  { id: 'premium', name: 'Premium Plan', price: 999, teams: 25, features: ['Up to 25 Teams', 'Projector Mode'] }
               ]);
           } else {
               setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -72,26 +72,24 @@ const AdminDashboard: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, [userProfile]);
 
-  const handleSubscription = (plan: any) => {
-      if (!isRazorpayLoaded) return alert("Payment system initializing...");
-      if (plan.price === 0) return alert("You are already on the Free Plan.");
+  const handleAuctionSubscription = (auctionId: string, plan: any) => {
+      if (!isRazorpayLoaded) return alert("Payment system is loading...");
+      if (plan.price === 0) return alert("This auction is already on the Free Plan.");
 
       const options = {
-          key: "rzp_test_pnZyMfa3h3mMXR", // Updated with user provided key
+          key: "rzp_test_pnZyMfa3h3mMXR",
           amount: plan.price * 100,
           currency: "INR",
           name: "SM SPORTS",
-          description: `Upgrade to ${plan.name}`,
+          description: `Upgrade Auction: ${plan.name}`,
           handler: async (response: any) => {
-              const newPlan: UserPlan = {
-                  type: plan.id as any,
-                  maxAuctions: 1, 
-                  maxTeams: plan.teams,
-                  expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000)
-              };
-              await db.collection('users').doc(userProfile?.uid).set({ plan: newPlan }, { merge: true });
-              alert("Payment Successful! Your plan has been upgraded.");
-              window.location.reload();
+              await db.collection('auctions').doc(auctionId).update({
+                  isPaid: true,
+                  planId: plan.id,
+                  totalTeams: plan.teams 
+              });
+              alert("Success! Your auction has been upgraded.");
+              setSelectedAuctionForUpgrade(null);
           },
           prefill: { email: userProfile?.email },
           theme: { color: "#16a34a" }
@@ -104,7 +102,7 @@ const AdminDashboard: React.FC = () => {
       const baseUrl = window.location.href.split('#')[0];
       const url = `${baseUrl}#/auction/${auctionId}/register`;
       navigator.clipboard.writeText(url);
-      alert("✅ Registration Link Copied!");
+      alert("✅ Registration link copied!");
   };
 
   const handleDeleteAuction = async (auctionId: string, title: string) => {
@@ -117,38 +115,86 @@ const AdminDashboard: React.FC = () => {
   const renderAuctions = () => (
       <div className="space-y-6 animate-fade-in">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <h2 className="text-2xl font-bold text-gray-800">My Auctions ({auctions.length})</h2>
+              <h2 className="text-2xl font-bold text-gray-800 tracking-tight">My Auctions ({auctions.length})</h2>
               <div className="flex gap-2">
-                  <button onClick={() => navigate('/scoring')} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center text-sm"><Activity className="w-4 h-4 mr-2" /> Scoring</button>
-                  <button onClick={() => navigate('/admin/new')} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded shadow transition-all flex items-center text-sm"><Plus className="w-4 h-4 mr-2" /> New Auction</button>
+                  <button onClick={() => navigate('/scoring')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl shadow shadow-blue-900/10 transition-all flex items-center text-xs"><Activity className="w-4 h-4 mr-2" /> SCORING</button>
+                  <button onClick={() => navigate('/admin/new')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-xl shadow shadow-green-900/10 transition-all flex items-center text-xs"><Plus className="w-4 h-4 mr-2" /> NEW AUCTION</button>
               </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 {loading ? (
                     <div className="p-12 text-center text-gray-500 flex flex-col items-center">
                         <RefreshCw className="animate-spin h-8 w-8 text-green-600 mb-2"/>
-                        Syncing registry...
+                        Loading auctions...
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
                         {auctions.length > 0 ? auctions.map((auction) => (
-                            <div key={auction.id} className="p-6 hover:bg-gray-50 transition-colors group">
-                                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                                    <div className="flex-1">
-                                        <h4 className="font-bold text-gray-700 text-lg">{auction.title}</h4>
-                                        <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">{auction.sport} • {auction.date}</p>
+                            <div key={auction.id} className="p-0 hover:bg-gray-50/50 transition-colors group">
+                                <div className="p-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                                    <div className="flex-1 flex items-center gap-4">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-lg ${auction.isPaid ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
+                                            {auction.isPaid ? <ShieldCheck className="w-6 h-6"/> : <Gavel className="w-6 h-6"/>}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-800 text-lg">{auction.title}</h4>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <p className="text-xs text-gray-400 font-semibold">{auction.sport} • {auction.date}</p>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${auction.isPaid ? 'bg-green-50 border-green-200 text-green-600' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
+                                                    {auction.isPaid ? 'Paid Version' : 'Free Version'}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <button onClick={() => copyRegLink(auction.id!)} className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border border-emerald-100 flex items-center transition-all"><LinkIcon className="w-3 h-3 mr-1" /> Registration</button>
-                                        <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded text-xs font-bold transition-all uppercase">Live</button>
-                                        <button onClick={() => navigate(`/admin/auction/${auction.id}/manage`)} className="text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded text-xs font-bold transition-all uppercase">Manage</button>
+                                        {!auction.isPaid && userProfile?.role !== UserRole.SUPER_ADMIN && (
+                                            <button 
+                                                onClick={() => setSelectedAuctionForUpgrade(selectedAuctionForUpgrade === auction.id ? null : auction.id!)}
+                                                className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${selectedAuctionForUpgrade === auction.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100'}`}
+                                            >
+                                                <CreditCard className="w-3 h-3" /> Upgrade
+                                            </button>
+                                        )}
+                                        <button onClick={() => copyRegLink(auction.id!)} className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-100 flex items-center transition-all"><LinkIcon className="w-3 h-3 mr-1" /> Reg Link</button>
+                                        <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-gray-100 transition-all">Live Room</button>
+                                        <button onClick={() => navigate(`/admin/auction/${auction.id}/manage`)} className="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-gray-100 transition-all">Manage</button>
                                         <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="text-red-400 hover:text-red-600 p-2 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                 </div>
+                                
+                                {/* Inline Plan Selector */}
+                                {selectedAuctionForUpgrade === auction.id && (
+                                    <div className="bg-blue-50/50 p-6 border-t border-blue-100 animate-slide-up">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/20"><Sparkles className="w-4 h-4"/></div>
+                                            <div>
+                                                <h5 className="font-bold text-blue-900 text-sm">Choose a Plan</h5>
+                                                <p className="text-xs text-blue-400 font-medium">Unlock full features for this auction.</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                            {dbPlans.filter(p => p.price > 0).map(plan => (
+                                                <div key={plan.id} className="bg-white p-5 rounded-2xl border-2 border-white hover:border-blue-300 transition-all shadow-sm flex flex-col group">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <h6 className="font-bold text-gray-800 text-xs">{plan.name}</h6>
+                                                        <span className="text-blue-600 font-bold text-lg">₹{plan.price}</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400 mb-4">Up to {plan.teams} Teams</p>
+                                                    <button 
+                                                        onClick={() => handleAuctionSubscription(auction.id!, plan)}
+                                                        className="w-full bg-blue-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs transition-all active:scale-95 shadow-lg"
+                                                    >
+                                                        Upgrade Now
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )) : (
-                            <div className="p-20 text-center text-gray-400 italic">No auctions detected in your account.</div>
+                            <div className="p-20 text-center text-gray-400 font-medium text-sm">You haven't created any auctions yet.</div>
                         )}
                     </div>
                 )}
@@ -159,33 +205,30 @@ const AdminDashboard: React.FC = () => {
   const renderPlans = () => (
       <div className="animate-fade-in">
           <div className="text-center max-w-2xl mx-auto mb-12">
-              <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tighter mb-2">Elevate Your Auctions</h2>
-              <p className="text-gray-500 text-sm font-medium">Professional grade features for every tournament size.</p>
+              <h2 className="text-3xl font-bold text-gray-800 tracking-tighter mb-2">Auction Plans</h2>
+              <p className="text-gray-500 text-sm font-medium">Professional features for your cricket tournament.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {dbPlans.map(plan => (
-                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col border-gray-100`}>
-                      <h3 className="text-xl font-black text-gray-800 uppercase mb-2">{plan.name}</h3>
+                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col border-gray-100 hover:shadow-xl`}>
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">{plan.name}</h3>
                       <div className="flex items-baseline mb-6">
-                          <span className="text-4xl font-black text-gray-900">₹{plan.price}</span>
+                          <span className="text-4xl font-bold text-gray-900">₹{plan.price}</span>
                           <span className="text-gray-400 text-xs font-bold ml-1">/Auction</span>
                       </div>
                       <div className="space-y-4 mb-10 flex-grow">
-                          <div className="flex items-center gap-3 text-sm text-gray-800 font-black uppercase tracking-tight">
-                              <Users className="w-4 h-4 text-blue-500" /> Limit: Up to {plan.teams} Teams
+                          <div className="flex items-center gap-3 text-sm text-gray-800 font-bold">
+                              <Users className="w-4 h-4 text-blue-500" /> Up to {plan.teams} Teams
                           </div>
                           {(plan.features || []).map((f: string, i: number) => (
-                              <div key={i} className="flex items-center gap-3 text-sm text-gray-500">
+                              <div key={i} className="flex items-center gap-3 text-sm text-gray-500 font-medium">
                                   <CheckCircle className="w-4 h-4 text-green-400" /> {f}
                               </div>
                           ))}
                       </div>
-                      <button 
-                        onClick={() => handleSubscription(plan)}
-                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 ${plan.price > 0 ? 'bg-green-600 text-white shadow-xl hover:bg-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      >
-                          {plan.price === 0 ? 'Current Plan' : 'Purchase Plan'}
-                      </button>
+                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                          <p className="text-xs font-semibold text-gray-400 text-center mb-0">Choose an auction to upgrade from the "Auctions" tab.</p>
+                      </div>
                   </div>
               ))}
           </div>
@@ -193,39 +236,25 @@ const AdminDashboard: React.FC = () => {
   );
 
   const renderLegal = () => (
-      <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
-          <div className="bg-slate-900 p-8 text-white">
-              <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Legal Protocol</h2>
-              <p className="text-slate-400 text-sm">Terms of Service and Operational Guidelines for SM SPORTS Developers & Hosts.</p>
+      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
+          <div className="bg-slate-800 p-8 text-white">
+              <h2 className="text-3xl font-bold tracking-tighter mb-2">Terms & Privacy</h2>
+              <p className="text-slate-400 text-sm">Rules for organizing auctions on SM SPORTS.</p>
           </div>
-          <div className="p-10 space-y-10 max-h-[600px] overflow-y-auto custom-scrollbar">
+          <div className="p-10 space-y-10 max-h-[600px] overflow-y-auto custom-scrollbar text-gray-600">
               <section>
-                  <h3 className="text-lg font-black uppercase tracking-widest text-blue-600 mb-4 flex items-center gap-2"><Scale className="w-5 h-5"/> 1. Service Agreement</h3>
-                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
-                      <p>By using the SM SPORTS platform, you agree to organize sports auctions in a fair and transparent manner. We provide the technical infrastructure, but the outcome and financial management of your local auctions are your responsibility.</p>
-                      <p>You may not use the platform for illegal gambling, betting, or any activity prohibited by your local jurisdiction.</p>
-                  </div>
+                  <h3 className="text-lg font-bold text-blue-600 mb-4 flex items-center gap-2"><Scale className="w-5 h-5"/> 1. General Rules</h3>
+                  <p className="text-sm leading-relaxed">By using this platform, you agree to host your sports auctions fairly. We provide the tools, but you are responsible for the auction results and player payments.</p>
               </section>
               <section>
-                  <h3 className="text-lg font-black uppercase tracking-widest text-emerald-600 mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5"/> 2. Data Privacy</h3>
-                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
-                      <p>User data, player registration details, and team information are stored securely in our cloud database. SM SPORTS does not sell your auction data to third parties.</p>
-                      <p>Admins are responsible for the privacy of the players who register through their custom registration links. Ensure you handle player mobile numbers and IDs with discretion.</p>
-                  </div>
+                  <h3 className="text-lg font-bold text-emerald-600 mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5"/> 2. Privacy</h3>
+                  <p className="text-sm leading-relaxed">We protect your data and do not share player mobile numbers with third parties. Admins must handle player data responsibly.</p>
               </section>
               <section>
-                  <h3 className="text-lg font-black uppercase tracking-widest text-red-600 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5"/> 3. Refund Policy</h3>
-                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
-                      <p>Subscription fees for professional plans are non-refundable once the service has been activated. If you encounter technical issues that prevent your auction from proceeding, our support team will provide credits or extension of service.</p>
-                  </div>
+                  <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5"/> 3. Refunds</h3>
+                  <p className="text-sm leading-relaxed">Upgrade payments are non-refundable once activated. If you have technical issues, our support team will help you.</p>
               </section>
-              <section>
-                  <h3 className="text-lg font-black uppercase tracking-widest text-orange-600 mb-4 flex items-center gap-2"><FileText className="w-5 h-5"/> 4. Content Ownership</h3>
-                  <div className="text-gray-600 text-sm space-y-3 leading-relaxed">
-                      <p>Logos, player photos, and auction titles uploaded by you remain your property. However, you grant SM SPORTS a non-exclusive license to display this content on our platform for your auction participants.</p>
-                  </div>
-              </section>
-              <div className="pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Last Updated: January 2025</div>
+              <div className="pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Updated January 2025</div>
           </div>
       </div>
   );
@@ -235,8 +264,8 @@ const AdminDashboard: React.FC = () => {
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
             <div className="flex items-center gap-4">
-                <div className="bg-slate-900 p-2 rounded-xl text-white"><Crown className="w-5 h-5" /></div>
-                <h1 className="text-xl font-black text-gray-700 uppercase tracking-tighter">SM SPORTS <span className="text-gray-300 font-medium">| Dashboard</span></h1>
+                <div className="bg-slate-800 p-2 rounded-xl text-white"><Crown className="w-5 h-5" /></div>
+                <h1 className="text-xl font-bold text-gray-700 tracking-tighter">SM SPORTS <span className="text-gray-300 font-medium">| Dashboard</span></h1>
             </div>
             
             <div className="flex items-center gap-6">
@@ -244,12 +273,12 @@ const AdminDashboard: React.FC = () => {
                     {[
                         { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },
                         { id: 'PLANS', icon: <Zap className="w-4 h-4"/>, label: 'Plans' },
-                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Legal' }
+                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Terms' }
                     ].map(tab => (
                         <button 
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                         >
                             {tab.icon} {tab.label}
                         </button>
@@ -262,16 +291,9 @@ const AdminDashboard: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile Nav */}
-      <div className="lg:hidden flex bg-white border-b overflow-x-auto p-2 gap-2 sticky top-[73px] z-40">
-          {['AUCTIONS', 'PLANS', 'LEGAL'].map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 min-w-[100px] py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${activeTab === tab ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{tab}</button>
-          ))}
-      </div>
-
       <main className="container mx-auto px-6 py-10 flex-grow max-w-6xl">
         {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 flex items-center gap-3 text-red-700 animate-pulse">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 flex items-center gap-3 text-red-700">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <p className="text-sm font-bold">{error}</p>
             </div>
@@ -281,17 +303,6 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'PLANS' && renderPlans()}
         {activeTab === 'LEGAL' && renderLegal()}
       </main>
-
-      <footer className="bg-white border-t py-8 mt-10">
-          <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
-              <p>© 2025 SM SPORTS OPERATIONAL CORE</p>
-              <div className="flex gap-6">
-                  <button onClick={() => setActiveTab('LEGAL')} className="hover:text-gray-600">Privacy Protocol</button>
-                  <button onClick={() => setActiveTab('LEGAL')} className="hover:text-gray-600">Operations Terms</button>
-                  <a href="mailto:support@smsports.com" className="hover:text-gray-600">Technical Support</a>
-              </div>
-          </div>
-      </footer>
     </div>
   );
 };
