@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import { Team, UserRole } from '../types';
 import { useAuction } from '../hooks/useAuction';
 import { Wallet, Users, Gavel } from 'lucide-react';
@@ -14,69 +14,68 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // --- SQUAD SURVIVAL CALCULATION ---
-    let isLimitReached = false;
-    let limitReason = "";
+    // --- REFINED SQUAD SURVIVAL CALCULATION ---
+    const { isLimitReached, limitReason, biddingCapacity } = useMemo(() => {
+        let reached = false;
+        let reason = "";
 
-    const targetSquadSize = maxPlayersPerTeam || 11;
-    const currentSquadCount = team.players.length;
-    const playersStillNeededAfterThis = targetSquadSize - (currentSquadCount + 1);
+        const targetSquadSize = maxPlayersPerTeam || 11;
+        const currentSquadCount = team.players.length;
+        const neededAfterThis = Math.max(0, targetSquadSize - (currentSquadCount + 1));
 
-    // 1. Check Global Squad Limit
-    if (targetSquadSize - currentSquadCount <= 0) {
-        isLimitReached = true;
-        limitReason = "Squad Full";
-    }
+        // 1. Check Global Squad Limit
+        if (targetSquadSize - currentSquadCount <= 0) {
+            return { isLimitReached: true, limitReason: "Squad Full", biddingCapacity: 0 };
+        }
 
-    // 2. Check Category Specific Max Limit
-    if (!isLimitReached && currentPlayer && currentPlayer.category) {
-        const catConfig = categories.find(c => c.name === currentPlayer.category);
-        if (catConfig && catConfig.maxPerTeam > 0) {
-            const count = team.players.filter(p => p.category === currentPlayer.category).length;
-            if (count >= catConfig.maxPerTeam) {
-                isLimitReached = true;
-                limitReason = "Cat. Full";
+        // 2. Check Category Specific Max Limit
+        if (currentPlayer && currentPlayer.category) {
+            const catConfig = categories.find(c => c.name === currentPlayer.category);
+            if (catConfig && catConfig.maxPerTeam > 0) {
+                const count = team.players.filter(p => p.category === currentPlayer.category).length;
+                if (count >= catConfig.maxPerTeam) {
+                    return { isLimitReached: true, limitReason: "Cat. Full", biddingCapacity: 0 };
+                }
             }
         }
-    }
 
-    // 3. Squad Survival Reserve Check
-    if (!isLimitReached && currentPlayer) {
-        // Absolute lowest price possible in the system
+        // 3. Find absolute system min price
         const absoluteMinBasePrice = Math.min(
             globalBasePrice || 100,
-            ...(categories.length > 0 ? categories.map(c => c.basePrice) : [100]),
-            ...(roles.length > 0 ? roles.map(r => r.basePrice) : [100])
+            ...(categories.length > 0 ? categories.map(c => Number(c.basePrice) || 100) : [100]),
+            ...(roles.length > 0 ? roles.map(r => Number(r.basePrice) || 100) : [100])
         );
 
-        let totalMandatoryUnmetCost = 0;
-        let totalMandatorySlotsUsed = 0;
+        let reserve = 0;
+        let slotsUsedByMandatory = 0;
 
-        // Step A: Category Minimums
-        categories.forEach(cat => {
-            const currentCountInCat = team.players.filter(p => p.category === cat.name).length;
-            let neededInCat = Math.max(0, cat.minPerTeam - currentCountInCat);
-            
-            if (currentPlayer.category === cat.name) {
-                neededInCat = Math.max(0, neededInCat - 1);
-            }
+        // 4. Mandatory Reserves
+        if (currentPlayer) {
+            categories.forEach(cat => {
+                const currentCountInCat = team.players.filter(p => p.category === cat.name).length;
+                let neededInCat = Math.max(0, (Number(cat.minPerTeam) || 0) - currentCountInCat);
+                
+                if (currentPlayer.category === cat.name) {
+                    neededInCat = Math.max(0, neededInCat - 1);
+                }
 
-            totalMandatoryUnmetCost += (neededInCat * cat.basePrice);
-            totalMandatorySlotsUsed += neededInCat;
-        });
+                reserve += (neededInCat * (Number(cat.basePrice) || absoluteMinBasePrice));
+                slotsUsedByMandatory += neededInCat;
+            });
 
-        // Step B: Flexible slots
-        const flexibleSlots = Math.max(0, playersStillNeededAfterThis - totalMandatorySlotsUsed);
-        const flexibleCost = flexibleSlots * absoluteMinBasePrice;
-
-        const totalSurvivalReserve = totalMandatoryUnmetCost + flexibleCost;
-        const biddingCapacity = team.budget - totalSurvivalReserve;
-
-        if (nextBid > biddingCapacity) {
-            isLimitReached = true;
-            limitReason = "Reserve Required";
+            const flexibleSlots = Math.max(0, neededAfterThis - slotsUsedByMandatory);
+            reserve += (flexibleSlots * absoluteMinBasePrice);
         }
-    }
+
+        const capacity = team.budget - reserve;
+
+        if (nextBid > capacity) {
+            reached = true;
+            reason = "Reserve Hit";
+        }
+
+        return { isLimitReached: reached, limitReason: reason, biddingCapacity: capacity };
+    }, [team.players, team.budget, categories, roles, maxPlayersPerTeam, globalBasePrice, currentPlayer, nextBid]);
 
     const canAfford = team.budget >= nextBid;
     const isHighest = state.highestBidder?.id === team.id;
@@ -116,7 +115,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                 </p>
                 <p className="flex items-center text-text-secondary">
                     <Users className="w-4 h-4 mr-2 text-blue-400" />
-                    Players: <span className={`font-semibold ml-1 ${targetSquadSize - currentSquadCount <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {targetSquadSize}</span>
+                    Players: <span className={`font-semibold ml-1 ${maxPlayersPerTeam && (maxPlayersPerTeam - team.players.length <= 0) ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {maxPlayersPerTeam || '-'}</span>
                 </p>
             </div>
 

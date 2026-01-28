@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { db } from '../firebase';
 import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode } from '../types';
-import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, Tag, Clock, Ban, Check, Zap } from 'lucide-react';
+import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, Tag, Clock, Ban, Check, Zap, Server } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -72,6 +72,7 @@ const SuperAdminDashboard: React.FC = () => {
     const [dbPlans, setDbPlans] = useState<any[]>([]);
     const [planForm, setPlanForm] = useState({ id: '', name: '', price: 0, teams: 0 });
     const [isEditingPlan, setIsEditingPlan] = useState(false);
+    const [isAddingPlan, setIsAddingPlan] = useState(false);
 
     // Promo Codes State
     const [promos, setPromos] = useState<PromoCode[]>([]);
@@ -185,6 +186,7 @@ const SuperAdminDashboard: React.FC = () => {
             }
             setPlanForm({ id: '', name: '', price: 0, teams: 0 });
             setIsEditingPlan(false);
+            setIsAddingPlan(false);
             alert("Plan Protocol Updated!");
         } catch (err: any) {
             alert("Protocol Failed: " + err.message);
@@ -324,7 +326,7 @@ const SuperAdminDashboard: React.FC = () => {
                 
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
-                        {/* Stats and Branding Control sections remained same as before */}
+                        {/* Stats and Branding Control sections */}
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-10">
                             <div className="flex flex-col items-center gap-4">
                                 <div className="relative group">
@@ -448,6 +450,86 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
+                {activeTab === 'PLANS' && (
+                    <div className="space-y-12 animate-fade-in">
+                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                             <div className="flex justify-between items-center mb-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                                        <Server className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Plans</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing and team limits</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => { setIsAddingPlan(!isAddingPlan); setIsEditingPlan(false); setPlanForm({ id: '', name: '', price: 0, teams: 0 }); }}
+                                    className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    {isAddingPlan ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
+                                    {isAddingPlan ? 'CANCEL' : 'DEPLOY PLAN'}
+                                </button>
+                             </div>
+
+                             {(isAddingPlan || isEditingPlan) && (
+                                 <form onSubmit={handleSavePlan} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Plan Name</label>
+                                         <input required placeholder="E.G. PRO PACKAGE" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Price (INR)</label>
+                                         <input type="number" required placeholder="0 for Free" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Team Limit</label>
+                                         <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} />
+                                     </div>
+                                     <div className="md:col-span-3">
+                                         <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-black w-full py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
+                                             <Save className="w-5 h-5"/> {isEditingPlan ? 'UPDATE PLAN PROTOCOL' : 'INITIALIZE PLAN PROTOCOL'}
+                                         </button>
+                                     </div>
+                                 </form>
+                             )}
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {dbPlans.map(p => (
+                                     <div key={p.docId} className="bg-zinc-950 p-6 rounded-3xl border-2 border-white/5 hover:border-blue-500/20 transition-all relative overflow-hidden group">
+                                         <div className="flex justify-between items-start mb-6">
+                                             <span className="text-xl font-black tracking-tighter uppercase text-white">{p.name}</span>
+                                             <div className="flex gap-2">
+                                                <button onClick={() => { setIsEditingPlan(true); setIsAddingPlan(false); setPlanForm({ id: p.docId, name: p.name, price: p.price, teams: p.teams }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 text-zinc-600 hover:text-blue-500"><Edit className="w-4 h-4"/></button>
+                                                <button onClick={() => deletePlan(p.docId)} className="p-2 text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                             </div>
+                                         </div>
+                                         <div className="flex items-baseline gap-2 mb-4">
+                                             <span className="text-4xl font-black text-blue-500">₹{p.price}</span>
+                                             <span className="text-[10px] font-bold text-zinc-500 uppercase">per auction</span>
+                                         </div>
+                                         <div className="space-y-4 border-t border-white/5 pt-4">
+                                            <div className="flex items-center gap-3 text-[11px] font-black text-zinc-400 uppercase tracking-widest">
+                                                <Users className="w-4 h-4 text-blue-500"/> Supports up to {p.teams} Teams
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="bg-zinc-900 rounded-lg p-2 text-center border border-white/5">
+                                                    <p className="text-[8px] font-black text-zinc-500 uppercase">Squad Ops</p>
+                                                    <p className="text-[10px] font-bold text-green-500">ENABLED</p>
+                                                </div>
+                                                <div className="bg-zinc-900 rounded-lg p-2 text-center border border-white/5">
+                                                    <p className="text-[8px] font-black text-zinc-500 uppercase">Broadcasting</p>
+                                                    <p className="text-[10px] font-bold text-green-500">PRO SUITE</p>
+                                                </div>
+                                            </div>
+                                         </div>
+                                     </div>
+                                 ))}
+                             </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'PROMOS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -540,7 +622,6 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* Broadcast and Graphics tabs remained same as before */}
                 {activeTab === 'BROADCAST' && (
                     <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl animate-fade-in">
                         <div className="flex items-center gap-4 mb-10">

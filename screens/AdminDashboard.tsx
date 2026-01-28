@@ -327,7 +327,7 @@ const AdminDashboard: React.FC = () => {
                                                         </div>
                                                     );
                                                 })}
-                                            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl flex flex-col justify-center items-center text-center group cursor-pointer hover:scale-105 transition-all" onClick={() => window.location.href='mailto:support@theplayerauction.com'}>
+                                            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl flex flex-col justify-center items-center text-center group cursor-pointer hover:scale-105 transition-all" onClick={() => window.location.href='mailto:send.smsports@gmail.com'}>
                                                 <p className="text-white font-black text-[10px] uppercase tracking-widest mb-1">Large Scale</p>
                                                 <p className="text-gray-400 text-[8px] font-bold">Contact Sales</p>
                                             </div>
@@ -399,7 +399,7 @@ const AdminDashboard: React.FC = () => {
                       <Trophy className="w-8 h-8 text-highlight mb-4" />
                       <h3 className="text-white font-black text-lg uppercase mb-2">Mega Leagues</h3>
                       <p className="text-gray-500 text-[10px] font-bold mb-6">For 16+ teams, custom branding, and onsite support.</p>
-                      <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="bg-white text-black font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest hover:bg-highlight hover:text-primary transition-all">Inquire Now</button>
+                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white text-black font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest hover:bg-highlight hover:text-primary transition-all">Inquire Now</button>
                   </div>
               </div>
           </div>
@@ -478,7 +478,7 @@ const AdminDashboard: React.FC = () => {
                       <p className="text-blue-100 text-sm opacity-80">Our specialized support team is here to help with your concerns.</p>
                   </div>
               </div>
-              <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="bg-white text-blue-600 font-black px-8 py-3 rounded-xl text-xs uppercase tracking-widest shadow-xl hover:bg-gray-100 transition-all active:scale-95">
+              <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white text-blue-600 font-black px-8 py-3 rounded-xl text-xs uppercase tracking-widest shadow-xl hover:bg-gray-100 transition-all active:scale-95">
                   Contact Compliance
               </button>
           </div>

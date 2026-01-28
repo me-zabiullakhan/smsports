@@ -184,7 +184,7 @@ const LandingPage: React.FC = () => {
                       <h3 className="text-2xl font-bold text-white mb-6">Custom Plan</h3>
                       <div className="text-4xl font-black text-white mb-10">Contact Us</div>
                       <p className="text-sm text-gray-500 font-medium mb-10 flex-grow leading-relaxed">For large scale federations, custom rule engines, and dedicated onsite support.</p>
-                      <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="w-full bg-white text-primary font-bold py-4 rounded-2xl text-center hover:bg-gray-100 transition-colors">
+                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="w-full bg-white text-primary font-bold py-4 rounded-2xl text-center hover:bg-gray-100 transition-colors">
                           Contact Sales
                       </button>
                   </div>
@@ -246,7 +246,7 @@ const LandingPage: React.FC = () => {
 
               <div className="mt-16 text-center">
                   <p className="text-text-secondary font-medium mb-6">For more details or to conduct your tournament auction on ThePlayerAuction.com</p>
-                  <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="bg-highlight hover:bg-teal-400 text-primary font-black px-12 py-4 rounded-2xl shadow-xl transition-all active:scale-95 uppercase tracking-widest text-sm">
+                  <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-highlight hover:bg-teal-400 text-primary font-black px-12 py-4 rounded-2xl shadow-xl transition-all active:scale-95 uppercase tracking-widest text-sm">
                       Contact Us Now
                   </button>
               </div>
