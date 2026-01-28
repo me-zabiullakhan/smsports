@@ -1,4 +1,3 @@
-
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -24,29 +23,38 @@ if (!firebase.apps.length) {
 const db = app.firestore();
 const auth = app.auth();
 
-// Configure Firestore settings for better performance/reliability
+/**
+ * Robust Firestore Settings
+ * experimentalForceLongPolling: true is used to bypass WebSocket connection issues 
+ * which often cause the "Could not reach Cloud Firestore backend" error in 
+ * certain network environments or browser security sandboxes.
+ * 
+ * NOTE: We do not set experimentalAutoDetectLongPolling to avoid conflicts.
+ */
 db.settings({
-    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+    experimentalForceLongPolling: true
 });
 
-// Enable offline persistence with better error handling
-// Wrapping in an async-ready block to ensure it doesn't block main script if it fails
+// Enable offline persistence with enhanced error handling
 const initPersistence = async () => {
     try {
         await db.enablePersistence({ synchronizeTabs: true });
+        console.log("Firestore: Persistence enabled successfully.");
     } catch (err: any) {
         if (err.code === 'failed-precondition') {
             // Multiple tabs open, persistence can only be enabled in one tab at a time.
-            console.warn("Firebase Persistence: Multiple tabs open, persistence disabled in this tab.");
+            console.warn("Firestore: Persistence failed (multiple tabs). Operating in online-only mode.");
         } else if (err.code === 'unimplemented') {
             // The current browser does not support all of the features required to enable persistence
-            console.warn("Firebase Persistence: Browser not supported.");
+            console.warn("Firestore: Persistence not supported by browser.");
         } else {
-            console.error("Firebase Persistence Error:", err.message);
+            console.error("Firestore Persistence Error:", err.message);
         }
     }
 };
 
+// Initialize persistence without blocking the main execution thread
 initPersistence();
 
 export { db, auth };

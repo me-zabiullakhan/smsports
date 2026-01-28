@@ -14,8 +14,10 @@ const LiveAdminPanel: React.FC = () => {
   // Move isRoundActive to component scope to ensure it's accessible by all inner functions
   const isRoundActive = state.status === AuctionStatus.InProgress && state.currentPlayerId;
   
-  // Subscription Check: Strict Per-Auction PAID status
-  const hasPaidPlan = state.isPaid === true || userProfile?.role === UserRole.SUPER_ADMIN;
+  // Logic: Only block bidding if it's NOT a paid plan AND there are more than 2 teams.
+  // This allows free users to test the app with up to 2 teams.
+  const isFreeTrialAllowed = teams.length <= 2;
+  const hasPaidPlan = state.isPaid === true || userProfile?.role === UserRole.SUPER_ADMIN || isFreeTrialAllowed;
 
   // Inline Sell State
   const [isSellingMode, setIsSellingMode] = useState(false);
@@ -60,7 +62,7 @@ const LiveAdminPanel: React.FC = () => {
 
   const handleStart = async (specificId?: string) => {
       if (!hasPaidPlan) {
-          alert("Subscription Required: This auction instance is currently on the FREE tier. Purchase a plan for this auction from the Dashboard to unlock live bidding.");
+          alert("Subscription Required: This auction instance is currently on the FREE tier and has more than 2 teams. Upgrade this auction from the Dashboard to unlock live bidding for larger tournaments.");
           return;
       }
 
@@ -568,7 +570,7 @@ const LiveAdminPanel: React.FC = () => {
                   <h3 className="font-black uppercase tracking-widest text-xs">Subscription Required</h3>
               </div>
               <p className="text-[10px] text-gray-400 font-bold mb-4 uppercase leading-relaxed">
-                  Auction bidding controls are locked for FREE instances. Upgrade this auction from the Dashboard to unlock live biddings.
+                  Auction bidding controls are locked for FREE instances with more than 2 teams. Upgrade this auction from the Dashboard to unlock live biddings for larger tournaments.
               </p>
               <button 
                 onClick={() => navigate('/admin')}

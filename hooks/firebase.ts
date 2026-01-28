@@ -1,4 +1,3 @@
-
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
@@ -13,13 +12,21 @@ const firebaseConfig = {
     measurementId: "G-CFW20VFVJ7"
 };
 
-// Initialize Firebase using Compat
+// Initialize Firebase using Compat singleton pattern
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 const app = firebase.app();
-const db = firebase.firestore();
-const auth = firebase.auth();
+const db = app.firestore();
+const auth = app.auth();
+
+/**
+ * Syncing settings with main firebase.ts to prevent initialization conflicts.
+ */
+db.settings({
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+    experimentalForceLongPolling: true
+});
 
 // Enable offline persistence
 try {

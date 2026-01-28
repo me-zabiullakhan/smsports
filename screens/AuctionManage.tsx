@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import * as XLSX from 'xlsx';
+// Import useAuction hook
+import { useAuction } from '../hooks/useAuction';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -55,6 +57,8 @@ const DEFAULT_REG_CONFIG: RegistrationConfig = {
 };
 
 const AuctionManage: React.FC = () => {
+    // Destructure userProfile from useAuction
+    const { userProfile } = useAuction();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'SETTINGS' | 'TEAMS' | 'PLAYERS' | 'REQUESTS' | 'CATEGORIES' | 'ROLES' | 'SPONSORS' | 'REGISTRATION'>('SETTINGS');
@@ -154,6 +158,17 @@ const AuctionManage: React.FC = () => {
     const handleSaveTeam = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!id) return;
+
+        // --- TEAM LIMIT LOGIC ---
+        // If adding a NEW team, check if we've reached the limit defined by the plan (totalTeams property)
+        if (!editItem.id) {
+            const limit = auction?.totalTeams || 2;
+            if (teams.length >= limit) {
+                alert(`Team limit reached! Your current plan supports a maximum of ${limit} teams. Please upgrade this auction from the Admin Dashboard to add more teams.`);
+                return;
+            }
+        }
+
         const teamData = {
             name: editItem.name,
             logoUrl: previewImage || editItem.logoUrl || '',
@@ -486,8 +501,9 @@ const AuctionManage: React.FC = () => {
                                                 <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Total Teams</label>
-                                                <input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold" value={settingsForm.totalTeams} onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})} />
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Team Limit ({auction?.isPaid ? 'PAID' : 'FREE'})</label>
+                                                <input type="number" disabled={!userProfile?.role.includes('ADMIN')} className="w-full bg-gray-100 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold text-gray-500 cursor-not-allowed" value={settingsForm.totalTeams} title="To increase team limit, please upgrade this auction from the Dashboard." />
+                                                <p className="text-[8px] font-black text-blue-600 uppercase mt-1">Controlled by current plan.</p>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
@@ -568,7 +584,10 @@ const AuctionManage: React.FC = () => {
                                 <div className="bg-blue-100 p-2 rounded-lg">
                                     <Users className="w-5 h-5 text-blue-600"/>
                                 </div>
-                                <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Participating Teams</h2>
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Participating Teams</h2>
+                                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1">PLAN LIMIT: {teams.length} / {auction?.totalTeams || 2} TEAMS USED</p>
+                                </div>
                             </div>
                             <button onClick={() => { setEditItem({ name: '', budget: settingsForm.purseValue, password: '1234' }); setIsAdding(true); setPreviewImage(''); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
                                 <Plus className="w-4 h-4"/> Add New Team
@@ -1104,7 +1123,9 @@ const AuctionManage: React.FC = () => {
                                 <div className="bg-yellow-100 p-2 rounded-lg">
                                     <Star className="w-5 h-5 text-yellow-600"/>
                                 </div>
-                                <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Partner Ecosystem</h2>
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-800 tracking-tight uppercase">Partner Ecosystem</h2>
+                                </div>
                             </div>
                             <button onClick={() => { setEditItem({ name: '' }); setIsAdding(true); setPreviewImage(''); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
                                 <Plus className="w-4 h-4"/> New Partner
@@ -1147,7 +1168,7 @@ const AuctionManage: React.FC = () => {
                                     </div>
                                     <h3 className="font-black text-gray-800 uppercase text-[9px] tracking-[0.2em] truncate w-full text-center">{sponsor.name}</h3>
                                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => { setEditItem(sponsor); setIsAdding(true); setPreviewImage(''); }} className="p-1.5 bg-white text-blue-500 rounded-lg shadow-sm border border-gray-100"><Edit className="w-3 h-3"/></button>
+                                        <button onClick={() => { setEditItem(sponsor); setIsAdding(true); setPreviewImage(''); }} className="p-1.5 bg-white text-blue-50 rounded-lg shadow-sm border border-gray-100"><Edit className="w-3 h-3"/></button>
                                         <button onClick={() => handleDelete('sponsors', sponsor.id!)} className="p-1.5 bg-white text-red-400 rounded-lg shadow-sm border border-gray-100"><Trash2 className="w-3 h-3"/></button>
                                     </div>
                                 </div>

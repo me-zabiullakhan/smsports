@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { Tournament, Team, Player } from '../types';
@@ -293,13 +292,19 @@ const TournamentManager: React.FC = () => {
 
                             {modalType === 'PLAYER' && (
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Role</label>
-                                    <select className="w-full border rounded p-2 text-gray-900" value={editItem.role || 'All Rounder'} onChange={e => setEditItem({...editItem, role: e.target.value})}>
-                                        <option value="Batsman">Batsman</option>
-                                        <option value="Bowler">Bowler</option>
-                                        <option value="All Rounder">All Rounder</option>
-                                        <option value="Wicket Keeper">Wicket Keeper</option>
-                                    </select>
+                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest text-[10px]">Select Role Identity</label>
+                                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl">
+                                        {['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'].map(role => (
+                                            <button
+                                                key={role}
+                                                type="button"
+                                                onClick={() => setEditItem({...editItem, role: role})}
+                                                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all border ${editItem.role === role ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
+                                            >
+                                                {role}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 

@@ -1,20 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
   const navigate = useNavigate();
-  const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
+  const [auctions, setAuctions] = useState<(AuctionSetup & { currentTeamCount?: number })[]>([]);
   const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
   const [selectedAuctionForUpgrade, setSelectedAuctionForUpgrade] = useState<string | null>(null);
+
+  const COMMON_FEATURES = [
+      { name: 'Online player registration', icon: <UserPlus2 className="w-4 h-4" /> },
+      { name: 'Excel Data entry support', icon: <FileText className="w-4 h-4" /> },
+      { name: 'Public Auction Page', icon: <Layout className="w-4 h-4" /> },
+      { name: 'Auto points calculation', icon: <Zap className="w-4 h-4" /> },
+      { name: 'WhatsApp Player Updates', icon: <MessageSquare className="w-4 h-4" /> },
+      { name: 'LED/Projector Views', icon: <Monitor className="w-4 h-4" /> },
+      { name: 'YouTube Overlays', icon: <Youtube className="w-4 h-4" /> },
+  ];
 
   // Load Razorpay Script
   useEffect(() => {
@@ -26,17 +36,19 @@ const AdminDashboard: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // Fetch Dynamic Plans or fallback to defaults
+  // Fetch Dynamic Plans or fallback to defaults matching the requested image (limited to 15 teams)
   useEffect(() => {
       const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
           if (snap.empty) {
               setDbPlans([
-                  { id: 'free', name: 'Free Plan', price: 0, teams: 2, features: ['Up to 2 Teams', 'Standard Overlays'] },
-                  { id: 'basic', name: 'Basic Plan', price: 499, teams: 10, features: ['Up to 10 Teams', 'OBS Overlays'] },
-                  { id: 'premium', name: 'Premium Plan', price: 999, teams: 25, features: ['Up to 25 Teams', 'Projector Mode'] }
+                  { id: 'plan_1', name: 'Plan 1 - Free', price: 0, teams: 2 },
+                  { id: 'plan_2', name: 'Plan 2', price: 3000, teams: 4 },
+                  { id: 'plan_3', name: 'Plan 3', price: 4000, teams: 6 },
+                  { id: 'plan_4', name: 'Plan 4', price: 5000, teams: 10 },
+                  { id: 'plan_5', name: 'Plan 5', price: 6000, teams: 15 },
               ]);
           } else {
-              setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+              setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.teams <= 15));
           }
       });
       return () => unsub();
@@ -49,10 +61,17 @@ const AdminDashboard: React.FC = () => {
         try {
             const unsubscribe = db.collection('auctions')
                 .where('createdBy', '==', userProfile.uid)
-                .onSnapshot((snapshot) => {
-                    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
-                    data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    setAuctions(data);
+                .onSnapshot(async (snapshot) => {
+                    const auctionsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
+                    
+                    // Fetch team counts for each auction to validate plans
+                    const auctionsWithCounts = await Promise.all(auctionsData.map(async (a) => {
+                        const teamsSnap = await db.collection('auctions').doc(a.id).collection('teams').get();
+                        return { ...a, currentTeamCount: teamsSnap.size };
+                    }));
+
+                    auctionsWithCounts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    setAuctions(auctionsWithCounts);
                     setLoading(false);
                 }, (error: any) => {
                     setLoading(false);
@@ -163,32 +182,45 @@ const AdminDashboard: React.FC = () => {
                                     </div>
                                 </div>
                                 
-                                {/* Inline Plan Selector */}
+                                {/* Inline Plan Selector - Restricted to 15 teams */}
                                 {selectedAuctionForUpgrade === auction.id && (
                                     <div className="bg-blue-50/50 p-6 border-t border-blue-100 animate-slide-up">
                                         <div className="flex items-center gap-3 mb-6">
                                             <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/20"><Sparkles className="w-4 h-4"/></div>
                                             <div>
-                                                <h5 className="font-bold text-blue-900 text-sm">Choose a Plan</h5>
-                                                <p className="text-xs text-blue-400 font-medium">Unlock full features for this auction.</p>
+                                                <h5 className="font-bold text-blue-900 text-sm">Select Your Tournament Scale</h5>
+                                                <p className="text-xs text-blue-400 font-medium">Unlock pro overlays, WhatsApp updates, and LED screen support (Max 15 Teams).</p>
+                                                {auction.currentTeamCount! > 2 && (
+                                                    <p className="text-[10px] text-orange-600 font-black uppercase mt-1">Showing plans supporting {auction.currentTeamCount} teams or more.</p>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                            {dbPlans.filter(p => p.price > 0).map(plan => (
-                                                <div key={plan.id} className="bg-white p-5 rounded-2xl border-2 border-white hover:border-blue-300 transition-all shadow-sm flex flex-col group">
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <h6 className="font-bold text-gray-800 text-xs">{plan.name}</h6>
-                                                        <span className="text-blue-600 font-bold text-lg">₹{plan.price}</span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                            {dbPlans
+                                                .filter(p => p.price > 0 && p.teams >= (auction.currentTeamCount || 0))
+                                                .map(plan => (
+                                                <div key={plan.id} className="bg-white p-4 rounded-2xl border-2 border-white hover:border-blue-300 transition-all shadow-sm flex flex-col group relative">
+                                                    {plan.price === 5000 && <div className="absolute top-2 right-2"><Star className="w-3 h-3 text-yellow-400 fill-current"/></div>}
+                                                    <h6 className="font-black text-gray-800 text-[10px] uppercase mb-1">{plan.name}</h6>
+                                                    <div className="flex items-baseline mb-3">
+                                                        <span className="text-blue-600 font-black text-xl">₹{plan.price}</span>
+                                                        <span className="text-[8px] text-gray-400 font-bold ml-1">/Auction</span>
                                                     </div>
-                                                    <p className="text-xs text-gray-400 mb-4">Up to {plan.teams} Teams</p>
+                                                    <div className="text-[10px] text-gray-500 font-bold mb-4 flex items-center gap-1">
+                                                        <Users className="w-3 h-3 text-blue-400"/> Upto {plan.teams} Teams
+                                                    </div>
                                                     <button 
                                                         onClick={() => handleAuctionSubscription(auction.id!, plan)}
-                                                        className="w-full bg-blue-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs transition-all active:scale-95 shadow-lg"
+                                                        className="w-full bg-blue-900 hover:bg-black text-white font-black py-2 rounded-lg text-[9px] uppercase tracking-widest transition-all active:scale-95 shadow-md"
                                                     >
-                                                        Upgrade Now
+                                                        Upgrade
                                                     </button>
                                                 </div>
                                             ))}
+                                            <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl flex flex-col justify-center items-center text-center group cursor-pointer hover:scale-105 transition-all" onClick={() => window.location.href='mailto:support@theplayerauction.com'}>
+                                                <p className="text-white font-black text-[10px] uppercase tracking-widest mb-1">Large Scale</p>
+                                                <p className="text-gray-400 text-[8px] font-bold">Contact Sales</p>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -205,56 +237,140 @@ const AdminDashboard: React.FC = () => {
   const renderPlans = () => (
       <div className="animate-fade-in">
           <div className="text-center max-w-2xl mx-auto mb-12">
-              <h2 className="text-3xl font-bold text-gray-800 tracking-tighter mb-2">Auction Plans</h2>
-              <p className="text-gray-500 text-sm font-medium">Professional features for your cricket tournament.</p>
+              <h2 className="text-3xl font-black text-gray-800 tracking-tighter mb-2 uppercase">Subscription Protocols</h2>
+              <p className="text-gray-500 text-sm font-medium">Standardized tiers for small and mid-scale tournaments (Max 15 Teams).</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {dbPlans.map(plan => (
-                  <div key={plan.id} className={`bg-white rounded-3xl p-8 border-2 transition-all relative flex flex-col border-gray-100 hover:shadow-xl`}>
-                      <h3 className="text-xl font-bold text-gray-800 mb-2">{plan.name}</h3>
-                      <div className="flex items-baseline mb-6">
-                          <span className="text-4xl font-bold text-gray-900">₹{plan.price}</span>
-                          <span className="text-gray-400 text-xs font-bold ml-1">/Auction</span>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
+              {/* Premium Features Highlight */}
+              <div className="lg:col-span-1 space-y-4">
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-8 text-white shadow-2xl h-full flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight mb-6 border-b border-white/20 pb-4">Standard Features</h3>
+                        <ul className="space-y-4">
+                            {COMMON_FEATURES.map((f, idx) => (
+                                <li key={idx} className="flex items-center gap-3 text-xs font-bold opacity-90 group">
+                                    <div className="bg-white/20 p-1.5 rounded-lg group-hover:bg-white group-hover:text-blue-600 transition-all">{f.icon}</div>
+                                    {f.name}
+                                </li>
+                            ))}
+                        </ul>
                       </div>
-                      <div className="space-y-4 mb-10 flex-grow">
-                          <div className="flex items-center gap-3 text-sm text-gray-800 font-bold">
-                              <Users className="w-4 h-4 text-blue-500" /> Up to {plan.teams} Teams
-                          </div>
-                          {(plan.features || []).map((f: string, i: number) => (
-                              <div key={i} className="flex items-center gap-3 text-sm text-gray-500 font-medium">
-                                  <CheckCircle className="w-4 h-4 text-green-400" /> {f}
-                              </div>
-                          ))}
-                      </div>
-                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                          <p className="text-xs font-semibold text-gray-400 text-center mb-0">Choose an auction to upgrade from the "Auctions" tab.</p>
-                      </div>
+                      <div className="mt-8 text-[10px] font-black uppercase tracking-widest opacity-50 text-center">Verified Tournament Suite</div>
                   </div>
-              ))}
+              </div>
+
+              {/* Tiers Grid - Restricted to 15 Teams */}
+              <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {dbPlans.map(plan => (
+                      <div key={plan.id} className={`bg-white rounded-3xl p-6 border-2 transition-all relative flex flex-col ${plan.price === 5000 ? 'border-blue-500 shadow-xl scale-105 z-10' : 'border-gray-100 hover:shadow-lg'}`}>
+                          {plan.price === 5000 && <div className="absolute top-4 right-4 bg-blue-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase">Optimal</div>}
+                          <h3 className="text-lg font-black text-gray-800 mb-1 uppercase">{plan.name}</h3>
+                          <div className="flex items-baseline mb-6">
+                              <span className="text-3xl font-black text-gray-900">₹{plan.price}</span>
+                              <span className="text-gray-400 text-[10px] font-bold ml-1">/Auction</span>
+                          </div>
+                          <div className="space-y-4 mb-10 flex-grow">
+                              <div className="flex items-center gap-3 text-xs text-gray-800 font-bold">
+                                  <Users className="w-4 h-4 text-blue-500" /> Upto {plan.teams} Teams
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] text-gray-400 font-medium">
+                                  <CheckCircle className="w-3 h-3 text-green-400" /> {plan.price === 0 ? 'Basic Views' : 'Full Pro Overlays'}
+                              </div>
+                          </div>
+                          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 text-center">
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Select in "Auctions" Tab</p>
+                          </div>
+                      </div>
+                  ))}
+
+                  {/* Contact Card for Large Tournaments */}
+                  <div className="bg-zinc-900 rounded-3xl p-6 border-2 border-zinc-800 flex flex-col justify-center items-center text-center">
+                      <Trophy className="w-8 h-8 text-highlight mb-4" />
+                      <h3 className="text-white font-black text-lg uppercase mb-2">Mega Leagues</h3>
+                      <p className="text-gray-500 text-[10px] font-bold mb-6">For 16+ teams, custom branding, and onsite support.</p>
+                      <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="bg-white text-black font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest hover:bg-highlight hover:text-primary transition-all">Inquire Now</button>
+                  </div>
+              </div>
           </div>
       </div>
   );
 
   const renderLegal = () => (
-      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden animate-fade-in">
-          <div className="bg-slate-800 p-8 text-white">
-              <h2 className="text-3xl font-bold tracking-tighter mb-2">Terms & Privacy</h2>
-              <p className="text-slate-400 text-sm">Rules for organizing auctions on SM SPORTS.</p>
+      <div className="space-y-8 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-white relative">
+                  <div className="relative z-10">
+                      <h2 className="text-3xl font-black tracking-tighter mb-2 uppercase">Platform Legal Protocol</h2>
+                      <p className="text-slate-400 text-sm font-medium">Terms of Service, Privacy & Organizer Guidelines</p>
+                  </div>
+                  <Book className="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 text-white/5" />
+              </div>
+              
+              <div className="p-8 md:p-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                      <div className="space-y-4">
+                          <div className="flex items-center gap-3 mb-2">
+                              <div className="bg-blue-50 p-2 rounded-lg"><Scale className="w-5 h-5 text-blue-600"/></div>
+                              <h3 className="text-lg font-bold text-gray-800">1. Organizer Terms</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">
+                              As an auction organizer, you are solely responsible for the integrity of your event. SM SPORTS provides the technical platform for bidding, squad management, and broadcasting. We do not facilitate or handle financial transactions between teams and players.
+                          </p>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div className="flex items-center gap-3 mb-2">
+                              <div className="bg-emerald-50 p-2 rounded-lg"><ShieldCheck className="w-5 h-5 text-emerald-600"/></div>
+                              <h3 className="text-lg font-bold text-gray-800">2. Privacy Policy</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">
+                              We take player data privacy seriously. All mobile numbers and personal details collected via our registration forms are encrypted and accessible only by the respective auction organizer. We do not sell or share this data with third-party advertisers.
+                          </p>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div className="flex items-center gap-3 mb-2">
+                              <div className="bg-red-50 p-2 rounded-lg"><CreditCard className="w-5 h-5 text-red-600"/></div>
+                              <h3 className="text-lg font-bold text-gray-800">3. Refund Protocol</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">
+                              Subscription payments for auction upgrades are non-refundable once the features are activated. If an auction is canceled before any bids are placed, organizers may request a platform credit for a future event.
+                          </p>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div className="flex items-center gap-3 mb-2">
+                              <div className="bg-amber-50 p-2 rounded-lg"><FileText className="w-5 h-5 text-amber-600"/></div>
+                              <h3 className="text-lg font-bold text-gray-800">4. Content Guidelines</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">
+                              All tournament names, logos, and player photos uploaded must comply with local copyright and community standards. SM SPORTS reserves the right to suspend any auction found to be hosting illegal, offensive, or fraudulent content.
+                          </p>
+                      </div>
+                  </div>
+                  
+                  <div className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                      <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">Last Updated: January 2025</p>
+                      <div className="flex gap-4">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Shield className="w-3 h-3"/> System Secured</span>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Gavel className="w-3 h-3"/> Legal Approved</span>
+                      </div>
+                  </div>
+              </div>
           </div>
-          <div className="p-10 space-y-10 max-h-[600px] overflow-y-auto custom-scrollbar text-gray-600">
-              <section>
-                  <h3 className="text-lg font-bold text-blue-600 mb-4 flex items-center gap-2"><Scale className="w-5 h-5"/> 1. General Rules</h3>
-                  <p className="text-sm leading-relaxed">By using this platform, you agree to host your sports auctions fairly. We provide the tools, but you are responsible for the auction results and player payments.</p>
-              </section>
-              <section>
-                  <h3 className="text-lg font-bold text-emerald-600 mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5"/> 2. Privacy</h3>
-                  <p className="text-sm leading-relaxed">We protect your data and do not share player mobile numbers with third parties. Admins must handle player data responsibly.</p>
-              </section>
-              <section>
-                  <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5"/> 3. Refunds</h3>
-                  <p className="text-sm leading-relaxed">Upgrade payments are non-refundable once activated. If you have technical issues, our support team will help you.</p>
-              </section>
-              <div className="pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Updated January 2025</div>
+          
+          <div className="bg-blue-600 p-8 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl shadow-blue-600/20">
+              <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-3 rounded-2xl"><HelpCircle className="w-8 h-8 text-white"/></div>
+                  <div>
+                      <h4 className="text-xl font-bold uppercase tracking-tight">Need Legal Clarification?</h4>
+                      <p className="text-blue-100 text-sm opacity-80">Our specialized support team is here to help with your concerns.</p>
+                  </div>
+              </div>
+              <button onClick={() => window.location.href='mailto:support@theplayerauction.com'} className="bg-white text-blue-600 font-black px-8 py-3 rounded-xl text-xs uppercase tracking-widest shadow-xl hover:bg-gray-100 transition-all active:scale-95">
+                  Contact Compliance
+              </button>
           </div>
       </div>
   );
@@ -273,7 +389,7 @@ const AdminDashboard: React.FC = () => {
                     {[
                         { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },
                         { id: 'PLANS', icon: <Zap className="w-4 h-4"/>, label: 'Plans' },
-                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Terms' }
+                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Legal' }
                     ].map(tab => (
                         <button 
                             key={tab.id}
