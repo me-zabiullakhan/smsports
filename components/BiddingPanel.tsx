@@ -27,12 +27,12 @@ const BiddingPanel: React.FC = () => {
     // Resolve current player using ID from full list (consistent with other views)
     const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // --- SQUAD FILLING RESERVE CALCULATION (SYNCED WITH CONTEXT) ---
+    // --- SQUAD SURVIVAL CALCULATION ---
     const targetSquadSize = maxPlayersPerTeam || 11;
     const currentSquadCount = userTeam.players.length;
-    const remainingToBuy = targetSquadSize - currentSquadCount;
+    const playersStillNeededAfterThis = targetSquadSize - (currentSquadCount + 1);
 
-    // A. Identity category max limits
+    // A. Identify category max limits
     let isCategoryMaxReached = false;
     let categoryLimitMsg = "";
     if (currentPlayer && currentPlayer.category) {
@@ -48,9 +48,9 @@ const BiddingPanel: React.FC = () => {
 
     // B. Calculate mandatory reserve for remaining players
     let totalMandatoryReserve = 0;
-    let totalMinSlotsReserved = 0;
+    let totalMandatorySlotsUsed = 0;
     
-    // Absolute minimum price available for flexible slots
+    // Absolute lowest price possible in the system for filling remaining slots
     const absoluteMinBasePrice = Math.min(
         globalBasePrice || 100,
         ...(categories.length > 0 ? categories.map(c => c.basePrice) : [100]),
@@ -58,29 +58,28 @@ const BiddingPanel: React.FC = () => {
     );
 
     if (currentPlayer) {
-        // Step 1: Mandatory Category Requirements
+        // Step 1: Scan all categories for unmet minimums
         categories.forEach(cat => {
-            const alreadyHasInCat = userTeam.players.filter(p => p.category === cat.name).length;
-            let neededInCat = Math.max(0, cat.minPerTeam - alreadyHasInCat);
+            const currentCountInCat = userTeam.players.filter(p => p.category === cat.name).length;
+            let neededInCat = Math.max(0, cat.minPerTeam - currentCountInCat);
             
-            // If current bidding player belongs to this category
+            // If current bidding player satisfies one of these needed slots
             if (currentPlayer.category === cat.name) {
                 neededInCat = Math.max(0, neededInCat - 1);
             }
             
-            totalMinSlotsReserved += neededInCat;
-            totalMandatoryReserve += neededInCat * cat.basePrice;
+            totalMandatorySlotsUsed += neededInCat;
+            totalMandatoryReserve += (neededInCat * cat.basePrice);
         });
 
-        // Step 2: Flexible slots to reach total squad size
-        // We need 'remainingToBuy - 1' more players after this one.
-        const extraSlots = Math.max(0, (remainingToBuy - 1) - totalMinSlotsReserved);
-        totalMandatoryReserve += (extraSlots * absoluteMinBasePrice);
+        // Step 2: Fill remaining "Flexible" slots to reach target squad size
+        const flexibleSlots = Math.max(0, playersStillNeededAfterThis - totalMandatorySlotsUsed);
+        totalMandatoryReserve += (flexibleSlots * absoluteMinBasePrice);
     }
 
     const biddingCapacity = userTeam.budget - totalMandatoryReserve;
     const isBidLimitExceeded = nextBid > biddingCapacity;
-    const isSquadFull = remainingToBuy <= 0;
+    const isSquadFull = targetSquadSize - currentSquadCount <= 0;
 
     const canAfford = userTeam.budget >= nextBid;
     const isLeading = highestBidder && String(highestBidder.id) === String(userTeam.id);
@@ -122,10 +121,10 @@ const BiddingPanel: React.FC = () => {
                     {!isSquadFull && (
                         <div className="mt-2 text-left hidden sm:block">
                             <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">
-                                Max Bid: {Math.max(0, biddingCapacity)}
+                                Max Limit: {Math.max(0, biddingCapacity)}
                             </p>
                             <p className="text-[8px] text-gray-500 uppercase font-medium mt-0.5 flex items-center">
-                                <Info className="w-2 h-2 mr-1"/> {totalMandatoryReserve} reserved for {remainingToBuy - 1} more players
+                                <Info className="w-2 h-2 mr-1"/> {totalMandatoryReserve} reserved for {playersStillNeededAfterThis} more players
                             </p>
                         </div>
                     )}
@@ -167,7 +166,7 @@ const BiddingPanel: React.FC = () => {
                     </button>
                     {isBidLimitExceeded && (
                         <span className="text-[10px] text-red-400 font-bold mt-1 uppercase tracking-wide">
-                            Limit: {Math.max(0, biddingCapacity)} (Reserve Check)
+                            Limit: {Math.max(0, biddingCapacity)} (Reserve Reached)
                         </span>
                     )}
                 </div>
@@ -179,7 +178,7 @@ const BiddingPanel: React.FC = () => {
                 <div className="bg-red-950/20 border border-red-900/30 p-2 rounded mt-3">
                     <p className="text-red-400 text-[10px] flex items-start font-bold uppercase tracking-tight">
                         <AlertCircle className="w-3 h-3 mr-1.5 shrink-0 mt-0.5"/> 
-                        Reserve locked: You must keep {totalMandatoryReserve} to buy {remainingToBuy - 1} more players to fill your {targetSquadSize} player squad.
+                        Bidding locked. You must reserve {totalMandatoryReserve} to buy the remaining {playersStillNeededAfterThis} players to fill your required {targetSquadSize} player squad.
                     </p>
                 </div>
             )}

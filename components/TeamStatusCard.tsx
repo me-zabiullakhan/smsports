@@ -14,16 +14,16 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
     const isAuctionLive = state.status === 'IN_PROGRESS';
     const currentPlayer = currentPlayerId ? players.find(p => String(p.id) === String(currentPlayerId)) : null;
 
-    // --- SQUAD FILLING RESERVE CALCULATION (SYNCED) ---
+    // --- SQUAD SURVIVAL CALCULATION ---
     let isLimitReached = false;
     let limitReason = "";
 
     const targetSquadSize = maxPlayersPerTeam || 11;
     const currentSquadCount = team.players.length;
-    const remainingToBuy = targetSquadSize - currentSquadCount;
+    const playersStillNeededAfterThis = targetSquadSize - (currentSquadCount + 1);
 
     // 1. Check Global Squad Limit
-    if (remainingToBuy <= 0) {
+    if (targetSquadSize - currentSquadCount <= 0) {
         isLimitReached = true;
         limitReason = "Squad Full";
     }
@@ -40,37 +40,41 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
         }
     }
 
-    // 3. Squad Filling Reserve Check
+    // 3. Squad Survival Reserve Check
     if (!isLimitReached && currentPlayer) {
-        // Find absolute cheapest base price available
+        // Absolute lowest price possible in the system
         const absoluteMinBasePrice = Math.min(
             globalBasePrice || 100,
             ...(categories.length > 0 ? categories.map(c => c.basePrice) : [100]),
             ...(roles.length > 0 ? roles.map(r => r.basePrice) : [100])
         );
 
-        let totalMinSlotsReserved = 0;
-        let totalMandatoryReserve = 0;
+        let totalMandatoryUnmetCost = 0;
+        let totalMandatorySlotsUsed = 0;
 
+        // Step A: Category Minimums
         categories.forEach(cat => {
-            const alreadyHasInCat = team.players.filter(p => p.category === cat.name).length;
-            let neededInCat = Math.max(0, cat.minPerTeam - alreadyHasInCat);
+            const currentCountInCat = team.players.filter(p => p.category === cat.name).length;
+            let neededInCat = Math.max(0, cat.minPerTeam - currentCountInCat);
             
             if (currentPlayer.category === cat.name) {
                 neededInCat = Math.max(0, neededInCat - 1);
             }
 
-            totalMinSlotsReserved += neededInCat;
-            totalMandatoryReserve += neededInCat * cat.basePrice;
+            totalMandatoryUnmetCost += (neededInCat * cat.basePrice);
+            totalMandatorySlotsUsed += neededInCat;
         });
 
-        const extraSlots = Math.max(0, (remainingToBuy - 1) - totalMinSlotsReserved);
-        totalMandatoryReserve += (extraSlots * absoluteMinBasePrice);
+        // Step B: Flexible slots
+        const flexibleSlots = Math.max(0, playersStillNeededAfterThis - totalMandatorySlotsUsed);
+        const flexibleCost = flexibleSlots * absoluteMinBasePrice;
 
-        const biddingCapacity = team.budget - totalMandatoryReserve;
+        const totalSurvivalReserve = totalMandatoryUnmetCost + flexibleCost;
+        const biddingCapacity = team.budget - totalSurvivalReserve;
+
         if (nextBid > biddingCapacity) {
             isLimitReached = true;
-            limitReason = "Reserve Req.";
+            limitReason = "Reserve Required";
         }
     }
 
@@ -112,7 +116,7 @@ const TeamStatusCard: React.FC<Props> = ({ team }) => {
                 </p>
                 <p className="flex items-center text-text-secondary">
                     <Users className="w-4 h-4 mr-2 text-blue-400" />
-                    Players: <span className={`font-semibold ml-1 ${remainingToBuy <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {targetSquadSize}</span>
+                    Players: <span className={`font-semibold ml-1 ${targetSquadSize - currentSquadCount <= 0 ? 'text-red-400' : 'text-white'}`}>{team.players.length} / {targetSquadSize}</span>
                 </p>
             </div>
 

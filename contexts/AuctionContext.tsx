@@ -209,51 +209,52 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (currentPlayer) {
             /**
-             * ROBUST SQUAD RESERVE CALCULATION
+             * ULTIMATE SQUAD SURVIVAL CALCULATION
              */
             const targetSquadSize = state.maxPlayersPerTeam || 11;
-            const currentCount = team.players.length;
-            const remainingToBuy = targetSquadSize - currentCount;
+            const currentSquadCount = team.players.length;
+            const playersStillNeededAfterThis = targetSquadSize - (currentSquadCount + 1);
 
-            if (remainingToBuy <= 0) {
-                throw new Error("Squad Full! You cannot buy more players.");
+            if (targetSquadSize - currentSquadCount <= 0) {
+                throw new Error("Squad Limit Reached!");
             }
 
-            // Find absolute cheapest base price available anywhere for flexible filling
+            // Find global absolute minimum price in system
             const absoluteMinBasePrice = Math.min(
                 state.basePrice || 100,
                 ...(state.categories.length > 0 ? state.categories.map(c => c.basePrice) : [100]),
                 ...(state.roles.length > 0 ? state.roles.map(r => r.basePrice) : [100])
             );
 
-            let totalMandatorySlots = 0;
-            let totalMandatoryCost = 0;
+            let totalMandatoryUnmetCost = 0;
+            let totalMandatorySlotsUsed = 0;
 
-            // 1. Calculate cost for specific Category Minimums
+            // 1. Scan all categories for unmet "Min Per Team" requirements
             state.categories.forEach(cat => {
-                const alreadyOwnedInCat = team.players.filter(p => p.category === cat.name).length;
-                let neededInCat = Math.max(0, cat.minPerTeam - alreadyOwnedInCat);
+                const countInCat = team.players.filter(p => p.category === cat.name).length;
+                let neededInCat = Math.max(0, cat.minPerTeam - countInCat);
                 
-                // If current player is in this category, they fulfill 1 of these needed slots
+                // If the current bidding player belongs to this category, they will satisfy 1 slot
                 if (currentPlayer.category === cat.name) {
                     neededInCat = Math.max(0, neededInCat - 1);
                 }
 
-                totalMandatorySlots += neededInCat;
-                totalMandatoryCost += neededInCat * cat.basePrice;
+                totalMandatoryUnmetCost += (neededInCat * cat.basePrice);
+                totalMandatorySlotsUsed += neededInCat;
             });
 
-            // 2. Calculate flexible filling cost
-            // We need 'remainingToBuy - 1' more players after this one.
-            // If the category minimums don't cover all of those, the rest are "flexible".
-            const extraSlotsNeeded = Math.max(0, (remainingToBuy - 1) - totalMandatorySlots);
-            const extraSlotsCost = extraSlotsNeeded * absoluteMinBasePrice;
+            // 2. Calculate "Flexible" slots required to reach target squad size
+            // If mandatory slots from categories don't fill the squad, we need more "any" players
+            const flexibleSlotsRemaining = Math.max(0, playersStillNeededAfterThis - totalMandatorySlotsUsed);
+            const flexibleCost = flexibleSlotsRemaining * absoluteMinBasePrice;
 
-            const totalReserveRequired = totalMandatoryCost + extraSlotsCost;
-            const biddingCapacity = team.budget - totalReserveRequired;
+            const totalSurvivalReserve = totalMandatoryUnmetCost + flexibleCost;
+            const biddingCapacity = team.budget - totalSurvivalReserve;
 
             if (amount > biddingCapacity) {
-                throw new Error(`Insufficient Reserve! You need ${totalReserveRequired} to buy ${remainingToBuy - 1} more players to reach your ${targetSquadSize} player squad.`);
+                throw new Error(
+                    `Bidding Capacity Exceeded! You must keep ${totalSurvivalReserve} to buy ${playersStillNeededAfterThis} more players (Minimum Prices) to complete your ${targetSquadSize} player squad.`
+                );
             }
         }
 
