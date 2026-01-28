@@ -62,7 +62,7 @@ const LiveAdminPanel: React.FC = () => {
 
   const handleStart = async (specificId?: string) => {
       if (!hasPaidPlan) {
-          alert("Subscription Required: This auction instance is currently on the FREE tier and has more than 2 teams. Upgrade this auction from the Dashboard to unlock live bidding for larger tournaments.");
+          // If bidding is locked, don't allow starting a round
           return;
       }
 
@@ -160,6 +160,7 @@ const LiveAdminPanel: React.FC = () => {
   };
   
   const handleSellClick = () => {
+      if (!hasPaidPlan) return;
       setIsSellingMode(true);
   };
 
@@ -194,6 +195,7 @@ const LiveAdminPanel: React.FC = () => {
   };
 
   const handlePass = async () => {
+      if (!hasPaidPlan) return;
       if (window.confirm("Confirm UNSOLD?")) {
           setIsProcessing(true);
           const pid = state.currentPlayerId ? String(state.currentPlayerId) : '';
@@ -206,6 +208,7 @@ const LiveAdminPanel: React.FC = () => {
   }
 
   const handleQuickBid = async (teamId: string | number) => {
+      if (!hasPaidPlan) return;
       try {
           await placeBid(teamId, nextBid);
       } catch (e) {
@@ -245,7 +248,7 @@ const LiveAdminPanel: React.FC = () => {
   const getControlButtons = () => {
       // Removed local isRoundActive definition as it's now in component scope
       const availablePlayersCount = players.filter(p => p.status !== 'SOLD' && p.status !== 'UNSOLD').length;
-      const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0));
+      const isStartDisabled = isProcessing || (state.status === AuctionStatus.NotStarted && (teams.length === 0 || availablePlayersCount === 0)) || !hasPaidPlan;
       const unsoldCount = players.filter(p => p.status === 'UNSOLD').length;
 
       // Finish Auction Option
@@ -358,7 +361,7 @@ const LiveAdminPanel: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                       <button 
                         onClick={handleSellClick}
-                        disabled={isProcessing}
+                        disabled={isProcessing || !hasPaidPlan}
                         className="flex flex-col items-center justify-center bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
                       >
                           {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <Check className="mb-1 h-6 w-6"/>}
@@ -366,7 +369,7 @@ const LiveAdminPanel: React.FC = () => {
                       </button>
                       <button 
                         onClick={handlePass}
-                        disabled={isProcessing}
+                        disabled={isProcessing || !hasPaidPlan}
                         className="flex flex-col items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-2 rounded-lg transition-all shadow-md active:scale-95"
                       >
                           {isProcessing ? <Loader2 className="mb-1 h-6 w-6 animate-spin"/> : <X className="mb-1 h-6 w-6"/>}
@@ -478,7 +481,7 @@ const LiveAdminPanel: React.FC = () => {
 
   // --- RENDER QUICK BID BUTTONS (Inline Grid) ---
   const renderQuickBidButtons = () => {
-        if (!isRoundActive || isSellingMode) return null;
+        if (!isRoundActive || isSellingMode || !hasPaidPlan) return null;
 
         return (
             <div className="mb-4">
@@ -573,7 +576,7 @@ const LiveAdminPanel: React.FC = () => {
                   Auction bidding controls are locked for FREE instances with more than 2 teams. Upgrade this auction from the Dashboard to unlock live biddings for larger tournaments.
               </p>
               <button 
-                onClick={() => navigate('/admin')}
+                onClick={() => navigate(`/admin?upgrade=${activeAuctionId}`)}
                 className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-2.5 rounded-lg text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg"
               >
                   <CreditCard className="w-4 h-4"/> Upgrade Auction

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy } from 'lucide-react';
 import { db } from '../firebase';
@@ -8,6 +8,7 @@ import { AuctionSetup, UserPlan, UserRole } from '../types';
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [auctions, setAuctions] = useState<(AuctionSetup & { currentTeamCount?: number })[]>([]);
   const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,15 @@ const AdminDashboard: React.FC = () => {
       { name: 'LED/Projector Views', icon: <Monitor className="w-4 h-4" /> },
       { name: 'YouTube Overlays', icon: <Youtube className="w-4 h-4" /> },
   ];
+
+  // Detect auto-upgrade query param
+  useEffect(() => {
+    const upgradeId = searchParams.get('upgrade');
+    if (upgradeId) {
+        setSelectedAuctionForUpgrade(upgradeId);
+        setActiveTab('AUCTIONS');
+    }
+  }, [searchParams]);
 
   // Load Razorpay Script
   useEffect(() => {
@@ -150,7 +160,7 @@ const AdminDashboard: React.FC = () => {
                 ) : (
                     <div className="divide-y divide-gray-100">
                         {auctions.length > 0 ? auctions.map((auction) => (
-                            <div key={auction.id} className="p-0 hover:bg-gray-50/50 transition-colors group">
+                            <div key={auction.id} id={`auction-${auction.id}`} className={`p-0 transition-colors group ${selectedAuctionForUpgrade === auction.id ? 'bg-blue-50/20' : 'hover:bg-gray-50/50'}`}>
                                 <div className="p-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
                                     <div className="flex-1 flex items-center gap-4">
                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-lg ${auction.isPaid ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-gray-400 to-gray-500'}`}>

@@ -159,15 +159,9 @@ const AuctionManage: React.FC = () => {
         e.preventDefault();
         if (!id) return;
 
-        // --- TEAM LIMIT LOGIC ---
-        // If adding a NEW team, check if we've reached the limit defined by the plan (totalTeams property)
-        if (!editItem.id) {
-            const limit = auction?.totalTeams || 2;
-            if (teams.length >= limit) {
-                alert(`Team limit reached! Your current plan supports a maximum of ${limit} teams. Please upgrade this auction from the Admin Dashboard to add more teams.`);
-                return;
-            }
-        }
+        // --- TEAM LIMIT LOGIC REFINED ---
+        // Per user request, we don't alert here anymore. 
+        // We let them create teams and handle the "Lock" in the Live Auctioneer panel.
 
         const teamData = {
             name: editItem.name,
@@ -1163,7 +1157,7 @@ const AuctionManage: React.FC = () => {
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                             {sponsors.map(sponsor => (
                                 <div key={sponsor.id} className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm relative group overflow-hidden flex flex-col items-center">
-                                    <div className="w-full aspect-video bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center p-3 mb-3">
+                                    <div className="w-full aspect-video bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-center p-3 mb-3">
                                         {sponsor.imageUrl ? <img src={sponsor.imageUrl} className="max-w-full max-h-full object-contain" /> : <Star className="text-gray-200" />}
                                     </div>
                                     <h3 className="font-black text-gray-800 uppercase text-[9px] tracking-[0.2em] truncate w-full text-center">{sponsor.name}</h3>
