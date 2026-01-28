@@ -30,6 +30,17 @@ export interface Player {
   soldTo?: string;
 }
 
+export interface PromoCode {
+    id?: string;
+    code: string;
+    discountType: 'PERCENT' | 'FLAT';
+    discountValue: number;
+    maxClaims: number;
+    currentClaims: number;
+    expiryDate: number;
+    active: boolean;
+}
+
 export interface RegisteredPlayer {
     id: string;
     fullName: string;
@@ -225,7 +236,6 @@ export interface AuctionSetup {
     planId?: string; // Plan ID associated with auction
 }
 
-// Added Scoring & Match Types
 export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'CWC_2023' | 'DEFAULT';
 export type OverlayView = 'DEFAULT' | 'I1BAT' | 'I1BALL' | 'I2BAT' | 'I2BALL' | 'SUMMARY' | 'FOW' | 'B1' | 'B2' | 'BOWLER' | 'TARGET' | 'PARTNERSHIP' | 'DECISION' | 'ANIMATION' | 'POINTS_TABLE' | 'TOP_BATTERS' | 'TOP_BOWLERS' | 'TOP_STRIKERS' | 'MOM' | 'PLAYER_STATS';
 export type OverlayAnimation = 'NONE' | 'FOUR' | 'SIX' | 'WICKET' | 'FREE_HIT';

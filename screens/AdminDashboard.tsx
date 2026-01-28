@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check } from 'lucide-react';
 import { db } from '../firebase';
-import { AuctionSetup, UserPlan, UserRole } from '../types';
+import { AuctionSetup, UserPlan, UserRole, PromoCode } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
@@ -16,6 +16,12 @@ const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
   const [selectedAuctionForUpgrade, setSelectedAuctionForUpgrade] = useState<string | null>(null);
+
+  // Promo Code States
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
 
   const COMMON_FEATURES = [
       { name: 'Online player registration', icon: <UserPlus2 className="w-4 h-4" /> },
@@ -101,22 +107,74 @@ const AdminDashboard: React.FC = () => {
     return () => { if (unsubscribe) unsubscribe(); };
   }, [userProfile]);
 
+  const handleValidatePromo = async () => {
+      if (!promoInput) return;
+      setIsValidatingPromo(true);
+      setPromoError('');
+      setAppliedPromo(null);
+      try {
+          const snap = await db.collection('promoCodes').where('code', '==', promoInput.toUpperCase()).get();
+          if (snap.empty) throw new Error("Invalid Promo Code");
+          const promo = { id: snap.docs[0].id, ...snap.docs[0].data() } as PromoCode;
+          if (!promo.active) throw new Error("Promo Code Inactive");
+          if (promo.expiryDate < Date.now()) throw new Error("Promo Code Expired");
+          if (promo.currentClaims >= promo.maxClaims) throw new Error("Promo Claim Limit Reached");
+          setAppliedPromo(promo);
+      } catch (err: any) {
+          setPromoError(err.message);
+      } finally {
+          setIsValidatingPromo(false);
+      }
+  };
+
+  const calculateDiscountedPrice = (originalPrice: number) => {
+      if (!appliedPromo) return originalPrice;
+      if (appliedPromo.discountType === 'FLAT') return Math.max(0, originalPrice - appliedPromo.discountValue);
+      return Math.max(0, Math.round(originalPrice * (1 - appliedPromo.discountValue / 100)));
+  };
+
   const handleAuctionSubscription = (auctionId: string, plan: any) => {
       if (!isRazorpayLoaded) return alert("Payment system is loading...");
       if (plan.price === 0) return alert("This auction is already on the Free Plan.");
 
+      const finalPrice = calculateDiscountedPrice(plan.price);
+      
+      // If price becomes zero due to promo, bypass Razorpay
+      if (finalPrice === 0) {
+          (async () => {
+              await db.collection('auctions').doc(auctionId).update({
+                  isPaid: true,
+                  planId: plan.id,
+                  totalTeams: plan.teams 
+              });
+              if (appliedPromo) {
+                  await db.collection('promoCodes').doc(appliedPromo.id).update({
+                      currentClaims: (appliedPromo.currentClaims || 0) + 1
+                  });
+              }
+              alert("Protocol Authorized! Full Discount Applied.");
+              setSelectedAuctionForUpgrade(null);
+          })();
+          return;
+      }
+
       const options = {
           key: "rzp_test_pnZyMfa3h3mMXR",
-          amount: plan.price * 100,
+          amount: finalPrice * 100,
           currency: "INR",
           name: "SM SPORTS",
-          description: `Upgrade Auction: ${plan.name}`,
+          description: `Upgrade Auction: ${plan.name} ${appliedPromo ? '(Promo Applied)' : ''}`,
           handler: async (response: any) => {
               await db.collection('auctions').doc(auctionId).update({
                   isPaid: true,
                   planId: plan.id,
                   totalTeams: plan.teams 
               });
+              if (appliedPromo) {
+                  await db.collection('promoCodes').doc(appliedPromo.id).update({
+                      currentClaims: (appliedPromo.currentClaims || 0) + 1
+                  });
+              }
               alert("Success! Your auction has been upgraded.");
               setSelectedAuctionForUpgrade(null);
           },
@@ -179,7 +237,7 @@ const AdminDashboard: React.FC = () => {
                                     <div className="flex flex-wrap items-center gap-2">
                                         {!auction.isPaid && userProfile?.role !== UserRole.SUPER_ADMIN && (
                                             <button 
-                                                onClick={() => setSelectedAuctionForUpgrade(selectedAuctionForUpgrade === auction.id ? null : auction.id!)}
+                                                onClick={() => { setSelectedAuctionForUpgrade(selectedAuctionForUpgrade === auction.id ? null : auction.id!); setPromoInput(''); setAppliedPromo(null); setPromoError(''); }}
                                                 className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${selectedAuctionForUpgrade === auction.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100'}`}
                                             >
                                                 <CreditCard className="w-3 h-3" /> Upgrade
@@ -195,38 +253,78 @@ const AdminDashboard: React.FC = () => {
                                 {/* Inline Plan Selector - Restricted to 15 teams */}
                                 {selectedAuctionForUpgrade === auction.id && (
                                     <div className="bg-blue-50/50 p-6 border-t border-blue-100 animate-slide-up">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/20"><Sparkles className="w-4 h-4"/></div>
-                                            <div>
-                                                <h5 className="font-bold text-blue-900 text-sm">Select Your Tournament Scale</h5>
-                                                <p className="text-xs text-blue-400 font-medium">Unlock pro overlays, WhatsApp updates, and LED screen support (Max 15 Teams).</p>
-                                                {auction.currentTeamCount! > 2 && (
-                                                    <p className="text-[10px] text-orange-600 font-black uppercase mt-1">Showing plans supporting {auction.currentTeamCount} teams or more.</p>
+                                        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
+                                            <div className="flex items-start gap-3">
+                                                <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/20 mt-1"><Sparkles className="w-4 h-4"/></div>
+                                                <div>
+                                                    <h5 className="font-bold text-blue-900 text-sm">Select Your Tournament Scale</h5>
+                                                    <p className="text-xs text-blue-400 font-medium">Unlock pro overlays, WhatsApp updates, and LED screen support.</p>
+                                                    {auction.currentTeamCount! > 2 && (
+                                                        <p className="text-[10px] text-orange-600 font-black uppercase mt-1">Supporting {auction.currentTeamCount} teams or more.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* PROMO CODE BOX */}
+                                            <div className="w-full md:w-64 bg-white p-3 rounded-2xl shadow-sm border border-blue-100">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="text-[9px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1"><Tag className="w-2.5 h-2.5"/> Promo Code</label>
+                                                    {appliedPromo && <span className="text-[8px] font-black text-green-500 uppercase flex items-center gap-0.5"><Check className="w-2 h-2"/> APPLIED</span>}
+                                                </div>
+                                                <div className="flex gap-1.5">
+                                                    <input 
+                                                        placeholder="ENTER CODE" 
+                                                        className="flex-1 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-400"
+                                                        value={promoInput}
+                                                        onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                                                    />
+                                                    <button 
+                                                        onClick={handleValidatePromo}
+                                                        disabled={isValidatingPromo || !promoInput}
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-lg transition-all active:scale-90 disabled:opacity-50"
+                                                    >
+                                                        {isValidatingPromo ? <RefreshCw className="w-3 h-3 animate-spin"/> : <ChevronRight className="w-3 h-3"/>}
+                                                    </button>
+                                                </div>
+                                                {promoError && <p className="text-[8px] text-red-500 font-bold mt-1 uppercase tracking-tight">{promoError}</p>}
+                                                {appliedPromo && (
+                                                    <p className="text-[9px] text-green-600 font-black mt-1 uppercase tracking-widest">
+                                                        DISCOUNT: {appliedPromo.discountType === 'PERCENT' ? `${appliedPromo.discountValue}% OFF` : `₹${appliedPromo.discountValue} OFF`}
+                                                    </p>
                                                 )}
                                             </div>
                                         </div>
+
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                             {dbPlans
                                                 .filter(p => p.price > 0 && p.teams >= (auction.currentTeamCount || 0))
-                                                .map(plan => (
-                                                <div key={plan.id} className="bg-white p-4 rounded-2xl border-2 border-white hover:border-blue-300 transition-all shadow-sm flex flex-col group relative">
-                                                    {plan.price === 5000 && <div className="absolute top-2 right-2"><Star className="w-3 h-3 text-yellow-400 fill-current"/></div>}
-                                                    <h6 className="font-black text-gray-800 text-[10px] uppercase mb-1">{plan.name}</h6>
-                                                    <div className="flex items-baseline mb-3">
-                                                        <span className="text-blue-600 font-black text-xl">₹{plan.price}</span>
-                                                        <span className="text-[8px] text-gray-400 font-bold ml-1">/Auction</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-500 font-bold mb-4 flex items-center gap-1">
-                                                        <Users className="w-3 h-3 text-blue-400"/> Upto {plan.teams} Teams
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => handleAuctionSubscription(auction.id!, plan)}
-                                                        className="w-full bg-blue-900 hover:bg-black text-white font-black py-2 rounded-lg text-[9px] uppercase tracking-widest transition-all active:scale-95 shadow-md"
-                                                    >
-                                                        Upgrade
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                .map(plan => {
+                                                    const discPrice = calculateDiscountedPrice(plan.price);
+                                                    return (
+                                                        <div key={plan.id} className="bg-white p-4 rounded-2xl border-2 border-white hover:border-blue-300 transition-all shadow-sm flex flex-col group relative">
+                                                            {plan.price === 5000 && <div className="absolute top-2 right-2"><Star className="w-3 h-3 text-yellow-400 fill-current"/></div>}
+                                                            <h6 className="font-black text-gray-800 text-[10px] uppercase mb-1">{plan.name}</h6>
+                                                            <div className="flex flex-col mb-3">
+                                                                <div className="flex items-baseline">
+                                                                    <span className="text-blue-600 font-black text-xl">₹{discPrice}</span>
+                                                                    <span className="text-[8px] text-gray-400 font-bold ml-1">/Auction</span>
+                                                                </div>
+                                                                {appliedPromo && (
+                                                                    <span className="text-[9px] text-gray-300 line-through font-bold decoration-red-400">WAS ₹{plan.price}</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500 font-bold mb-4 flex items-center gap-1">
+                                                                <Users className="w-3 h-3 text-blue-400"/> Upto {plan.teams} Teams
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleAuctionSubscription(auction.id!, plan)}
+                                                                className="w-full bg-blue-900 hover:bg-black text-white font-black py-2 rounded-lg text-[9px] uppercase tracking-widest transition-all active:scale-95 shadow-md"
+                                                            >
+                                                                {discPrice === 0 ? 'CLAIM FREE' : 'Upgrade'}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
                                             <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 rounded-2xl flex flex-col justify-center items-center text-center group cursor-pointer hover:scale-105 transition-all" onClick={() => window.location.href='mailto:support@theplayerauction.com'}>
                                                 <p className="text-white font-black text-[10px] uppercase tracking-widest mb-1">Large Scale</p>
                                                 <p className="text-gray-400 text-[8px] font-bold">Contact Sales</p>

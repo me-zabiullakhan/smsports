@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { db } from '../firebase';
-import { AuctionSetup, ScoreboardTheme, ScoringAsset } from '../types';
-import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle } from 'lucide-react';
+import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode } from '../types';
+import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, Tag, Clock, Ban, Check, Zap } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -45,7 +45,7 @@ const THEMES_LIST: {id: ScoreboardTheme, label: string, year: string}[] = [
 const SuperAdminDashboard: React.FC = () => {
     const { state, logout } = useAuction();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PLANS' | 'BROADCAST' | 'GRAPHICS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PLANS' | 'PROMOS' | 'BROADCAST' | 'GRAPHICS'>('OVERVIEW');
     const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -73,6 +73,13 @@ const SuperAdminDashboard: React.FC = () => {
     const [planForm, setPlanForm] = useState({ id: '', name: '', price: 0, teams: 0 });
     const [isEditingPlan, setIsEditingPlan] = useState(false);
 
+    // Promo Codes State
+    const [promos, setPromos] = useState<PromoCode[]>([]);
+    const [promoForm, setPromoForm] = useState<Partial<PromoCode>>({
+        code: '', discountType: 'PERCENT', discountValue: 0, maxClaims: 10, expiryDate: Date.now() + 604800000, active: true
+    });
+    const [isAddingPromo, setIsAddingPromo] = useState(false);
+
     useEffect(() => {
         setLoading(true);
         const unsubscribe = db.collection('auctions').onSnapshot((snapshot) => {
@@ -99,17 +106,67 @@ const SuperAdminDashboard: React.FC = () => {
             setDbPlans(snap.docs.map(d => ({ docId: d.id, ...d.data() })));
         });
 
+        const unsubPromos = db.collection('promoCodes').onSnapshot(snap => {
+            setPromos(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromoCode)));
+        });
+
         return () => {
             unsubscribe();
             unsubConfig();
             unsubGlobalAssets();
             unsubPlans();
+            unsubPromos();
         };
     }, []);
 
     useEffect(() => {
         if (state.systemLogoUrl) setLogoPreview(state.systemLogoUrl);
     }, [state.systemLogoUrl]);
+
+    const handleSavePromo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const data = {
+                ...promoForm,
+                code: promoForm.code?.toUpperCase(),
+                currentClaims: 0,
+                active: true
+            };
+            await db.collection('promoCodes').add(data);
+            setIsAddingPromo(false);
+            setPromoForm({ code: '', discountType: 'PERCENT', discountValue: 0, maxClaims: 10, expiryDate: Date.now() + 604800000 });
+            alert("Promo Protocol Deployed!");
+        } catch (err: any) {
+            alert("Promo Fail: " + err.message);
+        }
+    };
+
+    const togglePromoStatus = async (promo: PromoCode) => {
+        await db.collection('promoCodes').doc(promo.id).update({ active: !promo.active });
+    };
+
+    const deletePromo = async (id: string) => {
+        if (window.confirm("Purge promo code from system?")) {
+            await db.collection('promoCodes').doc(id).delete();
+        }
+    };
+
+    const handleManualPaidToggle = async (auctionId: string, currentStatus: boolean) => {
+        try {
+            await db.collection('auctions').doc(auctionId).update({ isPaid: !currentStatus });
+        } catch (e: any) { alert("Toggle failed: " + e.message); }
+    };
+
+    const handlePlanManualChange = async (auctionId: string, newPlanId: string) => {
+        const plan = dbPlans.find(p => p.docId === newPlanId);
+        if (!plan) return;
+        try {
+            await db.collection('auctions').doc(auctionId).update({ 
+                planId: newPlanId,
+                totalTeams: plan.teams 
+            });
+        } catch (e: any) { alert("Plan change failed"); }
+    };
 
     const handleSavePlan = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -242,6 +299,7 @@ const SuperAdminDashboard: React.FC = () => {
                         {[
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
                             {id: 'PLANS', label: 'Subscriptions', icon: <CreditCard className="w-4 h-4"/>},
+                            {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
                             {id: 'BROADCAST', label: 'Broadcast', icon: <Layout className="w-4 h-4"/>},
                             {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>},
                         ].map(t => (
@@ -266,6 +324,7 @@ const SuperAdminDashboard: React.FC = () => {
                 
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
+                        {/* Stats and Branding Control sections remained same as before */}
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-10">
                             <div className="flex flex-col items-center gap-4">
                                 <div className="relative group">
@@ -331,6 +390,7 @@ const SuperAdminDashboard: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* Enhanced Registry Explorer with Manual Overrides */}
                         <div className="bg-zinc-950 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 overflow-hidden">
                             <div className="p-8 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
                                 <div className="flex items-center gap-4">
@@ -344,14 +404,35 @@ const SuperAdminDashboard: React.FC = () => {
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-zinc-900/50 text-[10px] text-zinc-500 uppercase font-black tracking-[0.3em]"><tr><th className="p-6">Timestamp</th><th className="p-6">Instance Identity</th><th className="p-6">Protocol</th><th className="p-6">Owner UID</th><th className="p-6">Status</th><th className="p-6 text-right">Execution</th></tr></thead>
+                                    <thead className="bg-zinc-900/50 text-[10px] text-zinc-500 uppercase font-black tracking-[0.3em]"><tr><th className="p-6">Instance</th><th className="p-6">Subscription</th><th className="p-6">Override Plan</th><th className="p-6">Status</th><th className="p-6 text-right">Execution</th></tr></thead>
                                     <tbody className="divide-y divide-white/5">
                                         {filteredAuctions.map(auction => (
                                             <tr key={auction.id} className="hover:bg-white/5 transition-all group">
-                                                <td className="p-6 text-[10px] text-zinc-400 font-black tabular-nums">{new Date(auction.createdAt).toLocaleString()}</td>
-                                                <td className="p-6"><div className="flex items-center gap-4"><div className="w-10 h-10 bg-zinc-900 rounded-xl border border-white/10 flex items-center justify-center font-black text-xs group-hover:border-red-500/50 transition-all">{auction.title.charAt(0)}</div><div><span className="font-black text-sm text-white block tracking-tight uppercase">{auction.title}</span><span className="text-[10px] text-zinc-600 font-bold">ID: {auction.id}</span></div></div></td>
-                                                <td className="p-6"><span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest bg-zinc-900 px-3 py-1.5 rounded-lg border border-white/5">{auction.sport}</span></td>
-                                                <td className="p-6"><span className="text-[10px] font-mono text-zinc-500 truncate max-w-[120px] select-all">{auction.createdBy || 'SYSTEM'}</span></td>
+                                                <td className="p-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-zinc-900 rounded-xl border border-white/10 flex items-center justify-center font-black text-xs group-hover:border-red-500/50 transition-all">{auction.title.charAt(0)}</div>
+                                                        <div><span className="font-black text-sm text-white block tracking-tight uppercase">{auction.title}</span><span className="text-[10px] text-zinc-600 font-bold">UID: {auction.createdBy}</span></div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <button 
+                                                        onClick={() => handleManualPaidToggle(auction.id!, !!auction.isPaid)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${auction.isPaid ? 'bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.3)]' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                                                    >
+                                                        {auction.isPaid ? <CheckCircle className="w-3 h-3"/> : <Ban className="w-3 h-3"/>}
+                                                        {auction.isPaid ? 'SUBSCRIPTION ACTIVE' : 'UNPAID INSTANCE'}
+                                                    </button>
+                                                </td>
+                                                <td className="p-6">
+                                                    <select 
+                                                        className="bg-zinc-900 border border-white/5 rounded-lg p-1.5 text-[10px] font-black uppercase text-zinc-400 outline-none focus:border-red-500"
+                                                        value={auction.planId || ''}
+                                                        onChange={(e) => handlePlanManualChange(auction.id!, e.target.value)}
+                                                    >
+                                                        <option value="">(Select Plan)</option>
+                                                        {dbPlans.map(p => <option key={p.docId} value={p.docId}>{p.name} ({p.teams}T)</option>)}
+                                                    </select>
+                                                </td>
                                                 <td className="p-6"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${(auction.status as any) === 'IN_PROGRESS' || auction.status === 'LIVE' ? 'bg-green-500 animate-pulse' : auction.status === 'COMPLETED' ? 'bg-blue-500' : 'bg-zinc-700'}`}></span><span className="text-[10px] font-black uppercase tracking-widest">{auction.status}</span></div></td>
                                                 <td className="p-6 text-right"><div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-all">
                                                     <button onClick={() => navigate(`/auction/${auction.id}`)} className="p-3 bg-zinc-800 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-lg active:scale-90"><ExternalLink className="w-4 h-4" /></button>
@@ -367,71 +448,99 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {activeTab === 'PLANS' && (
+                {activeTab === 'PROMOS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                            <div className="flex items-center gap-4 mb-10">
-                                <div className="bg-red-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-                                    <Plus className="w-6 h-6 text-white" />
+                             <div className="flex justify-between items-center mb-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-orange-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+                                        <Tag className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Promo Protocols</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage discount infrastructure</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Plan Configuration</h2>
-                                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Define new subscription protocols</p>
-                                </div>
-                            </div>
-
-                            <form onSubmit={handleSavePlan} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end bg-black/40 p-8 rounded-3xl border border-white/5">
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Protocol Name</label>
-                                    <input required type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-xs font-black uppercase tracking-widest outline-none focus:border-red-500 transition-all" placeholder="E.G. PRO ELITE" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Price (INR)</label>
-                                    <input required type="number" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-xs font-black tracking-widest outline-none focus:border-red-500 transition-all" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Team Limit</label>
-                                    <input required type="number" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-xs font-black tracking-widest outline-none focus:border-red-500 transition-all" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} />
-                                </div>
-                                <button type="submit" className="bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl">
-                                    <Save className="w-5 h-5" /> {isEditingPlan ? 'UPDATE PROTOCOL' : 'INITIALIZE PLAN'}
+                                <button 
+                                    onClick={() => setIsAddingPromo(!isAddingPromo)}
+                                    className="bg-white hover:bg-orange-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    {isAddingPromo ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
+                                    {isAddingPromo ? 'CANCEL' : 'DEPLOY PROMO'}
                                 </button>
-                            </form>
-                        </div>
+                             </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {dbPlans.map(plan => (
-                                <div key={plan.docId} className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
-                                    <div className="flex justify-between items-start mb-6">
+                             {isAddingPromo && (
+                                 <form onSubmit={handleSavePromo} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Code Name</label>
+                                         <input required placeholder="E.G. SUPERDEAL" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-orange-500" value={promoForm.code} onChange={e => setPromoForm({...promoForm, code: e.target.value})} />
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <h3 className="text-2xl font-black uppercase tracking-tighter text-white">{plan.name}</h3>
-                                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Active Protocol</p>
+                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Type</label>
+                                            <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.discountType} onChange={e => setPromoForm({...promoForm, discountType: e.target.value as any})}>
+                                                <option value="PERCENT">PERCENT (%)</option>
+                                                <option value="FLAT">FLAT (INR)</option>
+                                            </select>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setPlanForm({ id: plan.docId, name: plan.name, price: plan.price, teams: plan.teams }); setIsEditingPlan(true); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-3 bg-zinc-800 rounded-xl text-blue-400 hover:bg-blue-600 hover:text-white transition-all"><Edit className="w-4 h-4"/></button>
-                                            <button onClick={() => deletePlan(plan.docId)} className="p-3 bg-zinc-800 rounded-xl text-red-400 hover:bg-red-600 hover:text-white transition-all"><Trash2 className="w-4 h-4"/></button>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Value</label>
+                                            <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.discountValue} onChange={e => setPromoForm({...promoForm, discountValue: Number(e.target.value)})} />
                                         </div>
-                                    </div>
-                                    <div className="flex items-baseline gap-2 mb-8">
-                                        <span className="text-5xl font-black text-white">₹{plan.price}</span>
-                                        <span className="text-zinc-600 text-xs font-bold uppercase">/Auction</span>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-3 text-xs font-black text-zinc-300 uppercase tracking-widest">
-                                            <Users className="w-4 h-4 text-red-500" /> {plan.teams} Max Teams
-                                        </div>
-                                        {plan.features?.map((f: string, i: number) => (
-                                            <div key={i} className="flex items-center gap-3 text-xs text-zinc-500">
-                                                <CheckCircle className="w-4 h-4 text-zinc-700" /> {f}
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Claim Limit</label>
+                                         <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.maxClaims} onChange={e => setPromoForm({...promoForm, maxClaims: Number(e.target.value)})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Expiry Date</label>
+                                         <input type="date" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" onChange={e => setPromoForm({...promoForm, expiryDate: new Date(e.target.value).getTime()})} />
+                                     </div>
+                                     <div className="md:col-span-2 flex items-end">
+                                         <button type="submit" className="bg-orange-600 hover:bg-orange-500 text-white font-black w-full py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
+                                             <Zap className="w-5 h-5"/> INITIALIZE PROMO PROTOCOL
+                                         </button>
+                                     </div>
+                                 </form>
+                             )}
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {promos.map(p => (
+                                     <div key={p.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${p.active ? 'border-orange-500/20' : 'border-zinc-800 opacity-50'}`}>
+                                         <div className="flex justify-between items-start mb-6">
+                                             <div className="flex items-center gap-2">
+                                                <span className="text-2xl font-black tracking-tighter uppercase text-white">{p.code}</span>
+                                                <button onClick={() => togglePromoStatus(p)} className={`p-1.5 rounded-lg ${p.active ? 'bg-green-600' : 'bg-zinc-800'} text-white`}>
+                                                    {p.active ? <Check className="w-3 h-3"/> : <Ban className="w-3 h-3"/>}
+                                                </button>
+                                             </div>
+                                             <button onClick={() => deletePromo(p.id!)} className="p-2 text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                         </div>
+                                         <div className="flex items-baseline gap-2 mb-4">
+                                             <span className="text-4xl font-black text-orange-500">{p.discountType === 'PERCENT' ? `${p.discountValue}%` : `₹${p.discountValue}`}</span>
+                                             <span className="text-[10px] font-bold text-zinc-500 uppercase">OFF</span>
+                                         </div>
+                                         <div className="space-y-2 border-t border-white/5 pt-4">
+                                            <div className="flex justify-between text-[10px] font-bold uppercase">
+                                                <span className="text-zinc-500">Claims</span>
+                                                <span className="text-white">{p.currentClaims} / {p.maxClaims}</span>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                                            <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                                                <div className="bg-orange-500 h-full" style={{ width: `${(p.currentClaims / p.maxClaims) * 100}%` }}></div>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[9px] font-black text-zinc-600 uppercase tracking-widest mt-2">
+                                                <Clock className="w-3 h-3"/> EXP: {new Date(p.expiryDate).toLocaleDateString()}
+                                            </div>
+                                         </div>
+                                     </div>
+                                 ))}
+                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* Broadcast and Graphics tabs remained same as before */}
                 {activeTab === 'BROADCAST' && (
                     <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl animate-fade-in">
                         <div className="flex items-center gap-4 mb-10">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw, ShieldCheck } from 'lucide-react';
 import { auth, db } from '../firebase';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
@@ -31,12 +31,10 @@ const AuthScreen: React.FC = () => {
     const [teamPassword, setTeamPassword] = useState('');
 
     const [error, setError] = useState<string | null>(null);
-    const [isConfigError, setIsConfigError] = useState(false);
-    const [configErrorMsg, setConfigErrorMsg] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
     const handleGoogleLogin = async () => {
-        setError(null); setIsConfigError(false); setIsLoading(true);
+        setError(null); setIsLoading(true);
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             await auth.signInWithPopup(provider);
@@ -56,7 +54,7 @@ const AuthScreen: React.FC = () => {
 
     const handleAdminSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null); setIsConfigError(false); setIsLoading(true);
+        setError(null); setIsLoading(true);
         try {
             if (isAdminRegister) {
                 const userCredential = await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
@@ -67,7 +65,7 @@ const AuthScreen: React.FC = () => {
 
     const handleTeamSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null); setIsConfigError(false); setIsLoading(true);
+        setError(null); setIsLoading(true);
         try {
             const auctionsSnapshot = await db.collection('auctions').get();
             let matchedTeam: any = null;
@@ -104,9 +102,9 @@ const AuthScreen: React.FC = () => {
                         
                         <div className="flex mb-8 bg-primary/50 rounded-xl p-1.5 border border-white/5">
                             <button onClick={() => { setActiveTab('team'); setError(null); }}
-                                className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'team' ? 'bg-highlight text-primary shadow-xl' : 'text-text-secondary hover:text-white'}`}>Team Login</button>
+                                className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'team' ? 'bg-highlight text-primary shadow-xl' : 'text-text-secondary hover:text-white'}`}>Franchise Login</button>
                             <button onClick={() => { setActiveTab('admin'); setError(null); }}
-                                className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'admin' ? 'bg-highlight text-primary shadow-xl' : 'text-text-secondary hover:text-white'}`}>Admin Login</button>
+                                className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'admin' ? 'bg-white text-primary shadow-xl' : 'text-text-secondary hover:text-white'}`}>Organizer Portal</button>
                         </div>
 
                         <h2 className="text-xl font-bold text-center text-white mb-8 uppercase tracking-tight">
@@ -149,15 +147,14 @@ const AuthScreen: React.FC = () => {
                                 <form onSubmit={handleAdminSubmit} className="space-y-4">
                                     {isAdminRegister && <input type="text" placeholder="FULL NAME" value={adminName} onChange={(e) => setAdminName(e.target.value)} required
                                         className="w-full bg-primary/80 border border-gray-700/50 rounded-2xl py-4 px-6 text-text-main font-bold focus:ring-2 focus:ring-highlight outline-none" />}
-                                    {/* Fixed typo in setAdminEmail below */}
                                     <input type="email" placeholder="EMAIL ADDRESS" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required
                                         className="w-full bg-primary/80 border border-gray-700/50 rounded-2xl py-4 px-6 text-text-main font-bold focus:ring-2 focus:ring-highlight outline-none" />
                                     <input type="password" placeholder="PASSWORD" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required
                                         className="w-full bg-primary/80 border border-gray-700/50 rounded-2xl py-4 px-6 text-text-main font-bold focus:ring-2 focus:ring-highlight outline-none" />
                                     {!isAdminRegister && <div className="text-right"><button type="button" onClick={() => setShowForgotPassword(true)} className="text-[10px] font-bold text-text-secondary hover:text-highlight">Forgot Password?</button></div>}
                                     {error && <p className="text-red-400 text-xs font-bold text-center bg-red-400/10 py-3 rounded-xl border border-red-500/20">{error}</p>}
-                                    <button type="submit" disabled={isLoading} className="w-full bg-highlight hover:bg-teal-400 text-primary font-bold py-4 rounded-2xl uppercase text-sm">
-                                        {isLoading ? 'Please Wait...' : isAdminRegister ? 'Register Admin' : 'Admin Login'}
+                                    <button type="submit" disabled={isLoading} className="w-full bg-white hover:bg-gray-100 text-primary font-black py-4 rounded-2xl uppercase text-sm flex items-center justify-center gap-2">
+                                        {isLoading ? <RefreshCw className="animate-spin w-5 h-5"/> : 'OPEN DASHBOARD'}
                                     </button>
                                     <div className="text-center mt-6">
                                         <button type="button" onClick={() => setIsAdminRegister(!isAdminRegister)} className="text-[10px] font-bold text-text-secondary hover:text-highlight uppercase">
@@ -165,6 +162,13 @@ const AuthScreen: React.FC = () => {
                                         </button>
                                     </div>
                                 </form>
+                                <div className="pt-4 border-t border-gray-700/50 flex flex-col items-center">
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-2">System Maintenance</p>
+                                    <div className="flex items-center gap-1.5 text-highlight">
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                        <span className="text-[10px] font-black uppercase tracking-tighter">Root Operator Authorized Entry</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
