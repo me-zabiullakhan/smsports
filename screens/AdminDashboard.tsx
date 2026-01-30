@@ -199,7 +199,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       const options = {
-          key: "rzp_test_pnZyMfa3h3mMXR",
+          key: "rzp_live_RmecQ0mAZzpRC5",
           amount: finalPrice * 100,
           currency: "INR",
           name: "SM SPORTS",
