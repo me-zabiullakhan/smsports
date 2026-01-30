@@ -159,6 +159,7 @@ export interface AuctionState {
   isPaid?: boolean; // Per-auction payment status
   planId?: string; // Plan ID associated with auction
   autoDeleteAt?: number; // Scheduled deletion timestamp
+  isLifetime?: boolean; // No auto-delete flag
 }
 
 export enum UserRole {
@@ -182,6 +183,21 @@ export interface UserProfile {
   role: UserRole;
   teamId?: number | string; // If role is TEAM_OWNER
   plan?: UserPlan;
+}
+
+export interface SystemPopup {
+    id?: string;
+    title: string;
+    message: string;
+    imageUrl?: string;
+    showImage: boolean;
+    showText: boolean;
+    delaySeconds: number;
+    okButtonText: string;
+    closeButtonText: string;
+    expiryDate: number;
+    isActive: boolean;
+    createdAt: number;
 }
 
 export type FieldType = 'text' | 'number' | 'email' | 'select' | 'date' | 'file' | 'textarea';
@@ -236,6 +252,7 @@ export interface AuctionSetup {
     isPaid?: boolean; // Per-auction payment status
     planId?: string; // Plan ID associated with auction
     autoDeleteAt?: number; // Scheduled deletion timestamp
+    isLifetime?: boolean; // No auto-delete flag
 }
 
 export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'CWC_2023' | 'DEFAULT';

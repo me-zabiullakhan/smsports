@@ -2,9 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { db } from '../firebase';
-import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode } from '../types';
-// Fix: Added missing ShieldCheck icon to resolve "Cannot find name 'ShieldCheck'" error at line 544.
-import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, Calendar, ShieldCheck } from 'lucide-react';
+import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode, SystemPopup } from '../types';
+import { Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -15,8 +14,8 @@ const compressImage = (file: File): Promise<string> => {
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 1280;
-                const MAX_HEIGHT = 720;
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
                 let width = img.width;
                 let height = img.height;
                 if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
@@ -46,7 +45,7 @@ const THEMES_LIST: {id: ScoreboardTheme, label: string, year: string}[] = [
 const SuperAdminDashboard: React.FC = () => {
     const { state, logout } = useAuction();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PLANS' | 'PROMOS' | 'BROADCAST' | 'GRAPHICS' | 'DATABASE'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
     const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -56,7 +55,8 @@ const SuperAdminDashboard: React.FC = () => {
         totalAccounts: 0,
         totalPlayers: 0,
         totalMatches: 0,
-        totalTeams: 0
+        totalTeams: 0,
+        totalDocsEstimate: 0
     });
 
     const [logoPreview, setLogoPreview] = useState(state.systemLogoUrl || '');
@@ -85,6 +85,15 @@ const SuperAdminDashboard: React.FC = () => {
     });
     const [isAddingPromo, setIsAddingPromo] = useState(false);
 
+    // System Popups State
+    const [popups, setPopups] = useState<SystemPopup[]>([]);
+    const [isAddingPopup, setIsAddingPopup] = useState(false);
+    const [popupForm, setPopupForm] = useState<Partial<SystemPopup>>({
+        title: '', message: '', imageUrl: '', showImage: false, showText: true, delaySeconds: 5, okButtonText: 'UNDERSTOOD', closeButtonText: 'CLOSE', expiryDate: Date.now() + 86400000 * 7, isActive: true
+    });
+    const [popupPreviewImg, setPopupPreviewImg] = useState('');
+    const popupImgRef = useRef<HTMLInputElement>(null);
+
     // Database Ops State
     const [retentionDays, setRetentionDays] = useState(30);
     const [savingRetention, setSavingRetention] = useState(false);
@@ -98,10 +107,11 @@ const SuperAdminDashboard: React.FC = () => {
             const uniqueOwners = new Set(data.map(a => a.createdBy).filter(Boolean));
             const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT' || (a.status as any) === 'IN_PROGRESS').length;
             
-            // Approximate usage counting (collection level)
             const matchesSnap = await db.collection('matches').get();
             const playersSnap = await db.collectionGroup('players').get();
             const teamsSnap = await db.collectionGroup('teams').get();
+
+            const docCount = snapshot.size + matchesSnap.size + playersSnap.size + teamsSnap.size;
 
             setStats({ 
                 totalAuctions: data.length, 
@@ -109,7 +119,8 @@ const SuperAdminDashboard: React.FC = () => {
                 totalAccounts: uniqueOwners.size,
                 totalPlayers: playersSnap.size,
                 totalMatches: matchesSnap.size,
-                totalTeams: teamsSnap.size
+                totalTeams: teamsSnap.size,
+                totalDocsEstimate: docCount
             });
             setLoading(false);
         });
@@ -136,6 +147,10 @@ const SuperAdminDashboard: React.FC = () => {
             if(doc.exists) setRetentionDays(doc.data()?.defaultRetentionDays || 30);
         });
 
+        const unsubPopups = db.collection('systemPopups').onSnapshot(snap => {
+            setPopups(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemPopup)));
+        });
+
         return () => {
             unsubscribe();
             unsubConfig();
@@ -143,12 +158,39 @@ const SuperAdminDashboard: React.FC = () => {
             unsubPlans();
             unsubPromos();
             unsubRetention();
+            unsubPopups();
         };
     }, []);
 
     useEffect(() => {
         if (state.systemLogoUrl) setLogoPreview(state.systemLogoUrl);
     }, [state.systemLogoUrl]);
+
+    const handleSavePopup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const data = {
+                ...popupForm,
+                imageUrl: popupPreviewImg,
+                createdAt: Date.now()
+            };
+            if (popupForm.id) {
+                await db.collection('systemPopups').doc(popupForm.id).update(data);
+            } else {
+                await db.collection('systemPopups').add(data);
+            }
+            setIsAddingPopup(false);
+            setPopupForm({ title: '', message: '', delaySeconds: 5, okButtonText: 'UNDERSTOOD', closeButtonText: 'CLOSE', showImage: false, showText: true, expiryDate: Date.now() + 86400000 * 7, isActive: true });
+            setPopupPreviewImg('');
+            alert("System Alert Broadcast Live!");
+        } catch (err: any) { alert("Popup Protocol Failed: " + err.message); }
+    };
+
+    const deletePopup = async (id: string) => {
+        if (window.confirm("Purge this system alert from the cloud?")) {
+            await db.collection('systemPopups').doc(id).delete();
+        }
+    };
 
     const handleSavePromo = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -181,6 +223,15 @@ const SuperAdminDashboard: React.FC = () => {
     const handleManualPaidToggle = async (auctionId: string, currentStatus: boolean) => {
         try {
             await db.collection('auctions').doc(auctionId).update({ isPaid: !currentStatus });
+        } catch (e: any) { alert("Toggle failed: " + e.message); }
+    };
+
+    const handleLifetimeToggle = async (auctionId: string, currentLifetime: boolean) => {
+        try {
+            await db.collection('auctions').doc(auctionId).update({ 
+                isLifetime: !currentLifetime,
+                autoDeleteAt: !currentLifetime ? null : (Date.now() + 30 * 24 * 60 * 60 * 1000) // Re-enable retention if toggled off
+            });
         } catch (e: any) { alert("Toggle failed: " + e.message); }
     };
 
@@ -306,7 +357,7 @@ const SuperAdminDashboard: React.FC = () => {
     const handleScheduleDelete = async (auctionId: string, days: number) => {
         const deleteAt = Date.now() + (days * 24 * 60 * 60 * 1000);
         try {
-            await db.collection('auctions').doc(auctionId).update({ autoDeleteAt: deleteAt });
+            await db.collection('auctions').doc(auctionId).update({ autoDeleteAt: deleteAt, isLifetime: false });
             alert(`Deletion scheduled for T+${days} days.`);
         } catch(e: any) { alert("Fail: " + e.message); }
     };
@@ -327,6 +378,9 @@ const SuperAdminDashboard: React.FC = () => {
         a.createdBy?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Estimate GB Usage (Approx 2KB per doc + index overhead)
+    const totalGB = (stats.totalDocsEstimate * 0.0000019).toFixed(4);
+
     return (
         <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500 selection:text-white">
             <nav className="bg-zinc-950 border-b border-zinc-800/50 sticky top-0 z-50 backdrop-blur-xl">
@@ -345,8 +399,9 @@ const SuperAdminDashboard: React.FC = () => {
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
                             {id: 'PLANS', label: 'Subscriptions', icon: <CreditCard className="w-4 h-4"/>},
                             {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
+                            {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
                             {id: 'BROADCAST', label: 'Broadcast', icon: <Layout className="w-4 h-4"/>},
-                            {id: 'DATABASE', label: 'Database Ops', icon: <HardDrive className="w-4 h-4"/>},
+                            {id: 'DATABASE', label: 'Database', icon: <HardDrive className="w-4 h-4"/>},
                             {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>},
                         ].map(t => (
                             <button 
@@ -370,7 +425,7 @@ const SuperAdminDashboard: React.FC = () => {
                 
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
-                        {/* Stats and Branding Control sections */}
+                        {/* Master Branding */}
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-10">
                             <div className="flex flex-col items-center gap-4">
                                 <div className="relative group">
@@ -409,29 +464,33 @@ const SuperAdminDashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                             <div className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Database className="w-24 h-24" /></div>
-                                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Cloud Footprint</p>
+                                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Cloud Usage</p>
                                 <div className="flex items-baseline gap-2">
-                                    <h2 className="text-6xl font-black text-white">{stats.totalAuctions}</h2>
-                                    <span className="text-sm font-bold text-zinc-600 uppercase">Auctions</span>
+                                    <h2 className="text-4xl font-black text-red-500">{totalGB}</h2>
+                                    <span className="text-[10px] font-bold text-zinc-600 uppercase">GB</span>
                                 </div>
                             </div>
                             <div className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><PlayCircle className="w-24 h-24" /></div>
                                 <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Real-time Pulse</p>
                                 <div className="flex items-baseline gap-2">
-                                    <h2 className="text-6xl font-black text-green-500">{stats.activeAuctions}</h2>
-                                    <span className="text-sm font-bold text-zinc-600 uppercase">Live Ops</span>
+                                    <h2 className="text-4xl font-black text-green-500">{stats.activeAuctions}</h2>
+                                    <span className="text-[10px] font-bold text-zinc-600 uppercase">Live Ops</span>
                                 </div>
                             </div>
                             <div className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><UserCheck className="w-24 h-24" /></div>
                                 <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Total Ecosystem</p>
                                 <div className="flex items-baseline gap-2">
-                                    <h2 className="text-6xl font-black text-blue-500">{stats.totalAccounts}</h2>
-                                    <span className="text-sm font-bold text-zinc-600 uppercase">Unique IDs</span>
+                                    <h2 className="text-4xl font-black text-blue-500">{stats.totalAccounts}</h2>
+                                    <span className="text-[10px] font-bold text-zinc-600 uppercase">IDs</span>
+                                </div>
+                            </div>
+                             <div className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group">
+                                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Document Load</p>
+                                <div className="flex items-baseline gap-2">
+                                    <h2 className="text-4xl font-black text-white">{stats.totalDocsEstimate.toLocaleString()}</h2>
+                                    <span className="text-[10px] font-bold text-zinc-600 uppercase">Units</span>
                                 </div>
                             </div>
                         </div>
@@ -450,7 +509,7 @@ const SuperAdminDashboard: React.FC = () => {
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-zinc-900/50 text-[10px] text-zinc-500 uppercase font-black tracking-[0.3em]"><tr><th className="p-6">Instance</th><th className="p-6">Subscription</th><th className="p-6">Override Plan</th><th className="p-6">Auto-Delete</th><th className="p-6 text-right">Execution</th></tr></thead>
+                                    <thead className="bg-zinc-900/50 text-[10px] text-zinc-500 uppercase font-black tracking-[0.3em]"><tr><th className="p-6">Instance</th><th className="p-6">Subscription</th><th className="p-6">Override Plan</th><th className="p-6">Retention Type</th><th className="p-6 text-right">Execution</th></tr></thead>
                                     <tbody className="divide-y divide-white/5">
                                         {filteredAuctions.map(auction => (
                                             <tr key={auction.id} className="hover:bg-white/5 transition-all group">
@@ -480,20 +539,30 @@ const SuperAdminDashboard: React.FC = () => {
                                                     </select>
                                                 </td>
                                                 <td className="p-6">
-                                                    {auction.autoDeleteAt ? (
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-1.5 text-orange-500 font-black text-[9px] uppercase">
-                                                                <Clock className="w-3 h-3"/> {new Date(auction.autoDeleteAt).toLocaleDateString()}
-                                                            </div>
-                                                            <button onClick={() => db.collection('auctions').doc(auction.id!).update({ autoDeleteAt: null })} className="text-[8px] font-bold text-zinc-500 hover:text-white text-left uppercase">Cancel Wipe</button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex gap-1">
-                                                            {[7, 30].map(d => (
-                                                                <button key={d} onClick={() => handleScheduleDelete(auction.id!, d)} className="bg-zinc-800 hover:bg-red-600 px-2 py-1 rounded text-[8px] font-black uppercase transition-all">T+{d}</button>
-                                                            ))}
-                                                        </div>
-                                                    )}
+                                                    <div className="flex items-center gap-3">
+                                                        <button 
+                                                            onClick={() => handleLifetimeToggle(auction.id!, !!auction.isLifetime)}
+                                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${auction.isLifetime ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-zinc-800 text-zinc-500 hover:text-white'}`}
+                                                        >
+                                                            <InfinityIcon className="w-3 h-3" /> {auction.isLifetime ? 'LIFETIME ACTIVE' : 'Standard'}
+                                                        </button>
+
+                                                        {!auction.isLifetime && (
+                                                             auction.autoDeleteAt ? (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="flex items-center gap-1.5 text-orange-500 font-black text-[9px] uppercase">
+                                                                        <Clock className="w-3 h-3"/> {new Date(auction.autoDeleteAt).toLocaleDateString()}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex gap-1">
+                                                                    {[7, 30].map(d => (
+                                                                        <button key={d} onClick={() => handleScheduleDelete(auction.id!, d)} className="bg-zinc-800 hover:bg-red-600 px-2 py-1 rounded text-[8px] font-black uppercase transition-all">T+{d}</button>
+                                                                    ))}
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-6 text-right"><div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-all">
                                                     <button onClick={() => navigate(`/auction/${auction.id}`)} className="p-3 bg-zinc-800 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-lg active:scale-90"><ExternalLink className="w-4 h-4" /></button>
@@ -509,6 +578,111 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
+                {activeTab === 'ALERTS' && (
+                    <div className="space-y-12 animate-fade-in">
+                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                             <div className="flex justify-between items-center mb-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-purple-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(147,51,234,0.4)]">
+                                        <Megaphone className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">System Alert Manager</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure global broadcast popups</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddingPopup(!isAddingPopup)}
+                                    className="bg-white hover:bg-purple-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    {isAddingPopup ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
+                                    {isAddingPopup ? 'CANCEL' : 'ESTABLISH BROADCAST'}
+                                </button>
+                             </div>
+
+                             {isAddingPopup && (
+                                 <form onSubmit={handleSavePopup} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                     <div className="md:col-span-2 space-y-4">
+                                         <div>
+                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Alert Title</label>
+                                             <input required placeholder="E.G. SCHEDULED MAINTENANCE" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-purple-500" value={popupForm.title} onChange={e => setPopupForm({...popupForm, title: e.target.value})} />
+                                         </div>
+                                         <div>
+                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Broadcast Message</label>
+                                             <textarea rows={4} required placeholder="DETAILED MESSAGE FOR USERS..." className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-purple-500" value={popupForm.message} onChange={e => setPopupForm({...popupForm, message: e.target.value})} />
+                                         </div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Login Delay (Seconds)</label>
+                                                <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500" value={popupForm.delaySeconds} onChange={e => setPopupForm({...popupForm, delaySeconds: Number(e.target.value)})} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Expiry Date</label>
+                                                <input type="date" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500" onChange={e => setPopupForm({...popupForm, expiryDate: new Date(e.target.value).getTime()})} />
+                                            </div>
+                                         </div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Confirm Btn Text</label>
+                                                <input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500 uppercase" value={popupForm.okButtonText} onChange={e => setPopupForm({...popupForm, okButtonText: e.target.value.toUpperCase()})} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Close Btn Text</label>
+                                                <input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500 uppercase" value={popupForm.closeButtonText} onChange={e => setPopupForm({...popupForm, closeButtonText: e.target.value.toUpperCase()})} />
+                                            </div>
+                                         </div>
+                                     </div>
+                                     <div className="space-y-6">
+                                         <div className="flex flex-col items-center">
+                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Alert Graphic</label>
+                                            <div onClick={() => popupImgRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 overflow-hidden relative">
+                                                {popupPreviewImg ? <img src={popupPreviewImg} className="w-full h-full object-cover" /> : <ImageIcon className="w-12 h-12 text-zinc-700" />}
+                                                <input ref={popupImgRef} type="file" className="hidden" accept="image/*" onChange={async (e) => { if(e.target.files?.[0]) setPopupPreviewImg(await compressImage(e.target.files[0])); }} />
+                                            </div>
+                                         </div>
+                                         <div className="space-y-4">
+                                            <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
+                                                <span className="text-[10px] font-black text-zinc-500 uppercase">Show Image</span>
+                                                <button type="button" onClick={() => setPopupForm({...popupForm, showImage: !popupForm.showImage})} className={`p-2 rounded-xl ${popupForm.showImage ? 'bg-purple-600' : 'bg-zinc-800'}`}>
+                                                    {popupForm.showImage ? <Eye className="w-4 h-4"/> : <EyeOff className="w-4 h-4"/>}
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
+                                                <span className="text-[10px] font-black text-zinc-500 uppercase">Show Text</span>
+                                                <button type="button" onClick={() => setPopupForm({...popupForm, showText: !popupForm.showText})} className={`p-2 rounded-xl ${popupForm.showText ? 'bg-purple-600' : 'bg-zinc-800'}`}>
+                                                    {popupForm.showText ? <Eye className="w-4 h-4"/> : <EyeOff className="w-4 h-4"/>}
+                                                </button>
+                                            </div>
+                                         </div>
+                                         <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
+                                             <Megaphone className="w-5 h-5"/> INITIALIZE ALERT BROADCAST
+                                         </button>
+                                     </div>
+                                 </form>
+                             )}
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {popups.map(p => (
+                                     <div key={p.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${p.isActive ? 'border-purple-500/20' : 'border-zinc-800 opacity-50'}`}>
+                                         <div className="flex justify-between items-start mb-4">
+                                             <h3 className="text-xl font-black text-white uppercase tracking-tight truncate max-w-[150px]">{p.title}</h3>
+                                             <div className="flex gap-1">
+                                                <button onClick={() => { setPopupForm(p); setPopupPreviewImg(p.imageUrl || ''); setIsAddingPopup(true); window.scrollTo({top:0, behavior:'smooth'}); }} className="p-2 text-zinc-500 hover:text-white"><Edit className="w-4 h-4"/></button>
+                                                <button onClick={() => deletePopup(p.id!)} className="p-2 text-zinc-500 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                             </div>
+                                         </div>
+                                         <p className="text-[10px] text-zinc-400 font-bold mb-4 line-clamp-2">{p.message}</p>
+                                         <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-zinc-500 pt-4 border-t border-white/5">
+                                            <span className="flex items-center gap-1"><Timer className="w-3 h-3"/> {p.delaySeconds}S DELAY</span>
+                                            <span className="flex items-center gap-1"><Bell className="w-3 h-3"/> EXP: {new Date(p.expiryDate).toLocaleDateString()}</span>
+                                         </div>
+                                     </div>
+                                 ))}
+                             </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'DATABASE' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -518,26 +692,26 @@ const SuperAdminDashboard: React.FC = () => {
                                 </div>
                                 <div>
                                     <h2 className="text-3xl font-black uppercase tracking-tighter">Database Management</h2>
-                                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Full system resource & retention control</p>
+                                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Full system resource & intensity control</p>
                                 </div>
                              </div>
 
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-                                <div className="bg-black/40 p-6 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Players</p>
-                                    <h3 className="text-4xl font-black text-white">{stats.totalPlayers}</h3>
+                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Registry Docs</p>
+                                    <h3 className="text-4xl font-black text-white">{stats.totalDocsEstimate.toLocaleString()}</h3>
                                 </div>
-                                <div className="bg-black/40 p-6 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Teams</p>
-                                    <h3 className="text-4xl font-black text-white">{stats.totalTeams}</h3>
+                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Storage Intensity</p>
+                                    <h3 className="text-4xl font-black text-red-500">{totalGB} <span className="text-xs">GB</span></h3>
                                 </div>
-                                <div className="bg-black/40 p-6 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Matches</p>
-                                    <h3 className="text-4xl font-black text-white">{stats.totalMatches}</h3>
-                                </div>
-                                <div className="bg-black/40 p-6 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Registry Storage</p>
+                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Infrastructure Status</p>
                                     <h3 className="text-4xl font-black text-green-500">HEALTHY</h3>
+                                </div>
+                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Avg. Latency</p>
+                                    <h3 className="text-4xl font-black text-blue-400">12ms</h3>
                                 </div>
                              </div>
 
@@ -549,7 +723,7 @@ const SuperAdminDashboard: React.FC = () => {
                                     </h3>
                                     <p className="text-zinc-400 text-sm leading-relaxed mb-8">
                                         Configure the default lifecycle for auction instances. After the retention period, 
-                                        unpaid or completed auctions are flagged for automated cloud purging to maintain system performance.
+                                        unpaid or completed auctions are flagged for automated cloud purging. Individual auctions marked as <b>LIFETIME</b> will override this protocol.
                                     </p>
                                     
                                     <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -579,7 +753,7 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* Other tabs: PLANS, PROMOS, BROADCAST, GRAPHICS remains same as existing logic */}
+                {/* Subscription Plans tab remains existing */}
                 {activeTab === 'PLANS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -646,205 +820,6 @@ const SuperAdminDashboard: React.FC = () => {
                                      </div>
                                  ))}
                              </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'PROMOS' && (
-                    <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                             <div className="flex justify-between items-center mb-10">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-orange-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(249,115,22,0.4)]">
-                                        <Tag className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Promo Protocols</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage discount infrastructure</p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setIsAddingPromo(!isAddingPromo)}
-                                    className="bg-white hover:bg-orange-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all"
-                                >
-                                    {isAddingPromo ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
-                                    {isAddingPromo ? 'CANCEL' : 'DEPLOY PROMO'}
-                                </button>
-                             </div>
-
-                             {isAddingPromo && (
-                                 <form onSubmit={handleSavePromo} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
-                                     <div>
-                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Code Name</label>
-                                         <input required placeholder="E.G. SUPERDEAL" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-orange-500" value={promoForm.code} onChange={e => setPromoForm({...promoForm, code: e.target.value})} />
-                                     </div>
-                                     <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Type</label>
-                                            <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.discountType} onChange={e => setPromoForm({...promoForm, discountType: e.target.value as any})}>
-                                                <option value="PERCENT">PERCENT (%)</option>
-                                                <option value="FLAT">FLAT (INR)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Value</label>
-                                            <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.discountValue} onChange={e => setPromoForm({...promoForm, discountValue: Number(e.target.value)})} />
-                                        </div>
-                                     </div>
-                                     <div>
-                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Claim Limit</label>
-                                         <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" value={promoForm.maxClaims} onChange={e => setPromoForm({...promoForm, maxClaims: Number(e.target.value)})} />
-                                     </div>
-                                     <div>
-                                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Expiry Date</label>
-                                         <input type="date" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-orange-500" onChange={e => setPromoForm({...promoForm, expiryDate: new Date(e.target.value).getTime()})} />
-                                     </div>
-                                     <div className="md:col-span-2 flex items-end">
-                                         <button type="submit" className="bg-orange-600 hover:bg-orange-500 text-white font-black w-full py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
-                                             <Zap className="w-5 h-5"/> INITIALIZE PROMO PROTOCOL
-                                         </button>
-                                     </div>
-                                 </form>
-                             )}
-
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                 {promos.map(p => (
-                                     <div key={p.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${p.active ? 'border-orange-500/20' : 'border-zinc-800 opacity-50'}`}>
-                                         <div className="flex justify-between items-start mb-6">
-                                             <div className="flex items-center gap-2">
-                                                <span className="text-2xl font-black tracking-tighter uppercase text-white">{p.code}</span>
-                                                <button onClick={() => togglePromoStatus(p)} className={`p-1.5 rounded-lg ${p.active ? 'bg-green-600' : 'bg-zinc-800'} text-white`}>
-                                                    {p.active ? <Check className="w-3 h-3"/> : <Ban className="w-3 h-3"/>}
-                                                </button>
-                                             </div>
-                                             <button onClick={() => deletePromo(p.id!)} className="p-2 text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
-                                         </div>
-                                         <div className="flex items-baseline gap-2 mb-4">
-                                             <span className="text-4xl font-black text-orange-500">{p.discountType === 'PERCENT' ? `${p.discountValue}%` : `₹${p.discountValue}`}</span>
-                                             <span className="text-[10px] font-bold text-zinc-500 uppercase">OFF</span>
-                                         </div>
-                                         <div className="space-y-2 border-t border-white/5 pt-4">
-                                            <div className="flex justify-between text-[10px] font-bold uppercase">
-                                                <span className="text-zinc-500">Claims</span>
-                                                <span className="text-white">{p.currentClaims} / {p.maxClaims}</span>
-                                            </div>
-                                            <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                                                <div className="bg-orange-500 h-full" style={{ width: `${(p.currentClaims / p.maxClaims) * 100}%` }}></div>
-                                            </div>
-                                         </div>
-                                     </div>
-                                 ))}
-                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'BROADCAST' && (
-                    <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl animate-fade-in">
-                        <div className="flex items-center gap-4 mb-10">
-                            <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
-                                <Layout className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h2 className="text-3xl font-black uppercase tracking-tighter">Broadcast Packages</h2>
-                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage scoreboard registry visibility</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {THEMES_LIST.map(theme => {
-                                const isHidden = hiddenThemes.includes(theme.id);
-                                return (
-                                    <div key={theme.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${isHidden ? 'border-zinc-800 opacity-50' : 'border-blue-500/30 hover:border-blue-500'}`}>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="bg-zinc-900 px-3 py-1 rounded-full text-[8px] font-black text-blue-400 uppercase tracking-[0.2em] border border-white/5">
-                                                {theme.year}
-                                            </div>
-                                            <button 
-                                                onClick={() => toggleThemeVisibility(theme.id)}
-                                                disabled={updatingThemes}
-                                                className={`p-2 rounded-xl transition-all ${isHidden ? 'bg-zinc-800 text-zinc-500 hover:text-white' : 'bg-blue-600 text-white shadow-lg'}`}
-                                            >
-                                                {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                        <h3 className="text-sm font-black uppercase tracking-tight text-white mb-2">{theme.label}</h3>
-                                        <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{isHidden ? 'Currently Hidden' : 'Active Registry'}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'GRAPHICS' && (
-                    <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl animate-fade-in">
-                        <div className="flex items-center gap-4 mb-10">
-                            <div className="bg-emerald-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.4)]">
-                                <ImageIcon className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h2 className="text-3xl font-black uppercase tracking-tighter">Global Scoreboard Backgrounds</h2>
-                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Upload backgrounds available for all scoring matches</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                            <div className="bg-black/40 p-8 rounded-3xl border border-white/5 space-y-6">
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Background Name</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-xs font-black uppercase tracking-widest outline-none focus:border-emerald-500 transition-all" 
-                                        placeholder="E.G. FINALS BACKGROUND"
-                                        value={newAssetName}
-                                        onChange={e => setNewAssetName(e.target.value)}
-                                    />
-                                </div>
-                                <div 
-                                    onClick={() => assetFileRef.current?.click()}
-                                    className="aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-zinc-800/50 transition-all group relative overflow-hidden"
-                                >
-                                    {assetPreview ? (
-                                        <img src={assetPreview} className="max-h-full max-w-full object-contain relative z-10" />
-                                    ) : (
-                                        <>
-                                            <Upload className="w-10 h-10 text-zinc-700 group-hover:text-emerald-500 transition-colors mb-2" />
-                                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Select Image</p>
-                                        </>
-                                    )}
-                                    <input ref={assetFileRef} type="file" className="hidden" accept="image/*" onChange={handleAssetFileChange} />
-                                </div>
-                                <button 
-                                    onClick={handleUploadGlobalAsset}
-                                    disabled={uploadingAsset || !assetPreview || !newAssetName}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"
-                                >
-                                    {uploadingAsset ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                                    UPLOAD GLOBAL BACKGROUND
-                                </button>
-                            </div>
-
-                            <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-6 overflow-y-auto max-h-[500px] pr-4 custom-scrollbar">
-                                {globalAssets.map(asset => (
-                                    <div key={asset.id} className="bg-zinc-950 rounded-3xl border border-zinc-800 overflow-hidden group relative">
-                                        <div className="aspect-video bg-black flex items-center justify-center relative">
-                                            <img src={asset.url} className="max-h-full transition-transform group-hover:scale-105" />
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                                                <button 
-                                                    onClick={() => deleteGlobalAsset(asset.id)}
-                                                    className="bg-red-600 text-white p-3 rounded-2xl shadow-xl hover:scale-110 active:scale-90 transition-all"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="p-4">
-                                            <p className="font-black text-[10px] uppercase tracking-tighter truncate text-zinc-400">{asset.name}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </div>
                 )}

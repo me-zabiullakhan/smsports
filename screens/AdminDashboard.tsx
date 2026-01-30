@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock } from 'lucide-react';
+// Added Megaphone and Infinity as InfinityIcon to lucide-react imports
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock, X, Megaphone, Infinity as InfinityIcon } from 'lucide-react';
 import { db } from '../firebase';
-import { AuctionSetup, UserPlan, UserRole, PromoCode } from '../types';
+import { AuctionSetup, UserPlan, UserRole, PromoCode, SystemPopup } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const { userProfile, logout } = useAuction();
@@ -16,6 +17,10 @@ const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'AUCTIONS' | 'PLANS' | 'LEGAL'>('AUCTIONS');
   const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
   const [selectedAuctionForUpgrade, setSelectedAuctionForUpgrade] = useState<string | null>(null);
+
+  // System Popups State
+  const [activePopups, setActivePopups] = useState<SystemPopup[]>([]);
+  const [currentPopup, setCurrentPopup] = useState<SystemPopup | null>(null);
 
   // Promo Code States
   const [promoInput, setPromoInput] = useState('');
@@ -34,6 +39,39 @@ const AdminDashboard: React.FC = () => {
       { name: 'LED/Projector Views', icon: <Monitor className="w-4 h-4" /> },
       { name: 'YouTube Overlays', icon: <Youtube className="w-4 h-4" /> },
   ];
+
+  // System Popups Broadcaster Logic
+  useEffect(() => {
+    const unsub = db.collection('systemPopups')
+        .where('isActive', '==', true)
+        .onSnapshot(snap => {
+            const now = Date.now();
+            const list = snap.docs
+                .map(d => ({ id: d.id, ...d.data() } as SystemPopup))
+                .filter(p => p.expiryDate > now);
+            setActivePopups(list);
+        });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (activePopups.length > 0) {
+        activePopups.forEach(popup => {
+            const timer = setTimeout(() => {
+                const shownId = localStorage.getItem(`popup_shown_${popup.id}`);
+                if (!shownId) {
+                    setCurrentPopup(popup);
+                }
+            }, popup.delaySeconds * 1000);
+            return () => clearTimeout(timer);
+        });
+    }
+  }, [activePopups]);
+
+  const closeSystemPopup = (id: string) => {
+      localStorage.setItem(`popup_shown_${id}`, 'true');
+      setCurrentPopup(null);
+  };
 
   // Detect auto-upgrade query param
   useEffect(() => {
@@ -213,7 +251,7 @@ const AdminDashboard: React.FC = () => {
 
           {/* System Deletion Warnings */}
           <div className="space-y-2">
-            {auctions.filter(a => a.autoDeleteAt).map(auction => {
+            {auctions.filter(a => a.autoDeleteAt && !a.isLifetime).map(auction => {
                 const diffDays = Math.ceil((auction.autoDeleteAt! - Date.now()) / (1000 * 60 * 60 * 24));
                 if (diffDays <= 7) {
                     return (
@@ -255,7 +293,12 @@ const AdminDashboard: React.FC = () => {
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${auction.isPaid ? 'bg-green-50 border-green-200 text-green-600' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
                                                     {auction.isPaid ? 'Paid Version' : 'Free Version'}
                                                 </span>
-                                                {auction.autoDeleteAt && (
+                                                {auction.isLifetime && (
+                                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 flex items-center gap-1">
+                                                        <InfinityIcon className="w-2.5 h-2.5"/> Lifetime Record
+                                                    </span>
+                                                )}
+                                                {!auction.isLifetime && auction.autoDeleteAt && (
                                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-600 flex items-center gap-1">
                                                         <Clock className="w-2.5 h-2.5"/> Wipe: {new Date(auction.autoDeleteAt).toLocaleDateString()}
                                                     </span>
@@ -577,6 +620,54 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'PLANS' && renderPlans()}
         {activeTab === 'LEGAL' && renderLegal()}
       </main>
+
+      {/* High-End System Popup Broadcaster */}
+      {currentPopup && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-fade-in">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => closeSystemPopup(currentPopup.id!)}></div>
+              <div className="bg-zinc-900 border-2 border-white/10 rounded-[2.5rem] w-full max-w-xl relative z-10 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden animate-slide-up">
+                  <div className="absolute top-0 right-0 p-8">
+                    <button onClick={() => closeSystemPopup(currentPopup.id!)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-6 h-6"/></button>
+                  </div>
+                  
+                  <div className="flex flex-col">
+                      {currentPopup.showImage && currentPopup.imageUrl && (
+                          <div className="w-full aspect-video bg-black flex items-center justify-center border-b border-white/5">
+                              <img src={currentPopup.imageUrl} className="w-full h-full object-cover" />
+                          </div>
+                      )}
+                      
+                      <div className="p-12">
+                          <div className="bg-purple-600/10 border border-purple-500/20 text-purple-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] w-fit mb-6 flex items-center gap-2">
+                             <Megaphone className="w-3 h-3"/> Global Announcement
+                          </div>
+                          
+                          {currentPopup.showText && (
+                              <>
+                                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">{currentPopup.title}</h2>
+                                <p className="text-zinc-400 text-lg leading-relaxed font-medium mb-10">{currentPopup.message}</p>
+                              </>
+                          )}
+                          
+                          <div className="flex flex-col sm:flex-row items-center gap-4">
+                              <button 
+                                onClick={() => closeSystemPopup(currentPopup.id!)}
+                                className="w-full bg-white hover:bg-zinc-200 text-black font-black py-5 rounded-2xl text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl"
+                              >
+                                  {currentPopup.okButtonText}
+                              </button>
+                              <button 
+                                onClick={() => closeSystemPopup(currentPopup.id!)}
+                                className="w-full sm:w-auto bg-transparent hover:bg-white/5 text-zinc-500 hover:text-white font-black py-5 px-10 rounded-2xl text-xs uppercase tracking-widest transition-all"
+                              >
+                                  {currentPopup.closeButtonText}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
