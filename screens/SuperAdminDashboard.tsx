@@ -10,7 +10,7 @@ import {
     Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, 
     Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, 
     Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon, 
-    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert
+    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key
 } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
@@ -67,7 +67,7 @@ const SuperAdminDashboard: React.FC = () => {
     // Staff Management States
     const [staffList, setStaffList] = useState<UserProfile[]>([]);
     const [isAddingStaff, setIsAddingStaff] = useState(false);
-    const [staffForm, setStaffForm] = useState({ email: '', name: '', uid: '' });
+    const [staffForm, setStaffForm] = useState({ email: '', name: '', password: '' });
 
     // Plans Management
     const [dbPlans, setDbPlans] = useState<any[]>([]);
@@ -181,33 +181,25 @@ const SuperAdminDashboard: React.FC = () => {
     // 0. Staff Handlers
     const handleAddStaff = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!staffForm.email) return;
+        if (!staffForm.email || !staffForm.password) return;
         setIsProcessing(true);
         try {
-            // Find user by email or UID
             const usersRef = db.collection('users');
-            let userDocId = staffForm.uid;
-
-            if (!userDocId) {
-                const snap = await usersRef.where('email', '==', staffForm.email.toLowerCase()).limit(1).get();
-                if (!snap.empty) {
-                    userDocId = snap.docs[0].id;
-                } else {
-                    // Create pre-authorized entry
-                    userDocId = `AUTO_${Date.now()}`;
-                }
-            }
+            // We use a predictable ID for manual staff or check for email match
+            const snap = await usersRef.where('email', '==', staffForm.email.toLowerCase()).limit(1).get();
+            let userDocId = snap.empty ? `STAFF_${Date.now()}` : snap.docs[0].id;
 
             await usersRef.doc(userDocId).set({
                 email: staffForm.email.toLowerCase(),
                 name: staffForm.name || 'Support Staff',
                 role: UserRole.SUPPORT,
+                password: staffForm.password, // MANUAL PASSWORD
                 createdAt: Date.now()
             }, { merge: true });
 
             setIsAddingStaff(false);
-            setStaffForm({ email: '', name: '', uid: '' });
-            alert("Support Protocol Authorized!");
+            setStaffForm({ email: '', name: '', password: '' });
+            alert("Support Protocol Authorized with Credentials!");
         } catch (err: any) { alert("Failed: " + err.message); }
         setIsProcessing(false);
     };
@@ -434,7 +426,7 @@ const SuperAdminDashboard: React.FC = () => {
                              </div>
 
                              {isAddingStaff && (
-                                 <form onSubmit={handleAddStaff} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                 <form onSubmit={handleAddStaff} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 animate-slide-up">
                                      <div>
                                          <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Staff Email</label>
                                          <input type="email" required placeholder="staff@smsports.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.email} onChange={e => setStaffForm({...staffForm, email: e.target.value})} />
@@ -443,10 +435,14 @@ const SuperAdminDashboard: React.FC = () => {
                                          <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
                                          <input required placeholder="Operator Name" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.name} onChange={e => setStaffForm({...staffForm, name: e.target.value})} />
                                      </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Access Password</label>
+                                         <input required type="text" placeholder="SECURE KEY" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.password} onChange={e => setStaffForm({...staffForm, password: e.target.value})} />
+                                     </div>
                                      <div className="flex items-end">
                                          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
                                              {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
-                                             GRANT SUPPORT CLEARANCE
+                                             GRANT ACCESS
                                          </button>
                                      </div>
                                  </form>
@@ -470,11 +466,18 @@ const SuperAdminDashboard: React.FC = () => {
                                              </button>
                                          </div>
                                          <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                             <div className="flex items-center gap-2">
-                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Authorized</span>
+                                             <div className="flex items-center gap-4">
+                                                 <div className="flex items-center gap-1.5">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live</span>
+                                                 </div>
+                                                 {s.password && (
+                                                     <div className="flex items-center gap-1 text-[9px] font-black text-zinc-500 uppercase">
+                                                         <Key className="w-3 h-3"/> Key Set
+                                                     </div>
+                                                 )}
                                              </div>
-                                             <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Protocol Support v1.0</span>
+                                             <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Protocol v1.2</span>
                                          </div>
                                      </div>
                                  ))}

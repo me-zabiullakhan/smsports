@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { AuctionContextType, AuctionState, UserProfile, Team, Player, AuctionStatus, BiddingStatus, AdminViewOverride, BidIncrementSlab, UserRole, SponsorConfig } from '../types';
 import { db, auth } from '../firebase';
@@ -60,9 +61,11 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (user) {
                 profileUnsub();
                 if (user.isAnonymous) {
-                    const session = localStorage.getItem('sm_sports_team_session');
-                    if (session) {
-                        const data = JSON.parse(session);
+                    const teamSession = localStorage.getItem('sm_sports_team_session');
+                    const staffSession = localStorage.getItem('sm_sports_staff_session');
+
+                    if (teamSession) {
+                        const data = JSON.parse(teamSession);
                         setUserProfile({
                             uid: user.uid,
                             email: 'team@smsports.com',
@@ -70,6 +73,20 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             teamId: data.teamId
                         });
                         if (data.auctionId) joinAuction(data.auctionId);
+                    } else if (staffSession) {
+                        const data = JSON.parse(staffSession);
+                        // Fetch the actual staff doc to get role/name
+                        profileUnsub = db.collection('users').doc(data.uid).onSnapshot(doc => {
+                            if (doc.exists) {
+                                const s = doc.data();
+                                setUserProfile({
+                                    uid: user.uid,
+                                    email: s?.email || data.email,
+                                    name: s?.name || 'Support Agent',
+                                    role: s?.role || UserRole.SUPPORT
+                                });
+                            }
+                        });
                     } else {
                         setUserProfile({ uid: user.uid, email: 'viewer@smsports.com', role: UserRole.VIEWER });
                     }
@@ -173,6 +190,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const logout = async () => {
         await auth.signOut();
         localStorage.removeItem('sm_sports_team_session');
+        localStorage.removeItem('sm_sports_staff_session');
         setUserProfile(null);
         setActiveAuctionId(null);
         setState(initialState);

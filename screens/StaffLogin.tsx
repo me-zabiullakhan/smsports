@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, db } from '../firebase';
@@ -17,21 +18,49 @@ const StaffLogin: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const userCredential = await auth.signInWithEmailAndPassword(email, password);
-            const user = userCredential.user;
+            // STEP 1: Query Firestore for staff matching this email
+            const staffSnap = await db.collection('users')
+                .where('email', '==', email.toLowerCase())
+                .where('role', '==', UserRole.SUPPORT)
+                .limit(1)
+                .get();
 
-            if (user) {
-                // Check if user has SUPPORT role
-                const userDoc = await db.collection('users').doc(user.uid).get();
-                const userData = userDoc.data();
-
-                if (userData?.role === UserRole.SUPPORT || userData?.role === UserRole.SUPER_ADMIN) {
-                    navigate('/staff-dashboard');
-                } else {
-                    await auth.signOut();
-                    setError("Unauthorized access. This terminal is for Support Staff only.");
+            if (staffSnap.empty) {
+                // Check if they are Super Admin trying this terminal
+                const adminSnap = await db.collection('users')
+                    .where('email', '==', email.toLowerCase())
+                    .where('role', '==', UserRole.SUPER_ADMIN)
+                    .limit(1)
+                    .get();
+                
+                if (adminSnap.empty) {
+                    throw new Error("Credentials not found in Support Registry.");
                 }
             }
+
+            const staffDoc = staffSnap.empty ? null : staffSnap.docs[0];
+            const staffData = staffDoc?.data();
+
+            // STEP 2: Verify Password
+            if (staffData && staffData.password && staffData.password !== password) {
+                throw new Error("Invalid Access Key. Access Denied.");
+            }
+
+            // STEP 3: Handle Session
+            // If they are a regular Firebase User, sign them in normally
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (authErr) {
+                // If standard Auth fails (e.g. no Auth record yet), use Anonymous Auth
+                // but only if the Firestore check was successful.
+                localStorage.setItem('sm_sports_staff_session', JSON.stringify({
+                    email: email.toLowerCase(),
+                    uid: staffDoc?.id || 'manual_support'
+                }));
+                await auth.signInAnonymously();
+            }
+
+            navigate('/staff-dashboard');
         } catch (err: any) {
             setError(err.message);
         } finally {
