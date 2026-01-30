@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-// Added Megaphone and Infinity as InfinityIcon to lucide-react imports
+// Standardized imports
 import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock, X, Megaphone, Infinity as InfinityIcon } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole, PromoCode, SystemPopup } from '../types';
@@ -92,19 +92,19 @@ const AdminDashboard: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // Fetch Dynamic Plans or fallback to defaults matching the requested image (limited to 15 teams)
+  // Fetch Dynamic Plans or fallback to renamed defaults
   useEffect(() => {
       const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
           if (snap.empty) {
               setDbPlans([
-                  { id: 'plan_1', name: 'Plan 1 - Free', price: 0, teams: 2 },
-                  { id: 'plan_2', name: 'Plan 2', price: 3000, teams: 4 },
-                  { id: 'plan_3', name: 'Plan 3', price: 4000, teams: 6 },
-                  { id: 'plan_4', name: 'Plan 4', price: 5000, teams: 10 },
-                  { id: 'plan_5', name: 'Plan 5', price: 6000, teams: 15 },
+                  { id: 'plan_1', name: 'Starter Free', price: 0, teams: 2 },
+                  { id: 'plan_2', name: 'Silver Pro', price: 3000, teams: 4 },
+                  { id: 'plan_3', name: 'Gold Elite', price: 4000, teams: 6 },
+                  { id: 'plan_4', name: 'Diamond Master', price: 5000, teams: 10 },
+                  { id: 'plan_5', name: 'Platinum Ultimate', price: 6000, teams: 15 },
               ]);
           } else {
-              setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.teams <= 15));
+              setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
           }
       });
       return () => unsub();
@@ -322,7 +322,7 @@ const AdminDashboard: React.FC = () => {
                                     </div>
                                 </div>
                                 
-                                {/* Inline Plan Selector - Restricted to 15 teams */}
+                                {/* Inline Plan Selector */}
                                 {selectedAuctionForUpgrade === auction.id && (
                                     <div className="bg-blue-50/50 p-6 border-t border-blue-100 animate-slide-up">
                                         <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
@@ -440,7 +440,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
               </div>
 
-              {/* Tiers Grid - Restricted to 15 Teams */}
+              {/* Tiers Grid */}
               <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                   {dbPlans.map(plan => (
                       <div key={plan.id} className={`bg-white rounded-3xl p-6 border-2 transition-all relative flex flex-col ${plan.price === 5000 ? 'border-blue-500 shadow-xl scale-105 z-10' : 'border-gray-100 hover:shadow-lg'}`}>

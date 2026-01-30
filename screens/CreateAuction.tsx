@@ -29,9 +29,11 @@ const CreateAuction: React.FC = () => {
       const unsub = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
           if (snap.empty) {
               setDbPlans([
-                  { id: 'free', name: 'Free Plan' },
-                  { id: 'basic', name: 'Basic Plan' },
-                  { id: 'premium', name: 'Premium Plan' }
+                  { id: 'starter_free', name: 'Starter Free', teams: 2 },
+                  { id: 'silver_pro', name: 'Silver Pro', teams: 4 },
+                  { id: 'gold_elite', name: 'Gold Elite', teams: 6 },
+                  { id: 'diamond_master', name: 'Diamond Master', teams: 10 },
+                  { id: 'platinum_ultimate', name: 'Platinum Ultimate', teams: 15 }
               ]);
           } else {
               setDbPlans(snap.docs.map(d => ({ id: d.id, name: d.data().name, ...d.data() })));

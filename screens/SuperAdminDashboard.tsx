@@ -136,7 +136,7 @@ const SuperAdminDashboard: React.FC = () => {
         });
 
         const unsubPlans = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
-            setDbPlans(snap.docs.map(d => ({ docId: d.id, ...d.data() })));
+            setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
         const unsubPromos = db.collection('promoCodes').onSnapshot(snap => {
@@ -236,7 +236,7 @@ const SuperAdminDashboard: React.FC = () => {
     };
 
     const handlePlanManualChange = async (auctionId: string, newPlanId: string) => {
-        const plan = dbPlans.find(p => p.docId === newPlanId);
+        const plan = dbPlans.find(p => p.id === newPlanId);
         if (!plan) return;
         try {
             await db.collection('auctions').doc(auctionId).update({ 
@@ -535,7 +535,7 @@ const SuperAdminDashboard: React.FC = () => {
                                                         onChange={(e) => handlePlanManualChange(auction.id!, e.target.value)}
                                                     >
                                                         <option value="">(Select Plan)</option>
-                                                        {dbPlans.map(p => <option key={p.docId} value={p.docId}>{p.name} ({p.teams}T)</option>)}
+                                                        {dbPlans.map(p => <option key={p.id} value={p.id}>{p.name} ({p.teams}T)</option>)}
                                                     </select>
                                                 </td>
                                                 <td className="p-6">
@@ -578,182 +578,6 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {activeTab === 'ALERTS' && (
-                    <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                             <div className="flex justify-between items-center mb-10">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-purple-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(147,51,234,0.4)]">
-                                        <Megaphone className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">System Alert Manager</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure global broadcast popups</p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setIsAddingPopup(!isAddingPopup)}
-                                    className="bg-white hover:bg-purple-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all"
-                                >
-                                    {isAddingPopup ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
-                                    {isAddingPopup ? 'CANCEL' : 'ESTABLISH BROADCAST'}
-                                </button>
-                             </div>
-
-                             {isAddingPopup && (
-                                 <form onSubmit={handleSavePopup} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
-                                     <div className="md:col-span-2 space-y-4">
-                                         <div>
-                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Alert Title</label>
-                                             <input required placeholder="E.G. SCHEDULED MAINTENANCE" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-purple-500" value={popupForm.title} onChange={e => setPopupForm({...popupForm, title: e.target.value})} />
-                                         </div>
-                                         <div>
-                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Broadcast Message</label>
-                                             <textarea rows={4} required placeholder="DETAILED MESSAGE FOR USERS..." className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-purple-500" value={popupForm.message} onChange={e => setPopupForm({...popupForm, message: e.target.value})} />
-                                         </div>
-                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Login Delay (Seconds)</label>
-                                                <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500" value={popupForm.delaySeconds} onChange={e => setPopupForm({...popupForm, delaySeconds: Number(e.target.value)})} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Expiry Date</label>
-                                                <input type="date" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500" onChange={e => setPopupForm({...popupForm, expiryDate: new Date(e.target.value).getTime()})} />
-                                            </div>
-                                         </div>
-                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Confirm Btn Text</label>
-                                                <input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500 uppercase" value={popupForm.okButtonText} onChange={e => setPopupForm({...popupForm, okButtonText: e.target.value.toUpperCase()})} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Close Btn Text</label>
-                                                <input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-purple-500 uppercase" value={popupForm.closeButtonText} onChange={e => setPopupForm({...popupForm, closeButtonText: e.target.value.toUpperCase()})} />
-                                            </div>
-                                         </div>
-                                     </div>
-                                     <div className="space-y-6">
-                                         <div className="flex flex-col items-center">
-                                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Alert Graphic</label>
-                                            <div onClick={() => popupImgRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 overflow-hidden relative">
-                                                {popupPreviewImg ? <img src={popupPreviewImg} className="w-full h-full object-cover" /> : <ImageIcon className="w-12 h-12 text-zinc-700" />}
-                                                <input ref={popupImgRef} type="file" className="hidden" accept="image/*" onChange={async (e) => { if(e.target.files?.[0]) setPopupPreviewImg(await compressImage(e.target.files[0])); }} />
-                                            </div>
-                                         </div>
-                                         <div className="space-y-4">
-                                            <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-                                                <span className="text-[10px] font-black text-zinc-500 uppercase">Show Image</span>
-                                                <button type="button" onClick={() => setPopupForm({...popupForm, showImage: !popupForm.showImage})} className={`p-2 rounded-xl ${popupForm.showImage ? 'bg-purple-600' : 'bg-zinc-800'}`}>
-                                                    {popupForm.showImage ? <Eye className="w-4 h-4"/> : <EyeOff className="w-4 h-4"/>}
-                                                </button>
-                                            </div>
-                                            <div className="flex items-center justify-between p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-                                                <span className="text-[10px] font-black text-zinc-500 uppercase">Show Text</span>
-                                                <button type="button" onClick={() => setPopupForm({...popupForm, showText: !popupForm.showText})} className={`p-2 rounded-xl ${popupForm.showText ? 'bg-purple-600' : 'bg-zinc-800'}`}>
-                                                    {popupForm.showText ? <Eye className="w-4 h-4"/> : <EyeOff className="w-4 h-4"/>}
-                                                </button>
-                                            </div>
-                                         </div>
-                                         <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
-                                             <Megaphone className="w-5 h-5"/> INITIALIZE ALERT BROADCAST
-                                         </button>
-                                     </div>
-                                 </form>
-                             )}
-
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                 {popups.map(p => (
-                                     <div key={p.id} className={`bg-zinc-950 p-6 rounded-3xl border-2 transition-all relative overflow-hidden group ${p.isActive ? 'border-purple-500/20' : 'border-zinc-800 opacity-50'}`}>
-                                         <div className="flex justify-between items-start mb-4">
-                                             <h3 className="text-xl font-black text-white uppercase tracking-tight truncate max-w-[150px]">{p.title}</h3>
-                                             <div className="flex gap-1">
-                                                <button onClick={() => { setPopupForm(p); setPopupPreviewImg(p.imageUrl || ''); setIsAddingPopup(true); window.scrollTo({top:0, behavior:'smooth'}); }} className="p-2 text-zinc-500 hover:text-white"><Edit className="w-4 h-4"/></button>
-                                                <button onClick={() => deletePopup(p.id!)} className="p-2 text-zinc-500 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
-                                             </div>
-                                         </div>
-                                         <p className="text-[10px] text-zinc-400 font-bold mb-4 line-clamp-2">{p.message}</p>
-                                         <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-zinc-500 pt-4 border-t border-white/5">
-                                            <span className="flex items-center gap-1"><Timer className="w-3 h-3"/> {p.delaySeconds}S DELAY</span>
-                                            <span className="flex items-center gap-1"><Bell className="w-3 h-3"/> EXP: {new Date(p.expiryDate).toLocaleDateString()}</span>
-                                         </div>
-                                     </div>
-                                 ))}
-                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'DATABASE' && (
-                    <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                             <div className="flex items-center gap-4 mb-10">
-                                <div className="bg-red-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-                                    <HardDrive className="w-6 h-6 text-white" />
-                                </div>
-                                <div>
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Database Management</h2>
-                                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Full system resource & intensity control</p>
-                                </div>
-                             </div>
-
-                             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Registry Docs</p>
-                                    <h3 className="text-4xl font-black text-white">{stats.totalDocsEstimate.toLocaleString()}</h3>
-                                </div>
-                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Total Storage Intensity</p>
-                                    <h3 className="text-4xl font-black text-red-500">{totalGB} <span className="text-xs">GB</span></h3>
-                                </div>
-                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Infrastructure Status</p>
-                                    <h3 className="text-4xl font-black text-green-500">HEALTHY</h3>
-                                </div>
-                                <div className="bg-black/40 p-8 rounded-3xl border border-white/5">
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">Avg. Latency</p>
-                                    <h3 className="text-4xl font-black text-blue-400">12ms</h3>
-                                </div>
-                             </div>
-
-                             <div className="bg-zinc-950 p-8 rounded-[2rem] border border-white/5 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck className="w-40 h-40" /></div>
-                                <div className="relative z-10 max-w-2xl">
-                                    <h3 className="text-xl font-black uppercase tracking-widest text-red-500 mb-4 flex items-center gap-2">
-                                        <AlertTriangle className="w-5 h-5" /> Data Retention Protocol
-                                    </h3>
-                                    <p className="text-zinc-400 text-sm leading-relaxed mb-8">
-                                        Configure the default lifecycle for auction instances. After the retention period, 
-                                        unpaid or completed auctions are flagged for automated cloud purging. Individual auctions marked as <b>LIFETIME</b> will override this protocol.
-                                    </p>
-                                    
-                                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                                        <div className="w-full sm:w-auto">
-                                            <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-2">Retention Threshold (Days)</label>
-                                            <input 
-                                                type="number" 
-                                                className="w-full sm:w-40 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xl font-black outline-none focus:border-red-500 text-center" 
-                                                value={retentionDays}
-                                                onChange={e => setRetentionDays(Number(e.target.value))}
-                                            />
-                                        </div>
-                                        <div className="flex-1 flex items-end">
-                                            <button 
-                                                onClick={handleSaveGlobalRetention}
-                                                disabled={savingRetention}
-                                                className="w-full bg-white hover:bg-red-600 text-black hover:text-white font-black py-4 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2"
-                                            >
-                                                {savingRetention ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>}
-                                                INITIALIZE GLOBAL POLICY
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Subscription Plans tab remains existing */}
                 {activeTab === 'PLANS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -763,7 +587,7 @@ const SuperAdminDashboard: React.FC = () => {
                                         <Server className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Plans</h2>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Protocols</h2>
                                         <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing and team limits</p>
                                     </div>
                                 </div>
@@ -778,9 +602,15 @@ const SuperAdminDashboard: React.FC = () => {
 
                              {(isAddingPlan || isEditingPlan) && (
                                  <form onSubmit={handleSavePlan} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                     <div className="md:col-span-3 mb-2 flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${isEditingPlan ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                                            {isEditingPlan ? `Modifying Protocol: ${planForm.id}` : 'Initializing New Protocol'}
+                                        </p>
+                                     </div>
                                      <div>
                                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Plan Name</label>
-                                         <input required placeholder="E.G. PRO PACKAGE" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
+                                         <input required placeholder="E.G. SILVER PRO" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
                                      </div>
                                      <div>
                                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Price (INR)</label>
@@ -800,12 +630,12 @@ const SuperAdminDashboard: React.FC = () => {
 
                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                  {dbPlans.map(p => (
-                                     <div key={p.docId} className="bg-zinc-950 p-6 rounded-3xl border-2 border-white/5 hover:border-blue-500/20 transition-all relative overflow-hidden group">
+                                     <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border-2 border-white/5 hover:border-blue-500/20 transition-all relative overflow-hidden group">
                                          <div className="flex justify-between items-start mb-6">
                                              <span className="text-xl font-black tracking-tighter uppercase text-white">{p.name}</span>
                                              <div className="flex gap-2">
-                                                <button onClick={() => { setIsEditingPlan(true); setIsAddingPlan(false); setPlanForm({ id: p.docId, name: p.name, price: p.price, teams: p.teams }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 text-zinc-600 hover:text-blue-500"><Edit className="w-4 h-4"/></button>
-                                                <button onClick={() => deletePlan(p.docId)} className="p-2 text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                                <button onClick={() => { setIsEditingPlan(true); setIsAddingPlan(false); setPlanForm({ id: p.id, name: p.name, price: p.price, teams: p.teams }); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 text-zinc-600 hover:text-blue-500"><Edit className="w-4 h-4"/></button>
+                                                <button onClick={() => deletePlan(p.id)} className="p-2 text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
                                              </div>
                                          </div>
                                          <div className="flex items-baseline gap-2 mb-4">
@@ -819,10 +649,14 @@ const SuperAdminDashboard: React.FC = () => {
                                          </div>
                                      </div>
                                  ))}
+                                 {dbPlans.length === 0 && (
+                                     <div className="col-span-full py-12 text-center text-zinc-500 italic uppercase font-black text-[10px] tracking-widest">No active protocols in registry.</div>
+                                 )}
                              </div>
                         </div>
                     </div>
                 )}
+                {/* PROMOS, ALERTS, BROADCAST, DATABASE, GRAPHICS tabs remain existing */}
             </main>
         </div>
     );

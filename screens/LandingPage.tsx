@@ -55,11 +55,11 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const PLANS = [
-      { name: 'Plan 1 - Free', price: 0, teams: 2, badge: 'Starter' },
-      { name: 'Plan 2', price: 3000, teams: 4, badge: 'Standard' },
-      { name: 'Plan 3', price: 4000, teams: 6, badge: 'Pro' },
-      { name: 'Plan 4', price: 5000, teams: 10, badge: 'Elite' },
-      { name: 'Plan 5', price: 6000, teams: 15, badge: 'Master' },
+      { name: 'Starter Free', price: 0, teams: 2, badge: 'Standard' },
+      { name: 'Silver Pro', price: 3000, teams: 4, badge: 'Professional' },
+      { name: 'Gold Elite', price: 4000, teams: 6, badge: 'Premium' },
+      { name: 'Diamond Master', price: 5000, teams: 10, badge: 'Elite' },
+      { name: 'Platinum Ultimate', price: 6000, teams: 15, badge: 'Master' },
   ];
 
   useEffect(() => {
