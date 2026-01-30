@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole, PromoCode } from '../types';
 
@@ -211,6 +211,28 @@ const AdminDashboard: React.FC = () => {
               </div>
           </div>
 
+          {/* System Deletion Warnings */}
+          <div className="space-y-2">
+            {auctions.filter(a => a.autoDeleteAt).map(auction => {
+                const diffDays = Math.ceil((auction.autoDeleteAt! - Date.now()) / (1000 * 60 * 60 * 24));
+                if (diffDays <= 7) {
+                    return (
+                        <div key={`warn-${auction.id}`} className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center justify-between gap-4 animate-pulse shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <AlertTriangle className="text-red-500 w-5 h-5 shrink-0" />
+                                <div>
+                                    <p className="text-xs font-black text-red-800 uppercase">System Notice: Deletion Protocol Scheduled</p>
+                                    <p className="text-[10px] text-red-600 font-bold uppercase">Auction <b className="text-red-800">"{auction.title}"</b> will be purged in {diffDays} days ({new Date(auction.autoDeleteAt!).toLocaleDateString()}).</p>
+                                </div>
+                            </div>
+                            <button onClick={() => navigate(`/admin?upgrade=${auction.id}`)} className="bg-red-600 hover:bg-red-700 text-white text-[9px] font-black px-4 py-2 rounded-lg uppercase tracking-widest transition-all">Extend Retention</button>
+                        </div>
+                    );
+                }
+                return null;
+            })}
+          </div>
+
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 {loading ? (
                     <div className="p-12 text-center text-gray-500 flex flex-col items-center">
@@ -228,11 +250,16 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                         <div>
                                             <h4 className="font-bold text-gray-800 text-lg">{auction.title}</h4>
-                                            <div className="flex items-center gap-3 mt-1">
+                                            <div className="flex flex-wrap items-center gap-3 mt-1">
                                                 <p className="text-xs text-gray-400 font-semibold">{auction.sport} • {auction.date}</p>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${auction.isPaid ? 'bg-green-50 border-green-200 text-green-600' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
                                                     {auction.isPaid ? 'Paid Version' : 'Free Version'}
                                                 </span>
+                                                {auction.autoDeleteAt && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-600 flex items-center gap-1">
+                                                        <Clock className="w-2.5 h-2.5"/> Wipe: {new Date(auction.autoDeleteAt).toLocaleDateString()}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
