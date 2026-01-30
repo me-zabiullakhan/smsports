@@ -1,15 +1,16 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { db } from '../firebase';
-import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode, SystemPopup } from '../types';
+import { AuctionSetup, ScoreboardTheme, ScoringAsset, PromoCode, SystemPopup, UserRole, UserProfile } from '../types';
 import { 
     Users, Gavel, PlayCircle, Shield, Search, RefreshCw, Trash2, Edit, ExternalLink, 
     LogOut, Database, UserCheck, LayoutDashboard, Settings, Image as ImageIcon, 
     Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, 
     Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, 
     Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon, 
-    MessageSquare, Layers, Newspaper
+    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert
 } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
@@ -41,7 +42,7 @@ const compressImage = (file: File): Promise<string> => {
 const SuperAdminDashboard: React.FC = () => {
     const { state, logout } = useAuction();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'STAFF' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
     const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -52,7 +53,8 @@ const SuperAdminDashboard: React.FC = () => {
         totalPlayers: 0,
         totalMatches: 0,
         totalTeams: 0,
-        totalDocsEstimate: 0
+        totalDocsEstimate: 0,
+        supportStaffCount: 0
     });
 
     const [logoPreview, setLogoPreview] = useState(state.systemLogoUrl || '');
@@ -61,6 +63,11 @@ const SuperAdminDashboard: React.FC = () => {
 
     // Common States
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Staff Management States
+    const [staffList, setStaffList] = useState<UserProfile[]>([]);
+    const [isAddingStaff, setIsAddingStaff] = useState(false);
+    const [staffForm, setStaffForm] = useState({ email: '', name: '', uid: '' });
 
     // Plans Management
     const [dbPlans, setDbPlans] = useState<any[]>([]);
@@ -113,6 +120,7 @@ const SuperAdminDashboard: React.FC = () => {
             const matchesSnap = await db.collection('matches').get();
             const playersSnap = await db.collectionGroup('players').get();
             const teamsSnap = await db.collectionGroup('teams').get();
+            const staffSnap = await db.collection('users').where('role', '==', UserRole.SUPPORT).get();
 
             const docCount = snapshot.size + matchesSnap.size + playersSnap.size + teamsSnap.size;
 
@@ -123,12 +131,17 @@ const SuperAdminDashboard: React.FC = () => {
                 totalPlayers: playersSnap.size,
                 totalMatches: matchesSnap.size,
                 totalTeams: teamsSnap.size,
-                totalDocsEstimate: docCount
+                totalDocsEstimate: docCount,
+                supportStaffCount: staffSnap.size
             });
             setLoading(false);
         });
 
         // Other Listeners
+        const unsubStaff = db.collection('users').where('role', '==', UserRole.SUPPORT).onSnapshot(snap => {
+            setStaffList(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+        });
+
         const unsubPlans = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
             setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
@@ -155,6 +168,7 @@ const SuperAdminDashboard: React.FC = () => {
 
         return () => {
             unsubscribe();
+            unsubStaff();
             unsubPlans();
             unsubPromos();
             unsubPopups();
@@ -163,6 +177,46 @@ const SuperAdminDashboard: React.FC = () => {
             unsubBroadcasts();
         };
     }, []);
+
+    // 0. Staff Handlers
+    const handleAddStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!staffForm.email) return;
+        setIsProcessing(true);
+        try {
+            // Find user by email or UID
+            const usersRef = db.collection('users');
+            let userDocId = staffForm.uid;
+
+            if (!userDocId) {
+                const snap = await usersRef.where('email', '==', staffForm.email.toLowerCase()).limit(1).get();
+                if (!snap.empty) {
+                    userDocId = snap.docs[0].id;
+                } else {
+                    // Create pre-authorized entry
+                    userDocId = `AUTO_${Date.now()}`;
+                }
+            }
+
+            await usersRef.doc(userDocId).set({
+                email: staffForm.email.toLowerCase(),
+                name: staffForm.name || 'Support Staff',
+                role: UserRole.SUPPORT,
+                createdAt: Date.now()
+            }, { merge: true });
+
+            setIsAddingStaff(false);
+            setStaffForm({ email: '', name: '', uid: '' });
+            alert("Support Protocol Authorized!");
+        } catch (err: any) { alert("Failed: " + err.message); }
+        setIsProcessing(false);
+    };
+
+    const handleRevokeStaff = async (uid: string, name: string) => {
+        if (window.confirm(`Revoke all support access for ${name}?`)) {
+            await db.collection('users').doc(uid).update({ role: UserRole.VIEWER });
+        }
+    };
 
     // 1. Promo Handlers
     const handleSavePromo = async (e: React.FormEvent) => {
@@ -276,6 +330,7 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="flex bg-zinc-900 rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar">
                         {[
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
+                            {id: 'STAFF', label: 'Staff', icon: <Headset className="w-4 h-4"/>},
                             {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>},
                             {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
                             {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
@@ -300,7 +355,6 @@ const SuperAdminDashboard: React.FC = () => {
 
             <main className="container mx-auto px-6 py-10 max-w-7xl">
                 
-                {/* 1. OVERVIEW TAB - Reusing existing robust content */}
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-10">
@@ -316,7 +370,7 @@ const SuperAdminDashboard: React.FC = () => {
                                     </div>
                                     <button 
                                         onClick={() => logoInputRef.current?.click()}
-                                        className="absolute -bottom-4 -right-4 bg-red-600 hover:bg-red-500 p-4 rounded-2xl shadow-xl transition-all"
+                                        className="absolute -bottom-4 -right-4 bg-red-600 hover:bg-red-50 p-4 rounded-2xl shadow-xl transition-all"
                                     >
                                         <Upload className="w-6 h-6" />
                                     </button>
@@ -345,7 +399,7 @@ const SuperAdminDashboard: React.FC = () => {
                                 { label: 'Storage', val: totalGB, unit: 'GB', color: 'text-red-500' },
                                 { label: 'Pulse', val: stats.activeAuctions, unit: 'Live', color: 'text-green-500' },
                                 { label: 'Accounts', val: stats.totalAccounts, unit: 'IDs', color: 'text-blue-500' },
-                                { label: 'Registry', val: stats.totalDocsEstimate.toLocaleString(), unit: 'Docs', color: 'text-white' }
+                                { label: 'Staff', val: stats.supportStaffCount, unit: 'Active', color: 'text-white' }
                             ].map(s => (
                                 <div key={s.label} className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5">
                                     <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">{s.label}</p>
@@ -359,7 +413,83 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 2. PLANS TAB - Already updated logic */}
+                {/* STAFF TAB */}
+                {activeTab === 'STAFF' && (
+                    <div className="space-y-12 animate-fade-in">
+                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                             <div className="flex justify-between items-center mb-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                                        <Headset className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Support Registry</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage human resources & access</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setIsAddingStaff(!isAddingStaff)} className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
+                                    {isAddingStaff ? <XCircle className="w-4 h-4 inline mr-2"/> : <UserPlus className="w-4 h-4 inline mr-2"/>}
+                                    {isAddingStaff ? 'CANCEL' : 'PROMOTE STAFF'}
+                                </button>
+                             </div>
+
+                             {isAddingStaff && (
+                                 <form onSubmit={handleAddStaff} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 animate-slide-up">
+                                     <div>
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Staff Email</label>
+                                         <input type="email" required placeholder="staff@smsports.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.email} onChange={e => setStaffForm({...staffForm, email: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
+                                         <input required placeholder="Operator Name" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.name} onChange={e => setStaffForm({...staffForm, name: e.target.value})} />
+                                     </div>
+                                     <div className="flex items-end">
+                                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
+                                             {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
+                                             GRANT SUPPORT CLEARANCE
+                                         </button>
+                                     </div>
+                                 </form>
+                             )}
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                 {staffList.map(s => (
+                                     <div key={s.uid} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 flex flex-col justify-between group">
+                                         <div className="flex items-start justify-between mb-6">
+                                             <div className="flex items-center gap-4">
+                                                 <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 font-black border border-blue-500/20">
+                                                     {s.name?.charAt(0) || 'S'}
+                                                 </div>
+                                                 <div>
+                                                     <h3 className="font-black text-white uppercase tracking-tight truncate max-w-[120px]">{s.name}</h3>
+                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase truncate max-w-[150px]">{s.email}</p>
+                                                 </div>
+                                             </div>
+                                             <button onClick={() => handleRevokeStaff(s.uid, s.name || 'Staff')} className="text-zinc-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
+                                                 <UserMinus className="w-5 h-5"/>
+                                             </button>
+                                         </div>
+                                         <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                                             <div className="flex items-center gap-2">
+                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Authorized</span>
+                                             </div>
+                                             <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Protocol Support v1.0</span>
+                                         </div>
+                                     </div>
+                                 ))}
+                                 {staffList.length === 0 && (
+                                     <div className="col-span-full py-20 text-center flex flex-col items-center justify-center opacity-20">
+                                         <Headset className="w-16 h-16 mb-4" />
+                                         <p className="text-sm font-black uppercase tracking-[0.3em]">No support staff enlisted</p>
+                                     </div>
+                                 )}
+                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* PLANS TAB */}
                 {activeTab === 'PLANS' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5">
@@ -389,7 +519,7 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 3. PROMOS TAB */}
+                {/* PROMOS TAB */}
                 {activeTab === 'PROMOS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
