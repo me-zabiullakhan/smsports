@@ -166,7 +166,8 @@ export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   TEAM_OWNER = 'TEAM_OWNER',
-  VIEWER = 'VIEWER'
+  VIEWER = 'VIEWER',
+  SUPPORT = 'SUPPORT'
 }
 
 export interface UserPlan {
@@ -183,6 +184,31 @@ export interface UserProfile {
   role: UserRole;
   teamId?: number | string; // If role is TEAM_OWNER
   plan?: UserPlan;
+}
+
+export interface SupportTicket {
+    id: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    auctionId?: string;
+    subject: string;
+    status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    staffId?: string;
+    staffName?: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface SupportMessage {
+    id: string;
+    ticketId: string;
+    senderId: string;
+    senderName: string;
+    senderRole: UserRole;
+    text: string;
+    timestamp: number;
 }
 
 export interface SystemPopup {

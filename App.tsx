@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import Dashboard from './screens/Dashboard';
 import AuthScreen from './screens/AuthScreen';
+import StaffLogin from './screens/StaffLogin';
+import StaffDashboard from './screens/StaffDashboard';
 import OBSOverlay from './screens/OBSOverlay';
 import OBSGreen from './screens/OBSGreen';
 import LandingPage from './screens/LandingPage';
@@ -14,6 +15,7 @@ import ScoringDashboard from './screens/ScoringDashboard';
 import MatchScorer from './screens/MatchScorer';
 import MatchOverlay from './screens/MatchOverlay';
 import PlatformGuide from './screens/PlatformGuide';
+import SupportWidget from './components/SupportWidget';
 import { useAuction } from './hooks/useAuction';
 import { auth } from './firebase';
 import firebase from 'firebase/compat/app';
@@ -33,7 +35,6 @@ const AppContent: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Wait for Auth Init AND User Profile (if logged in) to prevent redirect race conditions
   if (isLoading || (user && !userProfile)) {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
@@ -47,73 +48,71 @@ const AppContent: React.FC = () => {
 
   const isLoggedIn = !!user;
   const isSuperAdmin = userProfile?.role === UserRole.SUPER_ADMIN;
-  const isAdmin = userProfile?.role === UserRole.ADMIN || isSuperAdmin; // Super Admin has Admin privileges
+  const isSupportStaff = userProfile?.role === UserRole.SUPPORT;
+  const isAdmin = userProfile?.role === UserRole.ADMIN || isSuperAdmin || isSupportStaff;
   const isTeamOwner = userProfile?.role === UserRole.TEAM_OWNER;
 
-  // Determine Redirect for Logged In User
   const getAuthRedirect = () => {
       if (isSuperAdmin) return "/super-admin";
+      if (isSupportStaff) return "/staff-dashboard";
       if (isAdmin) return "/admin";
-      // If team owner and we know their auction, send them there. Otherwise home.
       if (isTeamOwner && activeAuctionId) return `/auction/${activeAuctionId}`;
       return "/";
   };
 
   return (
-    <Routes>
-        {/* Public Route: Landing Page */}
-        <Route path="/" element={<LandingPage />} />
+    <>
+      <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/guide" element={<PlatformGuide />} />
+          <Route path="/auction/:auctionId" element={<Dashboard />} />
+          <Route path="/auction/:id/register" element={<PlayerRegistration />} />
 
-        {/* Public Route: Platform Guide */}
-        <Route path="/guide" element={<PlatformGuide />} />
+          <Route path="/auth" element={
+              isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <AuthScreen />
+          } />
 
-        {/* Public Route: Main Auction Room (Dynamic ID) */}
-        <Route path="/auction/:auctionId" element={<Dashboard />} />
+          <Route path="/stafflogin" element={
+              isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <StaffLogin />
+          } />
 
-        {/* Public Route: Player Registration */}
-        <Route path="/auction/:id/register" element={<PlayerRegistration />} />
+          <Route path="/staff-dashboard" element={
+              isSupportStaff ? <StaffDashboard /> : <Navigate to="/stafflogin" replace />
+          } />
 
-        {/* Auth Route */}
-        <Route path="/auth" element={
-            isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <AuthScreen />
-        } />
+          <Route path="/super-admin" element={
+              isSuperAdmin ? <SuperAdminDashboard /> : <Navigate to="/auth" replace />
+          } />
 
-        {/* Super Admin Route */}
-        <Route path="/super-admin" element={
-            isSuperAdmin ? <SuperAdminDashboard /> : <Navigate to="/auth" replace />
-        } />
+          <Route path="/admin" element={
+              isAdmin ? <AdminDashboard /> : <Navigate to="/auth" replace />
+          } />
+          
+          <Route path="/admin/new" element={
+              isAdmin ? <CreateAuction /> : <Navigate to="/auth" replace />
+          } />
+          
+          <Route path="/admin/auction/:id/manage" element={
+              isAdmin ? <AuctionManage /> : <Navigate to="/auth" replace />
+          } />
 
-        {/* Admin Routes */}
-        <Route path="/admin" element={
-            isAdmin ? <AdminDashboard /> : <Navigate to="/auth" replace />
-        } />
-        
-        <Route path="/admin/new" element={
-            isAdmin ? <CreateAuction /> : <Navigate to="/auth" replace />
-        } />
-        
-        <Route path="/admin/auction/:id/manage" element={
-            isAdmin ? <AuctionManage /> : <Navigate to="/auth" replace />
-        } />
+          <Route path="/scoring" element={
+              isAdmin ? <ScoringDashboard /> : <Navigate to="/auth" replace />
+          } />
+          <Route path="/scoring/:matchId" element={
+              isAdmin ? <MatchScorer /> : <Navigate to="/auth" replace />
+          } />
+          <Route path="/match-overlay/:matchId" element={<MatchOverlay />} />
 
-        {/* Scoring Routes */}
-        <Route path="/scoring" element={
-            isAdmin ? <ScoringDashboard /> : <Navigate to="/auth" replace />
-        } />
-        <Route path="/scoring/:matchId" element={
-            isAdmin ? <MatchScorer /> : <Navigate to="/auth" replace />
-        } />
-        <Route path="/match-overlay/:matchId" element={<MatchOverlay />} />
+          <Route path="/obs-overlay/:auctionId" element={<OBSOverlay />} />
+          <Route path="/obs-green/:auctionId" element={<OBSGreen />} />
 
-        {/* Utility Route: OBS Overlay (Transparent) */}
-        <Route path="/obs-overlay/:auctionId" element={<OBSOverlay />} />
-
-        {/* Utility Route: OBS Overlay (Green Screen) */}
-        <Route path="/obs-green/:auctionId" element={<OBSGreen />} />
-
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      
+      {/* Global Support Widget - Not shown on TV/Overlay views or for staff */}
+      {isLoggedIn && !isSupportStaff && !window.location.hash.includes('obs-') && <SupportWidget />}
+    </>
   );
 }
 
