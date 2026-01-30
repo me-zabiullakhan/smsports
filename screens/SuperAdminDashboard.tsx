@@ -10,7 +10,7 @@ import {
     Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, 
     Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, 
     Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon, 
-    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key
+    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key, Filter, ChevronDown, UserX
 } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
@@ -42,7 +42,7 @@ const compressImage = (file: File): Promise<string> => {
 const SuperAdminDashboard: React.FC = () => {
     const { state, logout } = useAuction();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'STAFF' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'REGISTRY' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
     const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -64,10 +64,13 @@ const SuperAdminDashboard: React.FC = () => {
     // Common States
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // Staff Management States
-    const [staffList, setStaffList] = useState<UserProfile[]>([]);
-    const [isAddingStaff, setIsAddingStaff] = useState(false);
-    const [staffForm, setStaffForm] = useState({ email: '', name: '', password: '' });
+    // Registry / User Management States
+    const [userRegistry, setUserRegistry] = useState<UserProfile[]>([]);
+    const [registryFilter, setRegistryFilter] = useState<'ALL' | 'SUPPORT' | 'ADMIN' | 'VIEWER'>('ALL');
+    const [isAddingUser, setIsAddingUser] = useState(false);
+    const [userForm, setUserForm] = useState({ email: '', name: '', password: '', role: UserRole.SUPPORT });
+    const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState({ email: '', name: '', password: '', role: UserRole.VIEWER });
 
     // Plans Management
     const [dbPlans, setDbPlans] = useState<any[]>([]);
@@ -137,9 +140,11 @@ const SuperAdminDashboard: React.FC = () => {
             setLoading(false);
         });
 
-        // Other Listeners
-        const unsubStaff = db.collection('users').where('role', '==', UserRole.SUPPORT).onSnapshot(snap => {
-            setStaffList(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+        // Registry Listener (All Users)
+        const unsubRegistry = db.collection('users').onSnapshot(snap => {
+            const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+            list.sort((a,b) => a.email.localeCompare(b.email));
+            setUserRegistry(list);
         });
 
         const unsubPlans = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
@@ -168,7 +173,7 @@ const SuperAdminDashboard: React.FC = () => {
 
         return () => {
             unsubscribe();
-            unsubStaff();
+            unsubRegistry();
             unsubPlans();
             unsubPromos();
             unsubPopups();
@@ -178,37 +183,68 @@ const SuperAdminDashboard: React.FC = () => {
         };
     }, []);
 
-    // 0. Staff Handlers
-    const handleAddStaff = async (e: React.FormEvent) => {
+    // 0. Registry Handlers
+    const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!staffForm.email || !staffForm.password) return;
+        if (!userForm.email || !userForm.password) return;
         setIsProcessing(true);
         try {
             const usersRef = db.collection('users');
-            // We use a predictable ID for manual staff or check for email match
-            const snap = await usersRef.where('email', '==', staffForm.email.toLowerCase()).limit(1).get();
-            let userDocId = snap.empty ? `STAFF_${Date.now()}` : snap.docs[0].id;
+            const snap = await usersRef.where('email', '==', userForm.email.toLowerCase()).limit(1).get();
+            let userDocId = snap.empty ? `USER_${Date.now()}` : snap.docs[0].id;
 
             await usersRef.doc(userDocId).set({
-                email: staffForm.email.toLowerCase(),
-                name: staffForm.name || 'Support Staff',
-                role: UserRole.SUPPORT,
-                password: staffForm.password, // MANUAL PASSWORD
+                email: userForm.email.toLowerCase(),
+                name: userForm.name || 'New User',
+                role: userForm.role,
+                password: userForm.password,
                 createdAt: Date.now()
             }, { merge: true });
 
-            setIsAddingStaff(false);
-            setStaffForm({ email: '', name: '', password: '' });
-            alert("Support Protocol Authorized with Credentials!");
-        } catch (err: any) { alert("Failed: " + err.message); }
+            setIsAddingUser(false);
+            setUserForm({ email: '', name: '', password: '', role: UserRole.SUPPORT });
+            alert("Registry Identity Established!");
+        } catch (err: any) { alert("Fail: " + err.message); }
         setIsProcessing(false);
     };
 
-    const handleRevokeStaff = async (uid: string, name: string) => {
-        if (window.confirm(`Revoke all support access for ${name}?`)) {
-            await db.collection('users').doc(uid).update({ role: UserRole.VIEWER });
+    const handleUpdateUser = async (uid: string) => {
+        setIsProcessing(true);
+        try {
+            await db.collection('users').doc(uid).update({
+                name: editForm.name,
+                email: editForm.email.toLowerCase(),
+                password: editForm.password,
+                role: editForm.role
+            });
+            setEditingUserId(null);
+            alert("Registry Profile Synced.");
+        } catch (err: any) { alert("Failed Update: " + err.message); }
+        setIsProcessing(false);
+    };
+
+    const handleDeleteUser = async (uid: string, email: string) => {
+        if (window.confirm(`Permanently terminate access for ${email}? This cannot be undone.`)) {
+            await db.collection('users').doc(uid).delete();
         }
     };
+
+    const handleOpenEdit = (user: UserProfile) => {
+        setEditingUserId(user.uid);
+        setEditForm({
+            name: user.name || '',
+            email: user.email,
+            password: (user as any).password || '',
+            role: user.role
+        });
+    };
+
+    // Filters for Registry
+    const filteredRegistry = userRegistry.filter(u => {
+        const matchesRole = registryFilter === 'ALL' || u.role === registryFilter;
+        const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) || (u.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+        return matchesRole && matchesSearch;
+    });
 
     // 1. Promo Handlers
     const handleSavePromo = async (e: React.FormEvent) => {
@@ -322,7 +358,7 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="flex bg-zinc-900 rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar">
                         {[
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
-                            {id: 'STAFF', label: 'Staff', icon: <Headset className="w-4 h-4"/>},
+                            {id: 'REGISTRY', label: 'Registry', icon: <Users className="w-4 h-4"/>},
                             {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>},
                             {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
                             {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
@@ -405,86 +441,170 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* STAFF TAB */}
-                {activeTab === 'STAFF' && (
-                    <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                             <div className="flex justify-between items-center mb-10">
+                {/* REGISTRY / USERS TAB */}
+                {activeTab === 'REGISTRY' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-10">
                                 <div className="flex items-center gap-4">
                                     <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
-                                        <Headset className="w-6 h-6 text-white" />
+                                        <Users className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Support Registry</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage human resources & access</p>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Identity Hub</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Universal Registry Management</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setIsAddingStaff(!isAddingStaff)} className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
-                                    {isAddingStaff ? <XCircle className="w-4 h-4 inline mr-2"/> : <UserPlus className="w-4 h-4 inline mr-2"/>}
-                                    {isAddingStaff ? 'CANCEL' : 'PROMOTE STAFF'}
-                                </button>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex bg-black rounded-xl p-1 border border-zinc-800">
+                                        {[
+                                            {id: 'ALL', label: 'All'},
+                                            {id: 'SUPPORT', label: 'Staff'},
+                                            {id: 'ADMIN', label: 'Organizers'},
+                                            {id: 'VIEWER', label: 'Viewers'}
+                                        ].map(f => (
+                                            <button 
+                                                key={f.id} 
+                                                onClick={() => setRegistryFilter(f.id as any)}
+                                                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${registryFilter === f.id ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white'}`}
+                                            >
+                                                {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                                        <input 
+                                            placeholder="Search Email / Name..." 
+                                            className="bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-xs font-bold w-48 outline-none focus:border-blue-500"
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <button onClick={() => setIsAddingUser(!isAddingUser)} className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95">
+                                        {isAddingUser ? <XCircle className="w-4 h-4 inline mr-2"/> : <UserPlus className="w-4 h-4 inline mr-2"/>}
+                                        {isAddingUser ? 'CANCEL' : 'CREATE ACCOUNT'}
+                                    </button>
+                                </div>
                              </div>
 
-                             {isAddingStaff && (
-                                 <form onSubmit={handleAddStaff} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 animate-slide-up">
+                             {isAddingUser && (
+                                 <form onSubmit={handleCreateUser} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-5 gap-6 mb-10 animate-slide-up">
                                      <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Staff Email</label>
-                                         <input type="email" required placeholder="staff@smsports.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.email} onChange={e => setStaffForm({...staffForm, email: e.target.value})} />
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Login Email</label>
+                                         <input type="email" required placeholder="user@identity.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
                                      </div>
                                      <div>
                                          <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
-                                         <input required placeholder="Operator Name" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.name} onChange={e => setStaffForm({...staffForm, name: e.target.value})} />
+                                         <input required placeholder="Identity Name" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
                                      </div>
                                      <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Access Password</label>
-                                         <input required type="text" placeholder="SECURE KEY" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={staffForm.password} onChange={e => setStaffForm({...staffForm, password: e.target.value})} />
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Access Key</label>
+                                         <input required type="text" placeholder="SECURE PASSWORD" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Assign Role</label>
+                                         <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500 h-[52px]" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})}>
+                                             <option value={UserRole.SUPPORT}>Support Staff</option>
+                                             <option value={UserRole.ADMIN}>Organizer / Admin</option>
+                                             <option value={UserRole.VIEWER}>Basic Viewer</option>
+                                         </select>
                                      </div>
                                      <div className="flex items-end">
                                          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
                                              {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
-                                             GRANT ACCESS
+                                             AUTHORIZE IDENTITY
                                          </button>
                                      </div>
                                  </form>
                              )}
 
                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                 {staffList.map(s => (
-                                     <div key={s.uid} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 flex flex-col justify-between group">
-                                         <div className="flex items-start justify-between mb-6">
-                                             <div className="flex items-center gap-4">
-                                                 <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 font-black border border-blue-500/20">
-                                                     {s.name?.charAt(0) || 'S'}
+                                 {filteredRegistry.map(user => (
+                                     <div key={user.uid} className={`bg-zinc-950 p-6 rounded-3xl border transition-all ${editingUserId === user.uid ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-white/5 hover:border-white/10'} group relative`}>
+                                         <div className="flex items-start justify-between mb-4">
+                                             <div className="flex items-center gap-4 min-w-0">
+                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black border ${user.role === UserRole.SUPPORT ? 'bg-blue-600/10 text-blue-500 border-blue-500/20' : user.role === UserRole.ADMIN ? 'bg-purple-600/10 text-purple-500 border-purple-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                                                     {user.role === UserRole.SUPPORT ? <Headset className="w-5 h-5"/> : user.role === UserRole.ADMIN ? <Gavel className="w-5 h-5"/> : <Users className="w-5 h-5"/>}
+                                                 </div>
+                                                 <div className="min-w-0">
+                                                     <h3 className="font-black text-white uppercase tracking-tight truncate text-sm">{user.email}</h3>
+                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase truncate mt-0.5">{user.name || 'Anonymous'}</p>
+                                                 </div>
+                                             </div>
+                                             <div className="flex items-center gap-2">
+                                                <button onClick={() => editingUserId === user.uid ? setEditingUserId(null) : handleOpenEdit(user)} className={`p-2 rounded-lg transition-all ${editingUserId === user.uid ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:text-blue-500 hover:bg-blue-500/10 opacity-0 group-hover:opacity-100'}`}>
+                                                    <Edit className="w-4 h-4"/>
+                                                </button>
+                                                <button onClick={() => handleDeleteUser(user.uid, user.email)} className="p-2 rounded-lg text-zinc-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100">
+                                                    <UserX className="w-4 h-4"/>
+                                                </button>
+                                             </div>
+                                         </div>
+
+                                         {editingUserId === user.uid ? (
+                                             <div className="mt-6 pt-6 border-t border-zinc-800 space-y-4 animate-fade-in">
+                                                 <div>
+                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Profile Name</label>
+                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
                                                  </div>
                                                  <div>
-                                                     <h3 className="font-black text-white uppercase tracking-tight truncate max-w-[120px]">{s.name}</h3>
-                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase truncate max-w-[150px]">{s.email}</p>
+                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Master Email</label>
+                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
                                                  </div>
-                                             </div>
-                                             <button onClick={() => handleRevokeStaff(s.uid, s.name || 'Staff')} className="text-zinc-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
-                                                 <UserMinus className="w-5 h-5"/>
-                                             </button>
-                                         </div>
-                                         <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                             <div className="flex items-center gap-4">
-                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live</span>
+                                                 <div>
+                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Access Password</label>
+                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.password} onChange={e => setEditForm({...editForm, password: e.target.value})} />
                                                  </div>
-                                                 {s.password && (
-                                                     <div className="flex items-center gap-1 text-[9px] font-black text-zinc-500 uppercase">
-                                                         <Key className="w-3 h-3"/> Key Set
+                                                 <div>
+                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Switch Protocol Role</label>
+                                                     <div className="grid grid-cols-2 gap-2">
+                                                         {[
+                                                             {id: UserRole.SUPPORT, label: 'Staff'},
+                                                             {id: UserRole.ADMIN, label: 'Admin'},
+                                                             {id: UserRole.VIEWER, label: 'Viewer'}
+                                                         ].map(role => (
+                                                             <button 
+                                                                key={role.id} 
+                                                                type="button" 
+                                                                onClick={() => setEditForm({...editForm, role: role.id})}
+                                                                className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all border ${editForm.role === role.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                                                             >
+                                                                 {role.label}
+                                                             </button>
+                                                         ))}
                                                      </div>
-                                                 )}
+                                                 </div>
+                                                 <div className="flex gap-2 pt-2">
+                                                     <button onClick={() => handleUpdateUser(user.uid)} className="flex-1 bg-white text-black font-black py-3 rounded-xl text-[9px] uppercase tracking-widest shadow-xl">SAVE PROFILE</button>
+                                                     <button onClick={() => setEditingUserId(null)} className="px-4 bg-zinc-900 text-zinc-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest">EXIT</button>
+                                                 </div>
                                              </div>
-                                             <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Protocol v1.2</span>
-                                         </div>
+                                         ) : (
+                                             <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${user.role === UserRole.SUPPORT ? 'bg-blue-500/10 text-blue-500' : user.role === UserRole.ADMIN ? 'bg-purple-500/10 text-purple-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                                                         {user.role}
+                                                     </div>
+                                                     {(user as any).password && (
+                                                         <div className="flex items-center gap-1 text-[8px] font-black text-zinc-600 uppercase">
+                                                             <Key className="w-2.5 h-2.5"/> Secret Key Active
+                                                         </div>
+                                                     )}
+                                                 </div>
+                                                 <div className="flex items-center gap-1.5">
+                                                     <div className={`w-1.5 h-1.5 rounded-full ${user.role === UserRole.VIEWER ? 'bg-zinc-800' : 'bg-emerald-500 animate-pulse'}`}></div>
+                                                     <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">{user.role === UserRole.VIEWER ? 'IDLE' : 'LIVE'}</span>
+                                                 </div>
+                                             </div>
+                                         )}
                                      </div>
                                  ))}
-                                 {staffList.length === 0 && (
+                                 {filteredRegistry.length === 0 && (
                                      <div className="col-span-full py-20 text-center flex flex-col items-center justify-center opacity-20">
-                                         <Headset className="w-16 h-16 mb-4" />
-                                         <p className="text-sm font-black uppercase tracking-[0.3em]">No support staff enlisted</p>
+                                         <Users className="w-16 h-16 mb-4" />
+                                         <p className="text-sm font-black uppercase tracking-[0.3em]">No matching identities found</p>
                                      </div>
                                  )}
                              </div>
