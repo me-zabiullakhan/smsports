@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -95,13 +96,9 @@ const PlayerRegistration: React.FC = () => {
     };
 
     const handleRazorpayModal = () => {
-        if (!isRazorpayLoaded || !config?.razorpayKey) {
-            alert("Payment system not ready.");
-            setSubmitting(false);
-            return;
-        }
+        if (!isRazorpayLoaded) { alert("Payment system not ready."); setSubmitting(false); return; }
         const options = {
-            key: config.razorpayKey, amount: config.fee * 100, currency: "INR",
+            key: "rzp_test_YOUR_KEY", amount: config!.fee * 100, currency: "INR",
             name: auction?.title || "Auction Registration",
             handler: (res: any) => submitToFirebase(res.razorpay_payment_id),
             prefill: { name: formData.fullName, contact: formData.mobile },
@@ -115,10 +112,14 @@ const PlayerRegistration: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (formData.captcha.toLowerCase() !== 'dej7ym') return alert("Incorrect Captcha.");
-        if (config?.includePayment && config.paymentMethod === 'RAZORPAY') {
-            setSubmitting(true);
-            handleRazorpayModal();
-            return;
+        if (config?.includePayment) {
+            if (config.paymentMethod === 'RAZORPAY') {
+                setSubmitting(true);
+                handleRazorpayModal();
+                return;
+            } else if (config.paymentMethod === 'MANUAL' && !paymentScreenshot) {
+                return alert("Please upload proof of payment.");
+            }
         }
         submitToFirebase();
     };
@@ -130,57 +131,106 @@ const PlayerRegistration: React.FC = () => {
         <div className="min-h-screen bg-gray-50 font-sans py-10 px-4">
             {success && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl p-8 text-center max-w-md w-full">
-                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold mb-2">Registered Successfully!</h2>
-                        <button onClick={() => navigate('/')} className="w-full bg-green-600 text-white py-3 rounded-xl mt-6">Go Home</button>
+                    <div className="bg-white rounded-[2.5rem] p-10 text-center max-w-md w-full shadow-2xl border border-white/20 scale-in animate-fade-in">
+                        <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle className="w-10 h-10 text-green-500" /></div>
+                        <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Success!</h2>
+                        <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest mt-2">Registration Logged to Registry</p>
+                        <button onClick={() => navigate('/')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl mt-8 shadow-xl uppercase tracking-widest transition-all active:scale-95">Return to Portal</button>
                     </div>
                 </div>
             )}
 
-            <div className="max-w-2xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
-                <div className="bg-blue-600 p-8 text-white text-center">
-                    <h1 className="text-2xl font-black uppercase">{auction?.title}</h1>
-                    <p className="text-[10px] font-bold tracking-widest mt-1 opacity-80">OFFICIAL REGISTRATION PORTAL</p>
+            <div className="max-w-2xl mx-auto bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-gray-200 animate-fade-in">
+                <div className="bg-blue-600 p-10 text-white text-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                    <h1 className="text-3xl font-black uppercase tracking-tighter relative z-10">{auction?.title}</h1>
+                    <p className="text-[10px] font-bold tracking-[0.4em] mt-2 opacity-60 relative z-10 uppercase">Registry Enrollment Terminal</p>
                 </div>
                 
-                <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                    <div className="space-y-4">
+                <form onSubmit={handleSubmit} className="p-10 space-y-8">
+                    <div className="space-y-6">
                         <div>
-                            <label className="block text-xs font-black text-gray-500 uppercase mb-1">Full Name</label>
-                            <input required className="w-full border rounded-xl p-3" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Full Legal Name</label>
+                            <input required className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} placeholder="As per Identity Document" />
                         </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Mobile Primary</label>
+                                <input required type="tel" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} placeholder="+91 XXXX-XXXXXX" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Date of Birth</label>
+                                <input required type="date" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})} />
+                            </div>
+                        </div>
+
                         <div>
-                            <label className="block text-xs font-black text-gray-500 uppercase mb-2">Player Role</label>
-                            <div className="flex flex-wrap gap-2">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Select Skill Identity</label>
+                            <div className="flex flex-wrap gap-2.5">
                                 {roles.map(r => (
-                                    <button key={r.id} type="button" onClick={() => setFormData({...formData, playerType: r.name})} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase border transition-all ${formData.playerType === r.name ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                    <button key={r.id} type="button" onClick={() => setFormData({...formData, playerType: r.name})} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all active:scale-95 ${formData.playerType === r.name ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'}`}>
                                         {r.name}
                                     </button>
                                 ))}
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Mobile</label><input required type="tel" className="w-full border rounded-xl p-3" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} /></div>
-                            <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Date of Birth</label><input required type="date" className="w-full border rounded-xl p-3" value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})} /></div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black text-gray-500 uppercase mb-1">Profile Photo</label>
-                            <div onClick={() => profileInputRef.current?.click()} className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50">
-                                {profilePic ? <span className="text-green-600 font-bold">Photo Captured</span> : <span className="text-gray-400">Click to upload</span>}
-                                <input ref={profileInputRef} type="file" className="hidden" accept="image/*" onChange={async e => { if (e.target.files?.[0]) setProfilePic(await compressImage(e.target.files[0])); }} />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Profile Asset</label>
+                                <div onClick={() => profileInputRef.current?.click()} className="w-full h-48 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all overflow-hidden relative group">
+                                    {profilePic ? (
+                                        <img src={profilePic} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="text-center">
+                                            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Select Image</p>
+                                        </div>
+                                    )}
+                                    <input ref={profileInputRef} type="file" className="hidden" accept="image/*" onChange={async e => { if (e.target.files?.[0]) setProfilePic(await compressImage(e.target.files[0])); }} />
+                                </div>
                             </div>
+                            
+                            {config?.includePayment && config.paymentMethod === 'MANUAL' && (
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Verify Payment (₹{config.fee})</label>
+                                    <div className="space-y-4">
+                                        {config.qrCodeUrl && (
+                                            <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-inner flex flex-col items-center">
+                                                <img src={config.qrCodeUrl} className="w-24 h-24 object-contain" />
+                                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-2">Scan & Pay (UPI)</p>
+                                            </div>
+                                        )}
+                                        <div onClick={() => paymentInputRef.current?.click()} className="w-full h-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all overflow-hidden relative">
+                                            {paymentScreenshot ? (
+                                                <span className="text-[10px] font-black text-green-500 uppercase">Screenshot Uploaded</span>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <QrCode className="w-5 h-5 mx-auto mb-1 text-gray-300" />
+                                                    <p className="text-[8px] font-black text-gray-400 uppercase">Attach Proof</p>
+                                                </div>
+                                            )}
+                                            <input ref={paymentInputRef} type="file" className="hidden" accept="image/*" onChange={async e => { if (e.target.files?.[0]) setPaymentScreenshot(await compressImage(e.target.files[0])); }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
-                        <label className="block text-xs font-black text-gray-500 uppercase mb-2">Verification (dej7ym)</label>
-                        <input required className="w-full border rounded-xl p-3 uppercase font-black text-center" value={formData.captcha} onChange={e => setFormData({...formData, captcha: e.target.value})} />
+                    <div className="bg-gray-100 p-8 rounded-[2.5rem] border border-gray-200">
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 text-center">Validation Protocol (dej7ym)</label>
+                        <input required className="w-full bg-white border-2 border-transparent rounded-2xl px-6 py-4 font-black text-gray-700 text-center uppercase text-xl focus:border-blue-500 outline-none transition-all shadow-inner" value={formData.captcha} onChange={e => setFormData({...formData, captcha: e.target.value})} placeholder="TYPE CODE" />
                     </div>
 
-                    <button disabled={submitting} type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3">
-                        {submitting ? <Loader2 className="animate-spin" /> : (config?.includePayment && config.paymentMethod === 'RAZORPAY' ? <><CreditCard className="w-5 h-5"/> PAY ₹{config.fee} & REGISTER</> : 'SUBMIT REGISTRATION')}
+                    <button disabled={submitting} type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[1.5rem] shadow-2xl shadow-blue-900/20 transition-all flex items-center justify-center gap-4 group active:scale-95 uppercase text-sm tracking-widest">
+                        {submitting ? <Loader2 className="animate-spin" /> : (config?.includePayment && config.paymentMethod === 'RAZORPAY' ? <><CreditCard className="w-6 h-6"/> Authorize ₹{config.fee}</> : 'Submit Enrollment')}
                     </button>
+                    
+                    <p className="text-[9px] text-gray-400 font-bold text-center uppercase tracking-widest leading-relaxed">
+                        By submitting, you agree to the tournament protocols <br/> and verify all information is legally accurate.
+                    </p>
                 </form>
             </div>
         </div>

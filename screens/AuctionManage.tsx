@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -73,15 +74,19 @@ const AuctionManage: React.FC = () => {
     const [regConfig, setRegConfig] = useState<RegistrationConfig>(DEFAULT_REG_CONFIG);
 
     const [settingsForm, setSettingsForm] = useState({
-        title: '', date: '', sport: '', purseValue: 0, basePrice: 0, bidIncrement: 0, playersPerTeam: 0, totalTeams: 0
+        title: '', date: '', sport: '', purseValue: 0, basePrice: 0, bidIncrement: 0, playersPerTeam: 0, totalTeams: 0, logoUrl: ''
     });
-    
+    const [slabs, setSlabs] = useState<BidIncrementSlab[]>([]);
+    const [newSlab, setNewSlab] = useState({ from: '', increment: '' });
+
     // CRUD Modals
     const [showModal, setShowModal] = useState(false);
     const [modalType, setModalType] = useState<'TEAM' | 'PLAYER' | 'CATEGORY' | 'ROLE' | 'SPONSOR' | 'CSV'>('TEAM');
     const [editItem, setEditItem] = useState<any>(null);
     const [previewImage, setPreviewImage] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    const qrInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!id) return;
@@ -91,9 +96,17 @@ const AuctionManage: React.FC = () => {
                 setAuction(data);
                 if (data.registrationConfig) setRegConfig({ ...DEFAULT_REG_CONFIG, ...data.registrationConfig });
                 setSettingsForm({
-                    title: data.title || '', date: data.date || '', sport: data.sport || '', purseValue: data.purseValue || 0,
-                    basePrice: data.basePrice || 0, bidIncrement: data.bidIncrement || 0, playersPerTeam: data.playersPerTeam || 0, totalTeams: data.totalTeams || 0
+                    title: data.title || '', 
+                    date: data.date || '', 
+                    sport: data.sport || '', 
+                    purseValue: data.purseValue || 0,
+                    basePrice: data.basePrice || 0, 
+                    bidIncrement: data.bidIncrement || 0, 
+                    playersPerTeam: data.playersPerTeam || 0, 
+                    totalTeams: data.totalTeams || 0,
+                    logoUrl: data.logoUrl || ''
                 });
+                if (data.slabs) setSlabs(data.slabs);
             }
             setLoading(false);
         });
@@ -110,6 +123,17 @@ const AuctionManage: React.FC = () => {
         };
     }, [id]);
 
+    const handleSaveSettings = async () => {
+        if (!id) return;
+        try {
+            await db.collection('auctions').doc(id).update({
+                ...settingsForm,
+                slabs
+            });
+            alert("Auction Identity Protocols Synced!");
+        } catch (e: any) { alert("Save failed: " + e.message); }
+    };
+
     const handleSaveRegistration = async () => {
         if (!id) return;
         try {
@@ -118,10 +142,12 @@ const AuctionManage: React.FC = () => {
         } catch (e: any) { alert("Failed: " + e.message); }
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'MODAL' | 'LOGO' | 'QR') => {
         if (e.target.files && e.target.files[0]) {
             const base64 = await compressImage(e.target.files[0]);
-            setPreviewImage(base64);
+            if (type === 'MODAL') setPreviewImage(base64);
+            if (type === 'LOGO') setSettingsForm({ ...settingsForm, logoUrl: base64 });
+            if (type === 'QR') setRegConfig({ ...regConfig, qrCodeUrl: base64 });
         }
     };
 
@@ -179,6 +205,32 @@ const AuctionManage: React.FC = () => {
         reader.readAsBinaryString(file);
     };
 
+    const exportPlayersToCSV = () => {
+        if (players.length === 0) return alert("No players to export.");
+        const headers = ["Name", "Category", "Role", "Base Price", "Nationality", "Status", "Sold To", "Sold Price"];
+        const rows = players.map(p => [
+            p.name, p.category, p.role, p.basePrice, p.nationality, p.status || 'AVAILABLE', p.soldTo || '-', p.soldPrice || 0
+        ]);
+
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `PLAYER_DATA_${auction?.title?.replace(/\s+/g, '_')}.csv`);
+        link.click();
+    };
+
+    const addSlab = () => {
+        if (!newSlab.from || !newSlab.increment) return;
+        setSlabs([...slabs, { from: Number(newSlab.from), increment: Number(newSlab.increment) }]);
+        setNewSlab({ from: '', increment: '' });
+    };
+
+    const removeSlab = (index: number) => {
+        setSlabs(slabs.filter((_, i) => i !== index));
+    };
+
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]"><Loader2 className="animate-spin text-blue-600"/></div>;
 
     return (
@@ -200,78 +252,124 @@ const AuctionManage: React.FC = () => {
                 </div>
             </header>
 
-            <main className="container mx-auto px-4 py-8 max-w-5xl">
+            <main className="container mx-auto px-4 py-8 max-w-6xl">
                 {activeTab === 'SETTINGS' && (
-                    <div className="bg-white rounded-[2rem] p-10 border border-gray-200 shadow-sm animate-fade-in space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Tournament Title</label>
-                                <input type="text" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})}/>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Event Date</label>
-                                <input type="date" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.date} onChange={e => setSettingsForm({...settingsForm, date: e.target.value})}/>
-                            </div>
-                        </div>
-                        <button onClick={() => { db.collection('auctions').doc(id!).update(settingsForm); alert("Settings Updated!"); }} className="bg-black hover:bg-zinc-800 text-white font-black py-4 px-12 rounded-xl text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95">Save Core Identity</button>
-                    </div>
-                )}
-
-                {activeTab === 'TEAMS' && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Franchise Registry ({teams.length})</h2>
-                            <div className="flex gap-2">
-                                <label className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-gray-50 transition-all flex items-center gap-2">
-                                    <FileUp className="w-4 h-4"/> Import XLSX
-                                    <input type="file" className="hidden" accept=".xlsx, .xls" onChange={(e) => handleExcelImport(e, 'TEAM')}/>
-                                </label>
-                                <button onClick={() => { setModalType('TEAM'); setEditItem({ name: '', owner: '', budget: settingsForm.purseValue }); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg shadow-blue-600/20"><Plus className="w-4 h-4"/> Add Team</button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {teams.map(team => (
-                                <div key={team.id} className="bg-white p-5 rounded-[1.5rem] border border-gray-200 shadow-sm flex items-center justify-between group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border border-gray-100 p-1">
-                                            {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain" /> : <Users className="text-gray-300 w-6 h-6"/>}
-                                        </div>
-                                        <div>
-                                            <p className="font-black text-gray-800 uppercase text-sm leading-none">{team.name}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">₹{team.budget}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => { setModalType('TEAM'); setEditItem(team); setPreviewImage(team.logoUrl); setShowModal(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4"/></button>
-                                        <button onClick={() => handleDelete('TEAM', String(team.id))} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="p-8 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-600/20 text-white"><Settings className="w-6 h-6"/></div>
+                                    <div>
+                                        <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Auction Identity</h2>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Configure core tournament logic</p>
                                     </div>
                                 </div>
-                            ))}
+                                <button onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-8 rounded-xl shadow-lg text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95">
+                                    <Save className="w-4 h-4"/> Sync Identity
+                                </button>
+                            </div>
+
+                            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="md:col-span-1 space-y-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Tournament Logo</label>
+                                        <div onClick={() => logoInputRef.current?.click()} className="w-full aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all overflow-hidden relative group">
+                                            {settingsForm.logoUrl ? (
+                                                <img src={settingsForm.logoUrl} className="w-full h-full object-contain p-4" />
+                                            ) : (
+                                                <div className="text-center">
+                                                    <ImageIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                                    <p className="text-[9px] font-black text-gray-400 uppercase">Select Source</p>
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <Upload className="text-white w-6 h-6" />
+                                            </div>
+                                            <input ref={logoInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'LOGO')} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2 space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Event Name</label>
+                                            <input type="text" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.title} onChange={e => setSettingsForm({...settingsForm, title: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Event Date</label>
+                                            <input type="date" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.date} onChange={e => setSettingsForm({...settingsForm, date: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Total Teams</label>
+                                            <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.totalTeams} onChange={e => setSettingsForm({...settingsForm, totalTeams: Number(e.target.value)})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Squad Size (Max)</label>
+                                            <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.playersPerTeam} onChange={e => setSettingsForm({...settingsForm, playersPerTeam: Number(e.target.value)})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Purse Budget (₹)</label>
+                                            <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.purseValue} onChange={e => setSettingsForm({...settingsForm, purseValue: Number(e.target.value)})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Standard Min Bid (₹)</label>
+                                            <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={settingsForm.bidIncrement} onChange={e => setSettingsForm({...settingsForm, bidIncrement: Number(e.target.value)})} />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Global Bidding Slabs</label>
+                                            <div className="flex gap-2">
+                                                <input placeholder="From ₹" type="number" className="w-24 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none" value={newSlab.from} onChange={e => setNewSlab({...newSlab, from: e.target.value})} />
+                                                <input placeholder="+ ₹" type="number" className="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none" value={newSlab.increment} onChange={e => setNewSlab({...newSlab, increment: e.target.value})} />
+                                                <button onClick={addSlab} className="bg-blue-600 text-white p-1.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus className="w-4 h-4"/></button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {slabs.map((slab, i) => (
+                                                <div key={i} className="bg-white px-4 py-2.5 rounded-xl border border-gray-200 flex justify-between items-center shadow-sm">
+                                                    <span className="text-[10px] font-black text-gray-600 uppercase">Above {slab.from} : +{slab.increment}</span>
+                                                    <button onClick={() => removeSlab(i)} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                                                </div>
+                                            ))}
+                                            {slabs.length === 0 && <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest italic py-2">No custom slabs established</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'PLAYERS' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                             <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Player Pool ({players.length})</h2>
-                            <div className="flex gap-2">
-                                <label className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-gray-50 transition-all flex items-center gap-2">
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={exportPlayersToCSV} className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm">
+                                    <Download className="w-4 h-4"/> Export CSV
+                                </button>
+                                <label className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm">
                                     <FileUp className="w-4 h-4"/> Import XLSX
                                     <input type="file" className="hidden" accept=".xlsx, .xls" onChange={(e) => handleExcelImport(e, 'PLAYER')}/>
                                 </label>
-                                <button onClick={() => { setModalType('PLAYER'); setEditItem({ name: '', category: 'Standard', role: 'All Rounder', basePrice: settingsForm.basePrice }); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg"><Plus className="w-4 h-4"/> Add Player</button>
+                                <button onClick={() => { setModalType('PLAYER'); setEditItem({ name: '', category: 'Standard', role: 'All Rounder', basePrice: settingsForm.basePrice, nationality: 'India' }); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all">
+                                    <Plus className="w-4 h-4"/> Add Player
+                                </button>
                             </div>
                         </div>
                         <div className="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left">
-                                    <thead className="bg-gray-50 border-b">
+                                    <thead className="bg-gray-50 border-b border-gray-100">
                                         <tr>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400">Name</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400">Category</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400">Role</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400">Base</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Identity</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Set/Category</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Role</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Value (₹)</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Status</th>
                                             <th className="px-6 py-4 text-right"></th>
                                         </tr>
                                     </thead>
@@ -280,19 +378,38 @@ const AuctionManage: React.FC = () => {
                                             <tr key={p.id} className="hover:bg-gray-50 transition-colors group">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-gray-100 border overflow-hidden">
-                                                            {p.photoUrl ? <img src={p.photoUrl} className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-2 text-gray-300"/>}
+                                                        <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shadow-sm">
+                                                            {p.photoUrl ? <img src={p.photoUrl} className="w-full h-full object-cover" /> : <User className="w-5 h-5 m-2.5 text-gray-300"/>}
                                                         </div>
-                                                        <span className="font-bold text-gray-700 text-sm">{p.name}</span>
+                                                        <div>
+                                                            <span className="font-black text-gray-800 text-sm uppercase leading-none">{p.name}</span>
+                                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">{p.nationality}</p>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-xs font-bold text-gray-500">{p.category}</td>
-                                                <td className="px-6 py-4 text-xs font-bold text-gray-500">{p.role}</td>
-                                                <td className="px-6 py-4 font-mono font-bold text-blue-600 text-sm">{p.basePrice}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-200">{p.category}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{p.role}</span>
+                                                </td>
+                                                <td className="px-6 py-4 font-mono font-black text-gray-700 text-sm">₹{p.basePrice}</td>
+                                                <td className="px-6 py-4">
+                                                    {p.status === 'SOLD' ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-green-600 font-black text-[9px] uppercase tracking-[0.2em]">SOLD</span>
+                                                            <span className="text-[8px] text-gray-400 font-bold uppercase truncate max-w-[80px]">{p.soldTo} (₹{p.soldPrice})</span>
+                                                        </div>
+                                                    ) : p.status === 'UNSOLD' ? (
+                                                        <span className="text-red-500 font-black text-[9px] uppercase tracking-[0.2em]">UNSOLD</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 font-black text-[9px] uppercase tracking-[0.2em]">POOL</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => { setModalType('PLAYER'); setEditItem(p); setPreviewImage(p.photoUrl); setShowModal(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4"/></button>
-                                                        <button onClick={() => handleDelete('PLAYER', String(p.id))} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+                                                        <button onClick={() => { setModalType('PLAYER'); setEditItem(p); setPreviewImage(p.photoUrl); setShowModal(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit className="w-4 h-4"/></button>
+                                                        <button onClick={() => handleDelete('PLAYER', String(p.id))} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4"/></button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -300,6 +417,12 @@ const AuctionManage: React.FC = () => {
                                     </tbody>
                                 </table>
                             </div>
+                            {players.length === 0 && (
+                                <div className="py-20 text-center flex flex-col items-center">
+                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-dashed border-gray-300"><Users className="text-gray-300 w-8 h-8"/></div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em]">Registry is empty</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -348,15 +471,12 @@ const AuctionManage: React.FC = () => {
                                                         <QrCode className="w-4 h-4"/> Manual (UPI)
                                                     </button>
                                                     <button 
-                                                        onClick={() => auction?.razorpayAuthorized ? setRegConfig({...regConfig, paymentMethod: 'RAZORPAY'}) : alert("RAZORPAY LOCKED: Please contact Support to authorize integrated payments for this tournament.")}
-                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 flex items-center justify-center gap-2 ${regConfig.paymentMethod === 'RAZORPAY' ? 'bg-white border-blue-400 text-blue-600 shadow-lg' : 'bg-transparent border-gray-200 text-gray-400'} ${!auction?.razorpayAuthorized ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
+                                                        onClick={() => setRegConfig({...regConfig, paymentMethod: 'RAZORPAY'})}
+                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 flex items-center justify-center gap-2 ${regConfig.paymentMethod === 'RAZORPAY' ? 'bg-white border-blue-400 text-blue-600 shadow-lg' : 'bg-transparent border-gray-200 text-gray-400 opacity-60'}`}
                                                     >
                                                         <Zap className="w-4 h-4"/> Razorpay
                                                     </button>
                                                 </div>
-                                                {!auction?.razorpayAuthorized && (
-                                                    <p className="text-[9px] text-orange-600 font-black uppercase leading-relaxed text-center mt-3 bg-orange-100/50 p-2 rounded-lg">Integrated Gateway requires Super Admin Authorization</p>
-                                                )}
                                             </div>
 
                                             <div>
@@ -367,32 +487,34 @@ const AuctionManage: React.FC = () => {
                                                 </div>
                                             </div>
 
-                                            {regConfig.paymentMethod === 'RAZORPAY' && auction?.razorpayAuthorized && (
-                                                <div className="bg-indigo-600 p-6 rounded-2xl shadow-xl animate-fade-in">
-                                                    <div className="flex items-center gap-3 mb-4">
-                                                        <Key className="w-5 h-5 text-indigo-200" />
-                                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Razorpay Key ID</span>
-                                                    </div>
-                                                    <input 
-                                                        type="text" 
-                                                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-xs font-bold text-white placeholder:text-white/40 outline-none focus:bg-white/20 transition-all" 
-                                                        value={regConfig.razorpayKey || ''} 
-                                                        onChange={e => setRegConfig({...regConfig, razorpayKey: e.target.value})} 
-                                                        placeholder="rzp_live_xxxxxxxxxxxx" 
-                                                    />
-                                                    <p className="text-[8px] text-indigo-200 font-bold uppercase mt-3 tracking-widest leading-relaxed text-center">Fetch this from your Razorpay Dashboard &gt; Settings &gt; API Keys</p>
-                                                </div>
-                                            )}
-
                                             {regConfig.paymentMethod === 'MANUAL' && (
-                                                <div className="space-y-4 animate-fade-in">
-                                                    <div>
-                                                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">UPI ID</label>
-                                                        <input type="text" className="w-full border rounded-lg px-4 py-2 text-sm font-bold" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="someone@upi" />
+                                                <div className="space-y-6 animate-fade-in">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">UPI ID</label>
+                                                            <input className="w-full border rounded-xl p-2.5 text-xs font-bold" value={regConfig.upiId} onChange={e => setRegConfig({...regConfig, upiId: e.target.value})} placeholder="someone@upi" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Account Name</label>
+                                                            <input className="w-full border rounded-xl p-2.5 text-xs font-bold" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} placeholder="Official Name" />
+                                                        </div>
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">UPI Name</label>
-                                                        <input type="text" className="w-full border rounded-lg px-4 py-2 text-sm font-bold" value={regConfig.upiName} onChange={e => setRegConfig({...regConfig, upiName: e.target.value})} placeholder="Official Name" />
+                                                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-3">UPI QR Code Deployment</label>
+                                                        <div onClick={() => qrInputRef.current?.click()} className="w-full h-48 bg-white border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all overflow-hidden relative group">
+                                                            {regConfig.qrCodeUrl ? (
+                                                                <img src={regConfig.qrCodeUrl} className="h-full w-full object-contain p-4" />
+                                                            ) : (
+                                                                <div className="text-center">
+                                                                    <QrCode className="w-10 h-10 mx-auto mb-2 text-gray-200" />
+                                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Push QR Source</p>
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                                <Upload className="text-white w-6 h-6" />
+                                                            </div>
+                                                            <input ref={qrInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'QR')} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -459,10 +581,8 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border-2 ${reg.status === 'PENDING' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-green-50 text-green-600 border-green-200'}`}>{reg.status}</div>
-                                            <button onClick={() => handleDelete('REGISTRATION', reg.id)} className="p-2.5 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all"><Trash2 className="w-4 h-4"/></button>
-                                            <button onClick={async () => {
-                                                await db.collection('auctions').doc(id!).collection('registrations').doc(reg.id).update({ status: 'APPROVED' });
-                                            }} className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg">Verify</button>
+                                            <button className="p-2.5 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all"><Trash2 className="w-4 h-4"/></button>
+                                            <button className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg">Verify</button>
                                         </div>
                                     </div>
                                 ))}
@@ -470,66 +590,61 @@ const AuctionManage: React.FC = () => {
                         )}
                     </div>
                 )}
-
-                {(activeTab === 'CATEGORIES' || activeTab === 'ROLES' || activeTab === 'SPONSORS') && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Manage {activeTab}</h2>
-                            <button onClick={() => {
-                                setModalType(activeTab === 'CATEGORIES' ? 'CATEGORY' : activeTab === 'ROLES' ? 'ROLE' : 'SPONSOR');
-                                setEditItem({});
-                                setShowModal(true);
-                            }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Plus className="w-4 h-4"/> Add New</button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {(activeTab === 'CATEGORIES' ? categories : activeTab === 'ROLES' ? roles : sponsors).map((item: any) => (
-                                <div key={item.id} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 overflow-hidden">
-                                            {item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-contain" /> : <Layers className="text-gray-300 w-5 h-5"/>}
-                                        </div>
-                                        <p className="font-black text-gray-800 uppercase text-xs">{item.name}</p>
-                                    </div>
-                                    <button onClick={() => handleDelete(activeTab.slice(0, -1), item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </main>
 
-            {/* CRUD MODAL */}
+            {/* MODALS */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-[2rem] shadow-2xl max-w-sm w-full overflow-hidden border border-gray-200">
-                        <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
-                            <h3 className="text-lg font-black uppercase tracking-tight">{editItem?.id ? 'Edit' : 'Add'} {modalType}</h3>
-                            <button onClick={() => setShowModal(false)}><X className="w-6 h-6"/></button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-[2rem] shadow-2xl max-w-sm w-full overflow-hidden border border-gray-200 animate-slide-up">
+                        <div className="bg-blue-600 p-6 text-white flex justify-between items-center relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                            <h3 className="text-lg font-black uppercase tracking-tight relative z-10">{editItem?.id ? 'Modify' : 'Initialize'} {modalType}</h3>
+                            <button onClick={() => setShowModal(false)} className="relative z-10 hover:rotate-90 transition-transform"><X className="w-6 h-6"/></button>
                         </div>
-                        <form onSubmit={handleCrudSave} className="p-8 space-y-5">
+                        <form onSubmit={handleCrudSave} className="p-8 space-y-6">
                             <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Identity Name</label>
-                                <input required className="w-full border rounded-xl p-3 text-sm font-bold" value={editItem?.name || ''} onChange={e => setEditItem({...editItem, name: e.target.value})} />
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Identity Name</label>
+                                <input required className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={editItem?.name || ''} onChange={e => setEditItem({...editItem, name: e.target.value})} />
                             </div>
                             
                             {(modalType === 'TEAM' || modalType === 'PLAYER' || modalType === 'SPONSOR') && (
                                 <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Visual Asset</label>
-                                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-gray-100 rounded-xl p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors">
-                                        {previewImage ? <img src={previewImage} className="h-20 mx-auto object-contain" /> : <div className="text-gray-400 text-xs font-bold uppercase"><Upload className="w-6 h-6 mx-auto mb-2 opacity-20"/> Select Source</div>}
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Visual Asset</label>
+                                    <div onClick={() => fileInputRef.current?.click()} className="w-full aspect-video bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-blue-400 transition-all overflow-hidden relative group">
+                                        {previewImage ? (
+                                            <img src={previewImage} className="w-full h-full object-contain p-4" />
+                                        ) : (
+                                            <div className="text-center">
+                                                <Upload className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+                                                <p className="text-[9px] font-black text-gray-400 uppercase">Select Source</p>
+                                            </div>
+                                        )}
+                                        <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'MODAL')} />
                                     </div>
-                                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                                 </div>
                             )}
 
-                            {(modalType === 'TEAM' || modalType === 'PLAYER' || modalType === 'CATEGORY') && (
+                            {modalType === 'TEAM' && (
                                 <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{modalType === 'TEAM' ? 'Purse' : 'Base Price'}</label>
-                                    <input type="number" className="w-full border rounded-xl p-3 text-sm font-bold" value={modalType === 'TEAM' ? editItem?.budget : editItem?.basePrice} onChange={e => setEditItem({...editItem, [modalType === 'TEAM' ? 'budget' : 'basePrice']: Number(e.target.value)})} />
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Assigned Purse (₹)</label>
+                                    <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={editItem?.budget} onChange={e => setEditItem({...editItem, budget: Number(e.target.value)})} />
                                 </div>
                             )}
 
-                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-xl transition-all uppercase text-xs tracking-widest active:scale-95">Save Registry Protocol</button>
+                            {modalType === 'PLAYER' && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Base Price (₹)</label>
+                                        <input type="number" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-2.5 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={editItem?.basePrice} onChange={e => setEditItem({...editItem, basePrice: Number(e.target.value)})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nationality</label>
+                                        <input type="text" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-2.5 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={editItem?.nationality} onChange={e => setEditItem({...editItem, nationality: e.target.value})} />
+                                    </div>
+                                </div>
+                            )}
+
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest active:scale-95">Save Registry Protocol</button>
                         </form>
                     </div>
                 </div>
