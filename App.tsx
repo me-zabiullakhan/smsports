@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Dashboard from './screens/Dashboard';
 import AuthScreen from './screens/AuthScreen';
@@ -19,13 +20,14 @@ import SupportWidget from './components/SupportWidget';
 import { useAuction } from './hooks/useAuction';
 import { auth } from './firebase';
 import firebase from 'firebase/compat/app';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
   const { userProfile, activeAuctionId } = useAuction();
   const [user, setUser] = useState<firebase.User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -59,6 +61,11 @@ const AppContent: React.FC = () => {
       if (isTeamOwner && activeAuctionId) return `/auction/${activeAuctionId}`;
       return "/";
   };
+
+  // Visibility Logic: Hide Support Widget on Landing Page or OBS Views
+  const isLandingPage = location.pathname === '/';
+  const isObsView = location.pathname.includes('obs-') || location.pathname.includes('match-overlay');
+  const showSupport = isLoggedIn && !isSupportStaff && !isLandingPage && !isObsView;
 
   return (
     <>
@@ -110,8 +117,7 @@ const AppContent: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       
-      {/* Global Support Widget - Not shown on TV/Overlay views or for staff */}
-      {isLoggedIn && !isSupportStaff && !window.location.hash.includes('obs-') && <SupportWidget />}
+      {showSupport && <SupportWidget />}
     </>
   );
 }
