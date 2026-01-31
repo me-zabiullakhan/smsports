@@ -210,9 +210,9 @@ const AuctionManage: React.FC = () => {
 
     const exportPlayersToCSV = () => {
         if (players.length === 0) return alert("No players to export.");
-        const headers = ["Name", "Category", "Role", "Base Price", "Nationality", "Status", "Sold To", "Sold Price"];
+        const headers = ["ID", "Name", "Category", "Role", "Base Price", "Nationality", "Status", "Sold To", "Sold Price"];
         const rows = players.map(p => [
-            p.name, p.category, p.role, p.basePrice, p.nationality, p.status || 'AVAILABLE', p.soldTo || '-', p.soldPrice || 0
+            p.id, p.name, p.category, p.role, p.basePrice, p.nationality, p.status || 'POOL', p.soldTo || '-', p.soldPrice || 0
         ]);
 
         const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -220,7 +220,29 @@ const AuctionManage: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `PLAYER_DATA_${auction?.title?.replace(/\s+/g, '_')}.csv`);
+        link.setAttribute("download", `PLAYERS_${auction?.title?.replace(/\s+/g, '_')}.csv`);
+        link.click();
+    };
+
+    const exportRegistrationsToCSV = () => {
+        if (registrations.length === 0) return alert("No registrations to export.");
+        const headers = ["Full Name", "Mobile", "DOB", "Gender", "Player Type", "Status", "Submitted At"];
+        const rows = registrations.map(reg => [
+            `"${reg.fullName}"`,
+            `"${reg.mobile}"`,
+            `"${reg.dob}"`,
+            `"${reg.gender}"`,
+            `"${reg.playerType}"`,
+            `"${reg.status}"`,
+            `"${new Date(reg.submittedAt).toLocaleString()}"`
+        ]);
+
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `REGISTRATIONS_${auction?.title?.replace(/\s+/g, '_')}.csv`);
         link.click();
     };
 
@@ -607,6 +629,9 @@ const AuctionManage: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-4 px-2">
                              <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Registration Queue ({registrations.length})</h2>
+                             <button onClick={exportRegistrationsToCSV} className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm">
+                                <Download className="w-4 h-4"/> Export Registration Data
+                             </button>
                         </div>
                         {registrations.length === 0 ? (
                             <div className="p-32 text-center text-gray-400 bg-white rounded-[3rem] border-2 border-dashed border-gray-200 flex flex-col items-center">
