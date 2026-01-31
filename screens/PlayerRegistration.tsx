@@ -97,7 +97,9 @@ const PlayerRegistration: React.FC = () => {
     const handleRazorpayModal = () => {
         if (!isRazorpayLoaded) { alert("Payment system not ready."); setSubmitting(false); return; }
         const options = {
-            key: "rzp_test_YOUR_KEY", amount: config!.fee * 100, currency: "INR",
+            key: config?.razorpayKey || "rzp_test_YOUR_KEY", 
+            amount: config!.fee * 100, 
+            currency: "INR",
             name: auction?.title || "Auction Registration",
             handler: (res: any) => submitToFirebase(res.razorpay_payment_id),
             prefill: { name: formData.fullName, contact: formData.mobile },

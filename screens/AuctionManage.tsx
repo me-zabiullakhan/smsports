@@ -162,12 +162,10 @@ const AuctionManage: React.FC = () => {
             } else {
                 await db.collection('auctions').doc(id).collection(col).add({ ...itemData, createdAt: Date.now() });
             }
-            // Fix: Use central closeModal function to reset state
             closeModal();
         } catch (err: any) { alert("Save failed: " + err.message); }
     };
 
-    // Add comment: Define missing closeModal function to reset modal-related state
     const closeModal = () => {
         setShowModal(false);
         setEditItem(null);
@@ -519,6 +517,23 @@ const AuctionManage: React.FC = () => {
                                                     <input type="number" className="w-full bg-white border-2 border-gray-100 rounded-xl px-8 py-3 text-sm font-black text-gray-700 focus:border-blue-400 outline-none" value={regConfig.fee} onChange={e => setRegConfig({...regConfig, fee: Number(e.target.value)})} />
                                                 </div>
                                             </div>
+
+                                            {regConfig.paymentMethod === 'RAZORPAY' && (
+                                                <div className="bg-indigo-600 p-6 rounded-2xl shadow-xl animate-fade-in">
+                                                    <div className="flex items-center gap-3 mb-4">
+                                                        <Key className="w-5 h-5 text-indigo-200" />
+                                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Razorpay Key ID</span>
+                                                    </div>
+                                                    <input 
+                                                        type="text" 
+                                                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-xs font-bold text-white placeholder:text-white/40 outline-none focus:bg-white/20 transition-all" 
+                                                        value={regConfig.razorpayKey || ''} 
+                                                        onChange={e => setRegConfig({...regConfig, razorpayKey: e.target.value})} 
+                                                        placeholder="rzp_live_xxxxxxxxxxxx" 
+                                                    />
+                                                    <p className="text-[8px] text-indigo-200 font-bold uppercase mt-3 tracking-widest leading-relaxed text-center">Fetch this from your Razorpay Dashboard &gt; Settings &gt; API Keys</p>
+                                                </div>
+                                            )}
 
                                             {regConfig.paymentMethod === 'MANUAL' && (
                                                 <div className="space-y-6 animate-fade-in">
