@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { AuctionSetup, RegistrationConfig, FormField, PlayerRole } from '../types';
-import { Upload, Calendar, CheckCircle, AlertTriangle, ArrowUpCircle, FileText, Home, ArrowLeft, Loader2, CreditCard, QrCode, ShieldCheck } from 'lucide-react';
+import { Upload, Calendar, CheckCircle, AlertTriangle, ArrowUpCircle, FileText, Home, ArrowLeft, Loader2, CreditCard, QrCode, ShieldCheck, AlignLeft } from 'lucide-react';
 
 const PlayerRegistration: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -16,7 +16,7 @@ const PlayerRegistration: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
     const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<any>({
         fullName: '', playerType: '', gender: '', mobile: '', dob: '', captcha: ''
     });
     const [profilePic, setProfilePic] = useState<string>('');
@@ -67,7 +67,15 @@ const PlayerRegistration: React.FC = () => {
                 if (docSnap.exists) {
                     const data = docSnap.data() as AuctionSetup;
                     setAuction(data);
-                    if (data.registrationConfig?.isEnabled) setConfig(data.registrationConfig);
+                    if (data.registrationConfig?.isEnabled) {
+                        setConfig(data.registrationConfig);
+                        // Initialize dynamic fields
+                        const dynamicDefaults: any = {};
+                        (data.registrationConfig.customFields || []).forEach(f => {
+                            dynamicDefaults[f.id] = '';
+                        });
+                        setFormData((prev: any) => ({ ...prev, ...dynamicDefaults }));
+                    }
                     else setError("Registration is currently closed.");
                 } else setError("Auction not found.");
                 const roleSnap = await db.collection('auctions').doc(id).collection('roles').get();
@@ -98,7 +106,7 @@ const PlayerRegistration: React.FC = () => {
         if (!isRazorpayLoaded) { alert("Payment system not ready."); setSubmitting(false); return; }
         const options = {
             key: config?.razorpayKey || "rzp_test_YOUR_KEY", 
-            amount: config!.fee * 100, 
+            amount: (config?.fee || 0) * 100, 
             currency: "INR",
             name: auction?.title || "Auction Registration",
             handler: (res: any) => submitToFirebase(res.razorpay_payment_id),
@@ -150,6 +158,7 @@ const PlayerRegistration: React.FC = () => {
                 
                 <form onSubmit={handleSubmit} className="p-10 space-y-8">
                     <div className="space-y-6">
+                        {/* DEFAULT FIELDS */}
                         <div>
                             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Full Legal Name</label>
                             <input required className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} placeholder="As per Identity Document" />
@@ -176,6 +185,51 @@ const PlayerRegistration: React.FC = () => {
                                 ))}
                             </div>
                         </div>
+
+                        {/* CUSTOM FIELDS DYNAMIC RENDERING */}
+                        {(config?.customFields || []).length > 0 && (
+                            <div className="pt-4 border-t border-gray-100 space-y-6">
+                                <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.25em] flex items-center gap-2">
+                                    <AlignLeft className="w-4 h-4"/> Extra Registry Data
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {config?.customFields.map(field => (
+                                        <div key={field.id} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                                                {field.label} {field.required && <span className="text-red-500">*</span>}
+                                            </label>
+                                            
+                                            {field.type === 'select' ? (
+                                                <select 
+                                                    required={field.required}
+                                                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                                                    value={formData[field.id]}
+                                                    onChange={e => setFormData({...formData, [field.id]: e.target.value})}
+                                                >
+                                                    <option value="">Choose Option</option>
+                                                    {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                </select>
+                                            ) : field.type === 'textarea' ? (
+                                                <textarea 
+                                                    required={field.required}
+                                                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all min-h-[100px]"
+                                                    value={formData[field.id]}
+                                                    onChange={e => setFormData({...formData, [field.id]: e.target.value})}
+                                                />
+                                            ) : (
+                                                <input 
+                                                    required={field.required}
+                                                    type={field.type}
+                                                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 font-bold text-gray-700 focus:bg-white focus:border-blue-400 outline-none transition-all"
+                                                    value={formData[field.id]}
+                                                    onChange={e => setFormData({...formData, [field.id]: e.target.value})}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
                             <div>
@@ -219,6 +273,14 @@ const PlayerRegistration: React.FC = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* TERMS SECTION */}
+                    {config?.terms && (
+                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 text-[10px] text-gray-500 leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">
+                            <h4 className="font-black uppercase mb-2 text-gray-700">Protocol Terms & Policy</h4>
+                            {config.terms.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)}
+                        </div>
+                    )}
 
                     <div className="bg-gray-100 p-8 rounded-[2.5rem] border border-gray-200">
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 text-center">Validation Protocol (dej7ym)</label>

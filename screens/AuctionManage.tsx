@@ -10,7 +10,7 @@ import {
     Check as CheckIcon, ShieldCheck, Tag, User, TrendingUp, CreditCard, Shield, 
     UserCheck, UserX, Share2, Download, FileSpreadsheet, Filter, Key, 
     ExternalLink, LayoutList, ToggleRight, ToggleLeft, RefreshCw, FileUp, 
-    Star, UserPlus, Loader2, FileDown, ChevronRight, Zap
+    Star, UserPlus, Loader2, FileDown, ChevronRight, Zap, ListChecks, Type, Hash, ChevronDownCircle
 } from 'lucide-react';
 import firebase from 'firebase/compat/app';
 import * as XLSX from 'xlsx';
@@ -86,6 +86,10 @@ const AuctionManage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
     const qrInputRef = useRef<HTMLInputElement>(null);
+
+    // Custom Field State
+    const [newField, setNewField] = useState<Partial<FormField>>({ label: '', type: 'text', required: true, options: [] });
+    const [optionInput, setOptionInput] = useState('');
 
     useEffect(() => {
         if (!id) return;
@@ -226,18 +230,30 @@ const AuctionManage: React.FC = () => {
 
     const exportRegistrationsToCSV = () => {
         if (registrations.length === 0) return alert("No registrations to export.");
-        const headers = ["Full Name", "Mobile", "DOB", "Gender", "Player Type", "Status", "Submitted At"];
-        const rows = registrations.map(reg => [
-            `"${reg.fullName}"`,
-            `"${reg.mobile}"`,
-            `"${reg.dob}"`,
-            `"${reg.gender}"`,
-            `"${reg.playerType}"`,
-            `"${reg.status}"`,
-            `"${new Date(reg.submittedAt).toLocaleString()}"`
-        ]);
+        
+        // Dynamic headers based on custom fields
+        const customFieldLabels = regConfig.customFields.map(f => f.label);
+        const headers = ["Full Name", "Mobile", "DOB", "Gender", "Player Type", ...customFieldLabels, "Status", "Submitted At"];
+        
+        const rows = registrations.map(reg => {
+            const baseData = [
+                `"${reg.fullName}"`,
+                `"${reg.mobile}"`,
+                `"${reg.dob}"`,
+                `"${reg.gender}"`,
+                `"${reg.playerType}"`
+            ];
+            
+            // Append custom fields data
+            const customData = regConfig.customFields.map(field => {
+                const val = reg[field.id] || '-';
+                return `"${val}"`;
+            });
 
-        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+            return [...baseData, ...customData, `"${reg.status}"`, `"${new Date(reg.submittedAt).toLocaleString()}"`].join(",");
+        });
+
+        const csvContent = [headers.join(","), ...rows].join("\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -254,6 +270,29 @@ const AuctionManage: React.FC = () => {
 
     const removeSlab = (index: number) => {
         setSlabs(slabs.filter((_, i) => i !== index));
+    };
+
+    const addCustomField = () => {
+        if (!newField.label) return;
+        const field: FormField = {
+            id: 'custom_' + Date.now(),
+            label: newField.label,
+            type: newField.type as any,
+            required: !!newField.required,
+            options: newField.options || []
+        };
+        setRegConfig({ ...regConfig, customFields: [...(regConfig.customFields || []), field] });
+        setNewField({ label: '', type: 'text', required: true, options: [] });
+    };
+
+    const removeCustomField = (fid: string) => {
+        setRegConfig({ ...regConfig, customFields: regConfig.customFields.filter(f => f.id !== fid) });
+    };
+
+    const addOptionToField = () => {
+        if (!optionInput.trim()) return;
+        setNewField({ ...newField, options: [...(newField.options || []), optionInput.trim()] });
+        setOptionInput('');
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]"><Loader2 className="animate-spin text-blue-600"/></div>;
@@ -499,6 +538,20 @@ const AuctionManage: React.FC = () => {
 
                             <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <div className="space-y-8">
+                                    {/* Default Fields Display */}
+                                    <div className="bg-gray-50 p-6 rounded-[1.5rem] border border-gray-100">
+                                        <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.25em] mb-4 flex items-center gap-2">
+                                            <ListChecks className="w-4 h-4"/> Standard Protocol Fields
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {['Full Legal Name', 'Mobile Primary', 'Date of Birth', 'Skill Identity (Role)', 'Profile Asset (Photo)', 'Proof of Payment (Conditional)'].map(f => (
+                                                <div key={f} className="flex items-center gap-2 text-[10px] font-bold text-gray-600 uppercase">
+                                                    <CheckCircle className="w-3 h-3 text-green-500" /> {f}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.25em] mb-6 flex items-center gap-2">
                                             <CreditCard className="w-4 h-4"/> Payment Configuration
@@ -593,6 +646,81 @@ const AuctionManage: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-8">
+                                    {/* Custom Fields Management */}
+                                    <div className="bg-white p-6 rounded-[1.5rem] border border-gray-200 shadow-sm">
+                                        <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-6 flex items-center gap-2">
+                                            <ListPlus className="w-4 h-4"/> Custom Form Fields
+                                        </h3>
+                                        <div className="space-y-4 mb-8">
+                                            {(regConfig.customFields || []).map((field, idx) => (
+                                                <div key={field.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="bg-white p-2 rounded-lg text-indigo-600 shadow-sm">
+                                                            {field.type === 'text' ? <Type className="w-4 h-4"/> : field.type === 'number' ? <Hash className="w-4 h-4"/> : <ChevronDownCircle className="w-4 h-4"/>}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black uppercase text-gray-800">{field.label}</p>
+                                                            <p className="text-[8px] font-bold text-gray-400 uppercase">{field.type} • {field.required ? 'Required' : 'Optional'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => removeCustomField(field.id)} className="text-red-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4"/></button>
+                                                </div>
+                                            ))}
+                                            {(!regConfig.customFields || regConfig.customFields.length === 0) && (
+                                                <p className="text-[10px] text-gray-400 italic text-center py-4">No custom fields defined</p>
+                                            )}
+                                        </div>
+
+                                        <div className="p-5 bg-indigo-50/50 rounded-2xl border-2 border-dashed border-indigo-100 space-y-4">
+                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest text-center">Establish New Field Node</p>
+                                            <input 
+                                                className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-xs font-bold outline-none" 
+                                                placeholder="Label (e.g. Father's Name)" 
+                                                value={newField.label}
+                                                onChange={e => setNewField({...newField, label: e.target.value})}
+                                            />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <select 
+                                                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-[10px] font-bold outline-none"
+                                                    value={newField.type}
+                                                    onChange={e => setNewField({...newField, type: e.target.value as any})}
+                                                >
+                                                    <option value="text">Text Input</option>
+                                                    <option value="number">Number Input</option>
+                                                    <option value="select">Dropdown (Select)</option>
+                                                </select>
+                                                <button 
+                                                    onClick={() => setNewField({...newField, required: !newField.required})}
+                                                    className={`px-3 py-2 rounded-lg text-[10px] font-bold uppercase border transition-all ${newField.required ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-400'}`}
+                                                >
+                                                    {newField.required ? 'Required' : 'Optional'}
+                                                </button>
+                                            </div>
+
+                                            {newField.type === 'select' && (
+                                                <div className="space-y-2">
+                                                    <div className="flex gap-2">
+                                                        <input className="flex-1 border rounded-lg px-3 py-2 text-[10px] font-bold" placeholder="Add Option" value={optionInput} onChange={e => setOptionInput(e.target.value)} />
+                                                        <button onClick={addOptionToField} className="bg-indigo-600 text-white px-3 rounded-lg"><Plus className="w-4 h-4"/></button>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {newField.options?.map((o, i) => (
+                                                            <span key={i} className="bg-white px-2 py-1 rounded text-[8px] font-black text-indigo-600 border border-indigo-100 flex items-center gap-1">{o} <X className="w-2 h-2 cursor-pointer" onClick={() => setNewField({...newField, options: newField.options?.filter((_, idx) => idx !== i)})} /></span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <button 
+                                                onClick={addCustomField}
+                                                disabled={!newField.label}
+                                                className="w-full bg-white hover:bg-indigo-600 hover:text-white text-indigo-600 border border-indigo-200 font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-50"
+                                            >
+                                                <Plus className="w-3 h-3 inline mr-1" /> Add Field Node
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.25em] mb-6 flex items-center gap-2">
                                             <AlignLeft className="w-4 h-4"/> Terms & Legal Identity
@@ -610,7 +738,7 @@ const AuctionManage: React.FC = () => {
                                             <span className="text-[10px] font-black uppercase tracking-widest">Protocol Tip</span>
                                         </div>
                                         <p className="text-[10px] font-bold text-slate-400 leading-relaxed uppercase tracking-wide">
-                                            Once you deploy, the public link is active. You can find it in your **Dashboard** main list.
+                                            Standard protocol fields are mandatory. Use custom fields for tournament-specific data like T-Shirt size or Father's Name.
                                         </p>
                                     </div>
                                 </div>
