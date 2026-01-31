@@ -40,8 +40,8 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
         >
             {getStatusBadge(auction.status)}
             <div className="flex justify-between items-start mb-2 mt-2">
-                <h3 className="text-xl font-black text-white uppercase tracking-tight">{auction.title}</h3>
-                <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white/10 hover:bg-highlight hover:text-primary text-white text-[10px] font-black uppercase px-3 py-1.5 rounded transition-colors">Terminal</button>
+                <h3 className="text-xl font-bold text-white uppercase tracking-tight">{auction.title}</h3>
+                <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white/10 hover:bg-highlight hover:text-primary text-white text-[10px] font-bold uppercase px-3 py-1.5 rounded transition-colors">Enter Room</button>
             </div>
             <div className="text-text-secondary text-sm mb-4 flex items-center gap-2 font-medium">
                 {(isRegOpen && isPublicReg) ? <span className="text-green-400 font-bold text-[9px] uppercase border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded tracking-widest">Reg Open</span> : (isRegOpen && !isPublicReg) ? <span className="text-blue-400 font-bold text-[9px] uppercase border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 rounded tracking-widest">Private</span> : <span className="text-gray-500 font-bold text-[9px] uppercase border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 rounded tracking-widest">Closed</span>}
@@ -51,7 +51,7 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
             <div className="mt-auto pt-4 border-t border-gray-700/50 flex justify-between items-center text-[10px] font-bold text-text-secondary uppercase tracking-widest">
                 <span>Starts: {auction.date || 'TBA'}</span>
                 <div className="flex gap-2">
-                    {isRegOpen && isPublicReg && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:text-white transition-colors">Join League</button>}
+                    {isRegOpen && isPublicReg && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:text-white transition-colors">Join Now</button>}
                 </div>
             </div>
         </div>
@@ -66,11 +66,11 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const PLANS = [
-      { name: 'Starter Free', price: 0, teams: 2, badge: 'Standard' },
-      { name: 'Silver Pro', price: 3000, teams: 4, badge: 'Professional' },
+      { name: 'Starter Free', price: 0, teams: 2, badge: 'Basic' },
+      { name: 'Silver Pro', price: 3000, teams: 4, badge: 'Pro' },
       { name: 'Gold Elite', price: 4000, teams: 6, badge: 'Premium' },
-      { name: 'Diamond Master', price: 5000, teams: 10, badge: 'Elite' },
-      { name: 'Platinum Ultimate', price: 6000, teams: 15, badge: 'Master' },
+      { name: 'Diamond Master', price: 5000, teams: 10, badge: 'Popular' },
+      { name: 'Platinum Ultimate', price: 6000, teams: 15, badge: 'Expert' },
   ];
 
   useEffect(() => {
@@ -89,8 +89,8 @@ const LandingPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
       const s = (status || '').toUpperCase();
-      if (s === 'IN_PROGRESS' || s === 'LIVE') return <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black tracking-[0.2em] px-3 py-1 animate-pulse z-10">LIVE PROTOCOL</div>;
-      if (s === 'NOT_STARTED') return <div className="absolute top-0 right-0 bg-green-600 text-white text-[8px] font-black tracking-[0.2em] px-3 py-1 z-10">UPCOMING</div>;
+      if (s === 'IN_PROGRESS' || s === 'LIVE') return <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-bold tracking-[0.2em] px-3 py-1 animate-pulse z-10">LIVE NOW</div>;
+      if (s === 'NOT_STARTED') return <div className="absolute top-0 right-0 bg-green-600 text-white text-[8px] font-bold tracking-[0.2em] px-3 py-1 z-10">UPCOMING</div>;
       return null;
   };
 
@@ -104,7 +104,7 @@ const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-primary flex flex-col font-sans relative overflow-x-hidden">
       
-      {/* Dynamic Background Elements */}
+      {/* Background Decorative Elements */}
       <div className="fixed inset-0 pointer-events-none z-0">
           <div className="absolute top-[20%] left-[5%] animate-float opacity-10">
               <CricketBallIcon className="w-16 h-16 text-red-500" />
@@ -130,9 +130,9 @@ const LandingPage: React.FC = () => {
             <span className="text-xl font-bold text-white tracking-wider hidden sm:inline uppercase">SM SPORTS</span>
           </div>
           <div className="flex items-center gap-4 md:gap-8">
-            <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-black uppercase tracking-widest hidden md:block">Pricing</button>
-            <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-black uppercase tracking-widest hidden md:block">Policies</button>
-            <Link to="/auth" className="bg-highlight hover:bg-teal-400 text-primary font-black py-2 px-6 rounded-xl transition-all shadow-lg shadow-highlight/20 text-[11px] uppercase tracking-[0.2em]">Launch OS</Link>
+            <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-bold uppercase tracking-widest hidden md:block">Pricing</button>
+            <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-bold uppercase tracking-widest hidden md:block">Rules</button>
+            <Link to="/auth" className="bg-highlight hover:bg-teal-400 text-primary font-bold py-2 px-6 rounded-xl transition-all shadow-lg shadow-highlight/20 text-[11px] uppercase tracking-[0.2em]">Login</Link>
           </div>
         </div>
       </nav>
@@ -146,20 +146,20 @@ const LandingPage: React.FC = () => {
         </div>
 
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="reveal-element inline-block mb-6 px-4 py-1.5 rounded-full bg-accent/30 border border-highlight/30 text-highlight text-[10px] font-black tracking-[0.3em] uppercase">The Digital Pitch is Ready</div>
+          <div className="reveal-element inline-block mb-6 px-4 py-1.5 rounded-full bg-accent/30 border border-highlight/30 text-highlight text-[10px] font-bold tracking-[0.3em] uppercase">Start Your Own Tournament</div>
           <h1 className="reveal-element text-5xl md:text-8xl font-black text-white mb-8 tracking-tighter leading-none" style={{ transitionDelay: '200ms' }}>
-            YOUR AUCTION <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-100 italic">TRANSMITTED LIVE</span>
+            MANAGE YOUR <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-100 italic">AUCTION LIVE</span>
           </h1>
           <p className="reveal-element text-lg text-text-secondary max-w-2xl mx-auto mb-12 leading-relaxed font-medium" style={{ transitionDelay: '400ms' }}>
-            Professional-grade cricket auction management with real-time budgets, OBS integration, and automated player registration protocols.
+            The professional way to organize cricket auctions. Manage team budgets, buy players in real-time, and show results on big screens.
           </p>
           <div className="reveal-element flex flex-col sm:flex-row justify-center gap-5" style={{ transitionDelay: '600ms' }}>
-            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-black py-5 px-10 rounded-2xl hover:bg-highlight hover:text-white transition-all shadow-2xl group text-xs uppercase tracking-widest">
-                <Play className="w-4 h-4 mr-3 fill-current group-hover:scale-125 transition-transform" /> Initialize Event
+            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-5 px-10 rounded-2xl hover:bg-highlight hover:text-white transition-all shadow-2xl group text-xs uppercase tracking-widest">
+                <Play className="w-4 h-4 mr-3 fill-current group-hover:scale-125 transition-transform" /> Create Auction
             </Link>
-            <button onClick={() => scrollToSection('pricing')} className="flex items-center justify-center bg-secondary border border-accent text-white font-black py-5 px-10 rounded-2xl hover:bg-accent transition-all shadow-xl text-xs uppercase tracking-widest">
-                Explore Protocols
+            <button onClick={() => scrollToSection('pricing')} className="flex items-center justify-center bg-secondary border border-accent text-white font-bold py-5 px-10 rounded-2xl hover:bg-accent transition-all shadow-xl text-xs uppercase tracking-widest">
+                View Plans
             </button>
           </div>
         </div>
@@ -170,13 +170,13 @@ const LandingPage: React.FC = () => {
         <div className="container mx-auto px-6">
           <div className="reveal-element flex items-center justify-between mb-16 border-l-4 border-highlight pl-8">
             <div>
-              <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Match Registry</h2>
-              <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mt-2">Active Tournament Instances</p>
+              <h2 className="text-4xl font-bold text-white uppercase tracking-tighter">Match Center</h2>
+              <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mt-2">Active and Finished Tournaments</p>
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div className="flex flex-col gap-6">
-               <h4 className="reveal-element text-[10px] font-black text-highlight uppercase tracking-[0.4em] flex items-center mb-2"><Calendar className="w-4 h-4 mr-3" /> Live & Upcoming Transmission</h4>
+               <h4 className="reveal-element text-[10px] font-bold text-highlight uppercase tracking-[0.4em] flex items-center mb-2"><Calendar className="w-4 h-4 mr-3" /> Live & Upcoming</h4>
                {loading ? (
                  <div className="space-y-4">
                     {[1,2].map(i => <div key={i} className="h-32 bg-secondary animate-pulse rounded-xl border border-accent/20"></div>)}
@@ -186,11 +186,11 @@ const LandingPage: React.FC = () => {
                        <AuctionCard key={auction.id} auction={auction} navigate={navigate} getStatusBadge={getStatusBadge} index={idx} />
                    ))
                ) : (
-                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-black uppercase tracking-widest opacity-50">No active events in transmission</div>
+                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-bold uppercase tracking-widest opacity-50">No auctions scheduled right now</div>
                )}
             </div>
             <div className="flex flex-col gap-6">
-               <h4 className="reveal-element text-[10px] font-black text-text-secondary uppercase tracking-[0.4em] flex items-center mb-2"><History className="w-4 h-4 mr-3" /> Historical Archive</h4>
+               <h4 className="reveal-element text-[10px] font-bold text-text-secondary uppercase tracking-[0.4em] flex items-center mb-2"><History className="w-4 h-4 mr-3" /> Past Results</h4>
                {loading ? (
                  <div className="space-y-4">
                     {[1,2].map(i => <div key={i} className="h-32 bg-secondary animate-pulse rounded-xl border border-accent/10 opacity-30"></div>)}
@@ -202,16 +202,16 @@ const LandingPage: React.FC = () => {
                         className="bg-secondary border border-accent rounded-xl p-6 opacity-60 hover:opacity-100 transition-all group shadow-md reveal-element"
                         style={{ transitionDelay: `${(idx % 4) * 150}ms` }}
                     >
-                        <h3 className="text-lg font-black text-white mb-2 uppercase tracking-tight">{auction.title}</h3>
-                        <p className="text-text-secondary text-[10px] font-bold uppercase tracking-widest mb-4">Transmission Ended • {auction.date}</p>
-                        <div className="mt-auto pt-4 border-t border-gray-700/50 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                        <h3 className="text-lg font-bold text-white mb-2 uppercase tracking-tight">{auction.title}</h3>
+                        <p className="text-text-secondary text-[10px] font-bold uppercase tracking-widest mb-4">Completed on {auction.date}</p>
+                        <div className="mt-auto pt-4 border-t border-gray-700/50 flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
                             <span className="bg-accent/50 px-2 py-1 rounded text-gray-400">{auction.sport}</span>
-                            <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-green-400 hover:text-white transition-colors flex items-center gap-2">Protocol Logs <ChevronRight className="w-3 h-3"/></button>
+                            <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-green-400 hover:text-white transition-colors flex items-center gap-2">View Stats <ChevronRight className="w-3 h-3"/></button>
                         </div>
                     </div>
                    ))
                ) : (
-                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-black uppercase tracking-widest opacity-50">Archive directory empty</div>
+                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-bold uppercase tracking-widest opacity-50">No past matches found</div>
                )}
             </div>
           </div>
@@ -223,8 +223,8 @@ const LandingPage: React.FC = () => {
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-highlight/5 rounded-full blur-[150px] -mr-64 -mt-64"></div>
           <div className="container mx-auto px-6 relative z-10 text-center">
               <div className="reveal-element max-w-2xl mx-auto mb-20">
-                  <h2 className="text-5xl md:text-7xl font-black text-white mb-6 uppercase tracking-tighter">SELECT YOUR TIER</h2>
-                  <p className="text-text-secondary font-medium tracking-wide">Standardized operational protocols for tournaments of every magnitude.</p>
+                  <h2 className="text-5xl md:text-7xl font-bold text-white mb-6 uppercase tracking-tighter">SELECT YOUR PLAN</h2>
+                  <p className="text-text-secondary font-medium tracking-wide">Choose the best plan for your tournament size.</p>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-24">
@@ -235,24 +235,24 @@ const LandingPage: React.FC = () => {
                         style={{ transitionDelay: `${i * 150}ms` }}
                       >
                           {plan.price === 5000 && <div className="absolute top-6 right-8"><Zap className="w-6 h-6 text-highlight fill-current animate-pulse"/></div>}
-                          <div className="text-highlight text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-left">{plan.badge} Protocol</div>
-                          <h3 className="text-3xl font-black text-white mb-10 text-left uppercase tracking-tight">{plan.name}</h3>
+                          <div className="text-highlight text-[10px] font-bold uppercase tracking-[0.3em] mb-4 text-left">{plan.badge} Package</div>
+                          <h3 className="text-3xl font-bold text-white mb-10 text-left uppercase tracking-tight">{plan.name}</h3>
                           <div className="flex items-baseline mb-12 border-b border-white/5 pb-8">
-                              <span className="text-5xl font-black text-white">₹{plan.price}</span>
-                              <span className="text-[10px] text-gray-500 font-black ml-2 uppercase tracking-widest">/ instance</span>
+                              <span className="text-5xl font-bold text-white">₹{plan.price}</span>
+                              <span className="text-[10px] text-gray-500 font-bold ml-2 uppercase tracking-widest">/ per auction</span>
                           </div>
                           <div className="space-y-5 mb-12 flex-grow text-left">
                               <div className="flex items-center gap-4 text-sm text-gray-300 font-bold uppercase tracking-widest">
                                   <Users className="w-5 h-5 text-highlight"/>
-                                  Capacity: {plan.teams} Teams
+                                  Total Teams: {plan.teams}
                               </div>
                               <div className="flex items-center gap-4 text-xs text-gray-500 font-bold uppercase tracking-widest">
                                   <CheckCircle className="w-4 h-4 text-green-500"/>
-                                  {plan.price === 0 ? 'Standard Interface' : 'Full Command Suite'}
+                                  {plan.price === 0 ? 'Standard Features' : 'All Pro Features'}
                               </div>
                           </div>
-                          <Link to="/auth?tab=admin&mode=register" className={`w-full py-5 rounded-2xl text-center text-[10px] font-black uppercase tracking-[0.2em] transition-all ${plan.price === 5000 ? 'bg-highlight text-primary hover:bg-white shadow-xl' : 'bg-accent/40 text-white hover:bg-accent'}`}>
-                              Deploy License
+                          <Link to="/auth?tab=admin&mode=register" className={`w-full py-5 rounded-2xl text-center text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${plan.price === 5000 ? 'bg-highlight text-primary hover:bg-white shadow-xl' : 'bg-accent/40 text-white hover:bg-accent'}`}>
+                              Get Started
                           </Link>
                       </div>
                   ))}
@@ -261,12 +261,12 @@ const LandingPage: React.FC = () => {
                     className="bg-gradient-to-br from-secondary to-black border border-accent rounded-[2.5rem] p-10 flex flex-col hover:border-highlight transition-all shadow-2xl reveal-element"
                     style={{ transitionDelay: '600ms' }}
                   >
-                      <div className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-left">Enterprise Protocol</div>
-                      <h3 className="text-3xl font-black text-white mb-10 text-left uppercase tracking-tight">MEGALEAGUE</h3>
-                      <div className="text-2xl font-black text-white mb-12 h-[61px] flex items-center">Secure Custom Quote</div>
-                      <p className="text-[11px] text-gray-500 font-bold mb-12 flex-grow leading-relaxed uppercase tracking-widest text-left">Unlimited teams, dedicated field support, and custom broadcast overlays for large scale federations.</p>
-                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="w-full bg-white text-primary font-black py-5 rounded-2xl text-[10px] uppercase tracking-[0.2em] hover:bg-highlight hover:text-white transition-all">
-                          Contact Staff
+                      <div className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.3em] mb-4 text-left">Corporate</div>
+                      <h3 className="text-3xl font-bold text-white mb-10 text-left uppercase tracking-tight">Custom Plan</h3>
+                      <div className="text-2xl font-bold text-white mb-12 h-[61px] flex items-center">Contact Us</div>
+                      <p className="text-[11px] text-gray-500 font-bold mb-12 flex-grow leading-relaxed uppercase tracking-widest text-left">For very large leagues, custom branding, and onsite support from our team.</p>
+                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="w-full bg-white text-primary font-bold py-5 rounded-2xl text-[10px] uppercase tracking-[0.2em] hover:bg-highlight hover:text-white transition-all">
+                          Email Support
                       </button>
                   </div>
               </div>
@@ -277,20 +277,20 @@ const LandingPage: React.FC = () => {
                       <Star className="w-64 h-64 text-highlight" />
                   </div>
                   <div className="max-w-4xl mx-auto relative z-10">
-                      <h3 className="text-3xl md:text-5xl font-black text-white mb-16 border-l-8 border-highlight pl-10 text-left uppercase tracking-tighter reveal-element">AUTHORIZED <br/> COMMAND FEATURES</h3>
+                      <h3 className="text-3xl md:text-5xl font-bold text-white mb-16 border-l-8 border-highlight pl-10 text-left uppercase tracking-tighter reveal-element">WHAT YOU GET <br/> IN PAID PLANS</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 text-left">
                           {[
-                              { icon: <UserPlus className="w-6 h-6"/>, title: "Automated Enrollment", desc: "Public player registration portals with verified payment protocols." },
-                              { icon: <Layout className="w-6 h-6"/>, title: "Spectator Hub", desc: "Dedicated web interfaces for team owners and live audiences." },
-                              { icon: <Zap className="w-6 h-6"/>, title: "Logic Engine", desc: "Real-time budget tracking and automated squad verification." },
-                              { icon: <MessageSquare className="w-6 h-6"/>, title: "Broadcast Sync", desc: "Automated WhatsApp status updates and match logs for participants." },
-                              { icon: <Monitor className="w-6 h-6"/>, title: "Stadium Views", desc: "Ultra-low latency projector views and live bidding visualizers." },
-                              { icon: <Youtube className="w-6 h-6"/>, title: "OBS Integration", desc: "Professional stream overlays with dynamic player cards for OBS." }
+                              { icon: <UserPlus className="w-6 h-6"/>, title: "Player Signup", desc: "Players can register online and upload their photos easily." },
+                              { icon: <Layout className="w-6 h-6"/>, title: "Live Updates", desc: "Everyone can see the bidding happen live on their phones." },
+                              { icon: <Zap className="w-6 h-6"/>, title: "Auto Math", desc: "The system automatically tracks team money and squad counts." },
+                              { icon: <MessageSquare className="w-6 h-6"/>, title: "Phone Alerts", desc: "Automated WhatsApp updates for players and team owners." },
+                              { icon: <Monitor className="w-6 h-6"/>, title: "Big Screens", desc: "Beautiful views for LED walls, projectors, and live TV." },
+                              { icon: <Youtube className="w-6 h-6"/>, title: "Live Streaming", desc: "Professional scorecards for your YouTube or Facebook live." }
                           ].map((feat, idx) => (
                               <div key={idx} className="flex gap-6 group reveal-element" style={{ transitionDelay: `${idx * 100}ms` }}>
                                   <div className="bg-highlight/10 p-4 rounded-2xl h-fit text-highlight border border-highlight/20 group-hover:bg-highlight group-hover:text-primary transition-all">{feat.icon}</div>
                                   <div>
-                                      <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">{feat.title}</h4>
+                                      <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-2">{feat.title}</h4>
                                       <p className="text-[10px] text-text-secondary leading-relaxed font-bold uppercase opacity-60">{feat.desc}</p>
                                   </div>
                               </div>
@@ -300,9 +300,9 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="mt-24 text-center">
-                  <p className="text-text-secondary font-black text-[10px] uppercase tracking-[0.5em] mb-10 reveal-element">Transmission Authority verified</p>
-                  <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white hover:bg-highlight text-primary hover:text-white font-black px-16 py-5 rounded-2xl shadow-2xl transition-all active:scale-95 uppercase tracking-[0.2em] text-xs reveal-element">
-                      Consult Protocol Officer
+                  <p className="text-text-secondary font-bold text-[10px] uppercase tracking-[0.5em] mb-10 reveal-element">Conduct your auction professionally</p>
+                  <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white hover:bg-highlight text-primary hover:text-white font-bold px-16 py-5 rounded-2xl shadow-2xl transition-all active:scale-95 uppercase tracking-[0.2em] text-xs reveal-element">
+                      Talk to Our Team
                   </button>
               </div>
           </div>
@@ -318,26 +318,26 @@ const LandingPage: React.FC = () => {
                   <div className="md:w-1/3 reveal-element">
                       <div className="flex items-center gap-4 mb-8">
                           <div className="bg-highlight/10 p-3 rounded-xl border border-highlight/20"><Scale className="w-8 h-8 text-highlight"/></div>
-                          <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-none">Security <br/> Protocols</h2>
+                          <h2 className="text-4xl font-bold text-white uppercase tracking-tighter leading-none">Rules & <br/> Policies</h2>
                       </div>
                       <p className="text-text-secondary text-sm leading-relaxed mb-10 font-medium italic opacity-70">
-                          Ensuring technical integrity and operational compliance across all digital tournament environments.
+                          Simple guidelines to ensure a fair and secure auction for everyone.
                       </p>
                       <div className="space-y-5">
-                          <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest"><ShieldCheck className="w-5 h-5 text-green-500"/> Secured Cloud Infrastructure v4</div>
-                          <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FileText className="w-5 h-5 text-blue-500"/> Privacy Shield Authorized</div>
+                          <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest"><ShieldCheck className="w-5 h-5 text-green-500"/> Secured Cloud Storage</div>
+                          <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest"><FileText className="w-5 h-5 text-blue-500"/> Data Privacy Guaranteed</div>
                       </div>
                   </div>
                   
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-12">
                       {[
-                        { title: "Operational Responsibility", desc: "Event leads are authorized to manage their local instances. SM SPORTS provides the OS and hardware bridges but does not regulate independent financial contracts." },
-                        { title: "Data Retention", desc: "System telemetry and player profiles are encrypted. Registry data is archived strictly for administrative verification and historical match logging." },
-                        { title: "Refund Protocol", desc: "License deployments are final once instance transmission begins. Operational credits may be issued for system-side interruptions only." },
-                        { title: "Content Authority", desc: "Administrator accounts must verify that all tournament assets (logos, photos) comply with the Standard Integrity Guidelines." }
+                        { title: "Organizer Rules", desc: "Organizers are responsible for managing their own auctions. SM SPORTS provides the software only and does not handle payments between teams and players." },
+                        { title: "Privacy Policy", desc: "Your player data and contact details are safe with us. We do not share your tournament info with any third-party marketing agencies." },
+                        { title: "Refund Policy", desc: "Payments for plan upgrades are final. If you face any software issues, we will provide extra credits for your next tournament." },
+                        { title: "Content Guidelines", desc: "Please ensure tournament names and player photos are appropriate. We reserve the right to remove any illegal or offensive content." }
                       ].map((policy, idx) => (
                         <div key={idx} className="space-y-5 reveal-element" style={{ transitionDelay: `${idx * 150}ms` }}>
-                            <h4 className="text-highlight font-black text-[10px] uppercase tracking-[0.3em]">{policy.title}</h4>
+                            <h4 className="text-highlight font-bold text-[10px] uppercase tracking-[0.3em]">{policy.title}</h4>
                             <p className="text-text-secondary text-xs leading-relaxed font-bold uppercase opacity-60">{policy.desc}</p>
                         </div>
                       ))}
@@ -350,38 +350,38 @@ const LandingPage: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10">
            <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
               {[
-                { icon: <Users />, title: "Command Center", desc: "Remote team management and budget synchronization terminals." },
-                { icon: <Trophy />, title: "Live Transmission", desc: "Instant visual reflection of all bidding activity across the OS." },
-                { icon: <ShieldCheck />, title: "Root Control", desc: "Master override authority for auctioneers and field stewards." },
-                { icon: <Monitor />, title: "Broadcast Engine", desc: "Industrial-grade stream overlays for professional broadcasting." }
+                { icon: <Users />, title: "Team Owners", desc: "Owners can login to manage their squads and see their remaining budget." },
+                { icon: <Trophy />, title: "Live Results", desc: "Bidding updates happen instantly so everyone stays informed." },
+                { icon: <ShieldCheck />, title: "Admin Panel", desc: "Total control for the auctioneer to manage players and bidding." },
+                { icon: <Monitor />, title: "Big Displays", desc: "Professional screen designs for your LED walls and live streams." }
               ].map((item, idx) => (
                 <div key={idx} className="reveal-element" style={{ transitionDelay: `${idx * 150}ms` }}>
                     <div className="bg-accent/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-highlight border border-white/5">{item.icon}</div>
-                    <h4 className="text-white font-black text-xs uppercase tracking-widest mb-4">{item.title}</h4>
+                    <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-4">{item.title}</h4>
                     <p className="text-text-secondary text-[11px] font-bold uppercase opacity-60 leading-relaxed">{item.desc}</p>
                 </div>
               ))}
            </div>
            
            <div className="border-t border-gray-800 pt-12 flex flex-col lg:flex-row justify-between items-center gap-10">
-               <div className="text-gray-500 text-[11px] font-black uppercase tracking-[0.2em] reveal-element">&copy; 2025 SM SPORTS. All digital assets protected.</div>
+               <div className="text-gray-500 text-[11px] font-bold uppercase tracking-[0.2em] reveal-element">&copy; 2025 SM SPORTS. All rights reserved.</div>
                <div className="flex flex-wrap justify-center gap-8 reveal-element">
-                   <Link to="/guide" className="text-highlight hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors">
-                       <BookOpen className="w-4 h-4"/> Field Guide
+                   <Link to="/guide" className="text-highlight hover:text-white text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-colors">
+                       <BookOpen className="w-4 h-4"/> User Manual
                    </Link>
-                   <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Licensing</button>
-                   <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Integrity</button>
-                   <Link to="/stafflogin" className="text-gray-600 hover:text-blue-400 text-[10px] font-black uppercase tracking-widest transition-colors">Staff Entrance</Link>
+                   <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors">Plans</button>
+                   <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors">Policies</button>
+                   <Link to="/auth" className="text-gray-600 hover:text-blue-400 text-[10px] font-bold uppercase tracking-widest transition-colors">Admin Login</Link>
                </div>
            </div>
         </div>
       </footer>
 
-      {/* Owner Attribution Highlighting */}
+      {/* Owner Attribution */}
       <div className="bg-highlight/10 py-8 border-t border-highlight/20 text-center relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-highlight/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
-          <p className="text-text-secondary text-[10px] font-black uppercase tracking-[0.6em] relative z-10 reveal-element">
-              System Architecture by <span className="text-highlight font-black border-b-2 border-highlight/30 pb-0.5 group-hover:border-highlight transition-colors">Zabiulla Khan</span>
+          <p className="text-text-secondary text-[10px] font-bold uppercase tracking-[0.6em] relative z-10 reveal-element">
+              Developed by <span className="text-highlight font-bold border-b-2 border-highlight/30 pb-0.5 group-hover:border-highlight transition-colors">Zabiulla Khan</span>
           </p>
       </div>
 
