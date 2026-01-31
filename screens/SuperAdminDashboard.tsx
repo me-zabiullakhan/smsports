@@ -10,7 +10,7 @@ import {
     Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, 
     Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, 
     Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon, 
-    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key, Filter, ChevronDown, UserX
+    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key, Filter, ChevronDown, UserX, Monitor
 } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
@@ -40,9 +40,9 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 const SuperAdminDashboard: React.FC = () => {
-    const { state, logout } = useAuction();
+    const { state, logout, joinAuction } = useAuction();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'REGISTRY' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'REGISTRY' | 'AUCTIONS' | 'PLANS' | 'PROMOS' | 'ALERTS' | 'BROADCAST' | 'DATABASE' | 'GRAPHICS'>('OVERVIEW');
     const [auctions, setAuctions] = useState<AuctionSetup[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -57,9 +57,11 @@ const SuperAdminDashboard: React.FC = () => {
         supportStaffCount: 0
     });
 
+    // Fix: Added missing totalGB definition to be used on lines 471 and 856
+    const totalGB = (stats.totalDocsEstimate * 0.00002).toFixed(2);
+
     const [logoPreview, setLogoPreview] = useState(state.systemLogoUrl || '');
     const logoInputRef = useRef<HTMLInputElement>(null);
-    const [savingLogo, setSavingLogo] = useState(false);
 
     // Common States
     const [isProcessing, setIsProcessing] = useState(false);
@@ -71,6 +73,10 @@ const SuperAdminDashboard: React.FC = () => {
     const [userForm, setUserForm] = useState({ email: '', name: '', password: '', role: UserRole.SUPPORT });
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState({ email: '', name: '', password: '', role: UserRole.VIEWER });
+
+    // Auction Management (Metadata Editing)
+    const [editingAuctionId, setEditingAuctionId] = useState<string | null>(null);
+    const [auctionEditForm, setAuctionEditForm] = useState<Partial<AuctionSetup>>({});
 
     // Plans Management
     const [dbPlans, setDbPlans] = useState<any[]>([]);
@@ -111,19 +117,27 @@ const SuperAdminDashboard: React.FC = () => {
 
     useEffect(() => {
         setLoading(true);
-        // Auctions Listener
+        // Auctions Listener (All system auctions)
         const unsubscribe = db.collection('auctions').onSnapshot(async (snapshot) => {
             const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
             data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             setAuctions(data);
-            const uniqueOwners = new Set(data.map(a => a.createdBy).filter(Boolean));
-            const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT' || (a.status as any) === 'IN_PROGRESS').length;
             
+            const uniqueOwners = new Set(data.map(a => a.createdBy).filter(Boolean));
+            const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT' || (a.status as any) === 'IN_PROGRESS' || (a.status as any) === 'LIVE').length;
+            
+            setStats(prev => ({ 
+                ...prev,
+                totalAuctions: data.length, 
+                activeAuctions: activeCount, 
+                totalAccounts: uniqueOwners.size
+            }));
+
+            // Deep stats fetch once on load
             const matchesSnap = await db.collection('matches').get();
             const playersSnap = await db.collectionGroup('players').get();
             const teamsSnap = await db.collectionGroup('teams').get();
             const staffSnap = await db.collection('users').where('role', '==', UserRole.SUPPORT).get();
-
             const docCount = snapshot.size + matchesSnap.size + playersSnap.size + teamsSnap.size;
 
             setStats({ 
@@ -238,7 +252,32 @@ const SuperAdminDashboard: React.FC = () => {
         });
     };
 
-    // 1. Subscription Plan Handlers
+    // 1. Auction Handlers
+    const handleSaveAuctionMetadata = async () => {
+        if (!editingAuctionId) return;
+        setIsProcessing(true);
+        try {
+            await db.collection('auctions').doc(editingAuctionId).update(auctionEditForm);
+            setEditingAuctionId(null);
+            alert("Auction Metadata Patched!");
+        } catch (err: any) { alert("Patch Failed: " + err.message); }
+        setIsProcessing(false);
+    };
+
+    const handleDeleteAuction = async (id: string, title: string) => {
+        if (window.confirm(`PERMANENT DELETION: Purge entire record for "${title}"? All teams, players and logs will be deleted.`)) {
+            await db.collection('auctions').doc(id).delete();
+        }
+    };
+
+    const handleRemoteAssist = (auctionId: string) => {
+        if (window.confirm("Entering Remote Assist Mode. You will be redirected to this auction's management terminal. Proceed?")) {
+            joinAuction(auctionId);
+            navigate(`/auction/${auctionId}`);
+        }
+    };
+
+    // 2. Subscription Plan Handlers
     const handleSavePlan = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!planForm.name) return;
@@ -268,14 +307,19 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // Filters for Registry
+    // Filters for Registry & Auctions
     const filteredRegistry = userRegistry.filter(u => {
         const matchesRole = registryFilter === 'ALL' || u.role === registryFilter;
         const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) || (u.name || '').toLowerCase().includes(searchTerm.toLowerCase());
         return matchesRole && matchesSearch;
     });
 
-    // 2. Promo Handlers
+    const filteredAuctions = auctions.filter(a => {
+        const term = searchTerm.toLowerCase();
+        return a.title.toLowerCase().includes(term) || a.id?.toLowerCase().includes(term) || a.createdBy?.toLowerCase().includes(term);
+    });
+
+    // 3. Promo Handlers
     const handleSavePromo = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -295,7 +339,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 3. Popup Handlers
+    // 4. Popup Handlers
     const handleSavePopup = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -320,7 +364,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 4. Database Handlers
+    // 5. Database Handlers
     const handleSaveGlobalRetention = async () => {
         setSavingRetention(true);
         try {
@@ -330,7 +374,7 @@ const SuperAdminDashboard: React.FC = () => {
         setSavingRetention(false);
     };
 
-    // 5. Graphics Handlers
+    // 6. Graphics Handlers
     const handleSaveAsset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!assetPreview || !assetForm.name) return;
@@ -356,7 +400,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 6. Broadcast Handlers
+    // 7. Broadcast Handlers
     const handleSaveBroadcast = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -367,9 +411,6 @@ const SuperAdminDashboard: React.FC = () => {
         } catch (e: any) { alert("Fail: " + e.message); }
         setIsProcessing(false);
     };
-
-    // Estimate GB Usage (Approx 2KB per doc + index overhead)
-    const totalGB = (stats.totalDocsEstimate * 0.0000019).toFixed(4);
 
     return (
         <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500 selection:text-white">
@@ -387,11 +428,12 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="flex bg-zinc-900 rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar">
                         {[
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
-                            {id: 'REGISTRY', label: 'Registry', icon: <Users className="w-4 h-4"/>},
+                            {id: 'REGISTRY', label: 'Users', icon: <Users className="w-4 h-4"/>},
+                            {id: 'AUCTIONS', label: 'Auctions', icon: <Gavel className="w-4 h-4"/>},
                             {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>},
                             {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
                             {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
-                            {id: 'BROADCAST', label: 'Broadcast', icon: <Newspaper className="w-4 h-4"/>},
+                            {id: 'BROADCAST', label: 'Ticker', icon: <Newspaper className="w-4 h-4"/>},
                             {id: 'DATABASE', label: 'Database', icon: <HardDrive className="w-4 h-4"/>},
                             {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>},
                         ].map(t => (
@@ -405,67 +447,154 @@ const SuperAdminDashboard: React.FC = () => {
                         ))}
                     </div>
                     <button onClick={logout} className="bg-zinc-900 hover:bg-red-600 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center transition-all">
-                        <LogOut className="w-4 h-4 mr-2"/> Termination
+                        <LogOut className="w-4 h-4 mr-2"/> Exit
                     </button>
                 </div>
             </nav>
 
             <main className="container mx-auto px-6 py-10 max-w-7xl">
                 
+                {/* Search Bar (Adaptable for Registry & Auctions) */}
+                {(activeTab === 'REGISTRY' || activeTab === 'AUCTIONS') && (
+                    <div className="mb-8 relative animate-fade-in">
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
+                        <input 
+                            placeholder={activeTab === 'REGISTRY' ? "SEARCH USERS BY EMAIL OR NAME..." : "SEARCH AUCTIONS BY TITLE, ID OR OWNER UID..."}
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-[2rem] py-6 pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all shadow-xl"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                )}
+
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-10">
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="relative group">
-                                    <div className="w-48 h-48 rounded-3xl bg-black border-4 border-zinc-800 p-4 shadow-[0_0_40px_rgba(0,0,0,0.5)] flex items-center justify-center overflow-hidden relative">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
-                                        {logoPreview ? (
-                                            <img src={logoPreview} className="max-w-full max-h-full object-contain relative z-10" />
-                                        ) : (
-                                            <ImageIcon className="w-16 h-16 text-zinc-700" />
-                                        )}
-                                    </div>
-                                    <button 
-                                        onClick={() => logoInputRef.current?.click()}
-                                        className="absolute -bottom-4 -right-4 bg-red-600 hover:bg-red-50 p-4 rounded-2xl shadow-xl transition-all"
-                                    >
-                                        <Upload className="w-6 h-6" />
-                                    </button>
-                                    <input ref={logoInputRef} type="file" className="hidden" accept="image/*" onChange={async (e) => {
-                                        if (e.target.files?.[0]) setLogoPreview(await compressImage(e.target.files[0]));
-                                    }} />
-                                </div>
-                                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">System Logo</p>
-                            </div>
-                            <div className="flex-1 text-center md:text-left">
-                                <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Master Branding</h2>
-                                <p className="text-zinc-400 text-sm max-w-xl mb-8 leading-relaxed">Apply global branding that persists across all tenant dashboards and OBS overlays.</p>
-                                <button onClick={async () => {
-                                    setIsProcessing(true);
-                                    await db.collection('appConfig').doc('globalSettings').set({ systemLogoUrl: logoPreview }, { merge: true });
-                                    setIsProcessing(false);
-                                    alert("Applied!");
-                                }} className="bg-white text-black font-black px-10 py-4 rounded-2xl flex items-center gap-3 transition-all hover:bg-red-600 hover:text-white">
-                                    {isProcessing ? <RefreshCw className="animate-spin h-5 w-5"/> : <Save className="w-5 h-5" />} APPLY GLOBAL BRANDING
-                                </button>
-                            </div>
-                        </div>
-
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                             {[
-                                { label: 'Storage', val: totalGB, unit: 'GB', color: 'text-red-500' },
-                                { label: 'Pulse', val: stats.activeAuctions, unit: 'Live', color: 'text-green-500' },
-                                { label: 'Accounts', val: stats.totalAccounts, unit: 'IDs', color: 'text-blue-500' },
-                                { label: 'Staff', val: stats.supportStaffCount, unit: 'Active', color: 'text-white' }
+                                { label: 'Storage Usage', val: totalGB, unit: 'GB', color: 'text-red-500' },
+                                { label: 'Live Systems', val: stats.activeAuctions, unit: 'PROT', color: 'text-green-500' },
+                                { label: 'Identity Pool', val: stats.totalAccounts, unit: 'IDs', color: 'text-blue-500' },
+                                { label: 'Support Nodes', val: stats.supportStaffCount, unit: 'Active', color: 'text-white' }
                             ].map(s => (
-                                <div key={s.label} className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5">
+                                <div key={s.label} className="bg-zinc-900/30 p-10 rounded-[2.5rem] border border-white/5 shadow-inner">
                                     <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">{s.label}</p>
                                     <div className="flex items-baseline gap-2">
-                                        <h2 className={`text-4xl font-black ${s.color}`}>{s.val}</h2>
-                                        <span className="text-[10px] font-bold text-zinc-600 uppercase">{s.unit}</span>
+                                        <h2 className={`text-5xl font-black ${s.color}`}>{s.val}</h2>
+                                        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">{s.unit}</span>
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-12">
+                             <div className="w-48 h-48 rounded-3xl bg-black border-4 border-zinc-800 p-4 shadow-xl flex items-center justify-center overflow-hidden relative">
+                                {state.systemLogoUrl ? <img src={state.systemLogoUrl} className="max-w-full max-h-full object-contain" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
+                             </div>
+                             <div className="flex-1 text-center md:text-left">
+                                <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Master OS Identity</h2>
+                                <p className="text-zinc-400 text-sm max-w-xl mb-8 leading-relaxed font-medium">Inject global system branding that overrides tenant presets across all tournament environments.</p>
+                                <div className="flex flex-wrap gap-4">
+                                    <button onClick={() => logoInputRef.current?.click()} className="bg-white text-black font-black px-10 py-4 rounded-2xl flex items-center gap-3 transition-all hover:bg-red-600 hover:text-white">
+                                        <Upload className="w-5 h-5" /> REFLASH BRANDING
+                                    </button>
+                                    <input ref={logoInputRef} type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                        if (e.target.files?.[0]) {
+                                            const base64 = await compressImage(e.target.files[0]);
+                                            await db.collection('appConfig').doc('globalSettings').set({ systemLogoUrl: base64 }, { merge: true });
+                                            alert("System Brand Synced.");
+                                        }
+                                    }} />
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* AUCTIONS MANAGEMENT TAB */}
+                {activeTab === 'AUCTIONS' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="grid grid-cols-1 gap-4">
+                            {filteredAuctions.map(auction => (
+                                <div key={auction.id} className="bg-zinc-900/30 p-8 rounded-[2rem] border border-white/5 hover:border-red-600/30 transition-all group overflow-hidden">
+                                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+                                        <div className="flex items-center gap-6 flex-1 min-w-0">
+                                            <div className="w-16 h-16 rounded-2xl bg-black border border-white/5 flex items-center justify-center overflow-hidden shrink-0">
+                                                {auction.logoUrl ? <img src={auction.logoUrl} className="w-full h-full object-contain" /> : <Gavel className="w-6 h-6 text-zinc-700" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="text-2xl font-black uppercase tracking-tighter truncate text-white">{auction.title}</h3>
+                                                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                                                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-3 py-0.5 rounded-full border border-red-500/20">#{auction.id}</span>
+                                                    <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1.5"><Calendar className="w-3 h-3"/> {new Date(auction.createdAt || 0).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1.5"><Mail className="w-3 h-3"/> OWNER: {auction.createdBy?.slice(0, 15)}...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-6">
+                                            <div className="text-right hidden md:block">
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Status Protocol</p>
+                                                <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase border ${auction.isPaid ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-zinc-800 text-zinc-500 border-white/5'}`}>
+                                                    {auction.isPaid ? 'Paid' : 'Free Trial'}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl transition-all border border-white/5 shadow-xl"><Edit className="w-5 h-5 text-zinc-400" /></button>
+                                                <button onClick={() => handleRemoteAssist(auction.id!)} className="bg-blue-600 hover:bg-blue-500 p-4 rounded-2xl transition-all shadow-xl"><Monitor className="w-5 h-5 text-white" /></button>
+                                                <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="bg-zinc-800 hover:bg-red-600 p-4 rounded-2xl transition-all border border-white/5 shadow-xl"><Trash2 className="w-5 h-5 text-zinc-400 group-hover:text-white" /></button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* INLINE EDIT FORM */}
+                                    {editingAuctionId === auction.id && (
+                                        <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up">
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Manual Retention Lock</label>
+                                                <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
+                                                    <span className="text-[10px] font-bold text-zinc-400">Permanent</span>
+                                                    <button 
+                                                        onClick={() => setAuctionEditForm({...auctionEditForm, isLifetime: !auctionEditForm.isLifetime})}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.isLifetime ? 'bg-red-600' : 'bg-zinc-700'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${auctionEditForm.isLifetime ? 'left-7' : 'left-1'}`}></div>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Authorization Class</label>
+                                                <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
+                                                    <span className="text-[10px] font-bold text-zinc-400">Paid Tier</span>
+                                                    <button 
+                                                        onClick={() => setAuctionEditForm({...auctionEditForm, isPaid: !auctionEditForm.isPaid})}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.isPaid ? 'bg-green-600' : 'bg-zinc-700'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${auctionEditForm.isPaid ? 'left-7' : 'left-1'}`}></div>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Auto-Purge Schedule</label>
+                                                <input 
+                                                    type="date" 
+                                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-xs font-bold text-white outline-none"
+                                                    value={auctionEditForm.autoDeleteAt ? new Date(auctionEditForm.autoDeleteAt).toISOString().split('T')[0] : ''}
+                                                    onChange={e => setAuctionEditForm({...auctionEditForm, autoDeleteAt: new Date(e.target.value).getTime()})}
+                                                />
+                                            </div>
+                                            <div className="flex items-end">
+                                                <button onClick={handleSaveAuctionMetadata} className="w-full bg-white text-black font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95">SYNC METADATA</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {filteredAuctions.length === 0 && (
+                                <div className="py-20 text-center opacity-20">
+                                    <Gavel className="w-20 h-20 mx-auto mb-4" />
+                                    <p className="text-xl font-black uppercase tracking-[0.5em]">No system records found</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -473,15 +602,15 @@ const SuperAdminDashboard: React.FC = () => {
                 {/* REGISTRY / USERS TAB */}
                 {activeTab === 'REGISTRY' && (
                     <div className="space-y-8 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-10">
+                        <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+                             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-12">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-xl">
                                         <Users className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Identity Hub</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Universal Registry Management</p>
+                                        <h2 className="text-4xl font-black uppercase tracking-tighter">Universal Identities</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Master Registry Access</p>
                                     </div>
                                 </div>
 
@@ -490,60 +619,50 @@ const SuperAdminDashboard: React.FC = () => {
                                         {[
                                             {id: 'ALL', label: 'All'},
                                             {id: 'SUPPORT', label: 'Staff'},
-                                            {id: 'ADMIN', label: 'Organizers'},
-                                            {id: 'VIEWER', label: 'Viewers'}
+                                            {id: 'ADMIN', label: 'Admins'},
+                                            {id: 'VIEWER', label: 'Basic'}
                                         ].map(f => (
                                             <button 
                                                 key={f.id} 
                                                 onClick={() => setRegistryFilter(f.id as any)}
-                                                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${registryFilter === f.id ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white'}`}
+                                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${registryFilter === f.id ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white'}`}
                                             >
                                                 {f.label}
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                                        <input 
-                                            placeholder="Search Email / Name..." 
-                                            className="bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-xs font-bold w-48 outline-none focus:border-blue-500"
-                                            value={searchTerm}
-                                            onChange={e => setSearchTerm(e.target.value)}
-                                        />
-                                    </div>
                                     <button onClick={() => setIsAddingUser(!isAddingUser)} className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95">
-                                        {isAddingUser ? <XCircle className="w-4 h-4 inline mr-2"/> : <UserPlus className="w-4 h-4 inline mr-2"/>}
-                                        {isAddingUser ? 'CANCEL' : 'CREATE ACCOUNT'}
+                                        {isAddingUser ? 'CANCEL' : 'REGISTER NEW ID'}
                                     </button>
                                 </div>
                              </div>
 
                              {isAddingUser && (
-                                 <form onSubmit={handleCreateUser} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-5 gap-6 mb-10 animate-slide-up">
+                                 <form onSubmit={handleCreateUser} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-5 gap-6 mb-12 animate-slide-up">
                                      <div>
                                          <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Login Email</label>
-                                         <input type="email" required placeholder="user@identity.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                                         <input type="email" required placeholder="user@sm.in" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
                                      </div>
                                      <div>
                                          <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
                                          <input required placeholder="Identity Name" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
                                      </div>
                                      <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Access Key</label>
-                                         <input required type="text" placeholder="SECURE PASSWORD" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Auth Password</label>
+                                         <input required type="text" placeholder="SECURE KEY" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-500" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
                                      </div>
                                      <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Assign Role</label>
-                                         <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500 h-[52px]" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})}>
-                                             <option value={UserRole.SUPPORT}>Support Staff</option>
-                                             <option value={UserRole.ADMIN}>Organizer / Admin</option>
+                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Protocol Role</label>
+                                         <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none h-[52px]" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})}>
+                                             <option value={UserRole.SUPPORT}>Support Node</option>
+                                             <option value={UserRole.ADMIN}>Tournament Admin</option>
                                              <option value={UserRole.VIEWER}>Basic Viewer</option>
                                          </select>
                                      </div>
                                      <div className="flex items-end">
                                          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
                                              {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
-                                             AUTHORIZE IDENTITY
+                                             DEPLOY IDENTITY
                                          </button>
                                      </div>
                                  </form>
@@ -551,91 +670,42 @@ const SuperAdminDashboard: React.FC = () => {
 
                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                  {filteredRegistry.map(user => (
-                                     <div key={user.uid} className={`bg-zinc-950 p-6 rounded-3xl border transition-all ${editingUserId === user.uid ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-white/5 hover:border-white/10'} group relative`}>
-                                         <div className="flex items-start justify-between mb-4">
-                                             <div className="flex items-center gap-4 min-w-0">
-                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black border ${user.role === UserRole.SUPPORT ? 'bg-blue-600/10 text-blue-500 border-blue-500/20' : user.role === UserRole.ADMIN ? 'bg-purple-600/10 text-purple-500 border-purple-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
-                                                     {user.role === UserRole.SUPPORT ? <Headset className="w-5 h-5"/> : user.role === UserRole.ADMIN ? <Gavel className="w-5 h-5"/> : <Users className="w-5 h-5"/>}
+                                     <div key={user.uid} className={`bg-zinc-950 p-8 rounded-[2rem] border transition-all ${editingUserId === user.uid ? 'border-blue-500 ring-4 ring-blue-500/10' : 'border-white/5 hover:border-white/10'} group relative`}>
+                                         <div className="flex items-start justify-between mb-6">
+                                             <div className="flex items-center gap-5 min-w-0">
+                                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black border ${user.role === UserRole.SUPPORT ? 'bg-blue-600/10 text-blue-500 border-blue-500/20' : user.role === UserRole.ADMIN ? 'bg-purple-600/10 text-purple-500 border-purple-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                                                     {user.role === UserRole.SUPPORT ? <Headset className="w-6 h-6"/> : user.role === UserRole.ADMIN ? <Gavel className="w-6 h-6"/> : <Users className="w-6 h-6"/>}
                                                  </div>
                                                  <div className="min-w-0">
-                                                     <h3 className="font-black text-white uppercase tracking-tight truncate text-sm">{user.email}</h3>
-                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase truncate mt-0.5">{user.name || 'Anonymous'}</p>
+                                                     <h3 className="font-black text-white uppercase tracking-tight truncate text-base leading-none mb-1">{user.email}</h3>
+                                                     <p className="text-[10px] text-zinc-500 font-bold uppercase truncate">{user.name || 'ANONYMOUS UNIT'}</p>
                                                  </div>
                                              </div>
-                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => editingUserId === user.uid ? setEditingUserId(null) : handleOpenEdit(user)} className={`p-2 rounded-lg transition-all ${editingUserId === user.uid ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:text-blue-500 hover:bg-blue-500/10 opacity-0 group-hover:opacity-100'}`}>
-                                                    <Edit className="w-4 h-4"/>
-                                                </button>
-                                                <button onClick={() => handleDeleteUser(user.uid, user.email)} className="p-2 rounded-lg text-zinc-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100">
-                                                    <UserX className="w-4 h-4"/>
-                                                </button>
+                                             <div className="flex gap-1">
+                                                <button onClick={() => editingUserId === user.uid ? setEditingUserId(null) : handleOpenEdit(user)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit className="w-4 h-4"/></button>
+                                                <button onClick={() => handleDeleteUser(user.uid, user.email)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><UserX className="w-4 h-4"/></button>
                                              </div>
                                          </div>
 
                                          {editingUserId === user.uid ? (
                                              <div className="mt-6 pt-6 border-t border-zinc-800 space-y-4 animate-fade-in">
-                                                 <div>
-                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Profile Name</label>
-                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                                                 <div className="grid grid-cols-2 gap-4">
+                                                     <div><label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">UNIT NAME</label><input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} /></div>
+                                                     <div><label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">PROTOCOL ROLE</label><select className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-black uppercase" value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value as any})}><option value={UserRole.SUPPORT}>Support</option><option value={UserRole.ADMIN}>Admin</option><option value={UserRole.VIEWER}>Viewer</option></select></div>
                                                  </div>
-                                                 <div>
-                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Master Email</label>
-                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
-                                                 </div>
-                                                 <div>
-                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Access Password</label>
-                                                     <input className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white" value={editForm.password} onChange={e => setEditForm({...editForm, password: e.target.value})} />
-                                                 </div>
-                                                 <div>
-                                                     <label className="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Switch Protocol Role</label>
-                                                     <div className="grid grid-cols-2 gap-2">
-                                                         {[
-                                                             {id: UserRole.SUPPORT, label: 'Staff'},
-                                                             {id: UserRole.ADMIN, label: 'Admin'},
-                                                             {id: UserRole.VIEWER, label: 'Viewer'}
-                                                         ].map(role => (
-                                                             <button 
-                                                                key={role.id} 
-                                                                type="button" 
-                                                                onClick={() => setEditForm({...editForm, role: role.id})}
-                                                                className={`py-2 rounded-lg text-[9px] font-black uppercase transition-all border ${editForm.role === role.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                                                             >
-                                                                 {role.label}
-                                                             </button>
-                                                         ))}
-                                                     </div>
-                                                 </div>
-                                                 <div className="flex gap-2 pt-2">
-                                                     <button onClick={() => handleUpdateUser(user.uid)} className="flex-1 bg-white text-black font-black py-3 rounded-xl text-[9px] uppercase tracking-widest shadow-xl">SAVE PROFILE</button>
+                                                 <div className="flex gap-2">
+                                                     <button onClick={() => handleUpdateUser(user.uid)} className="flex-1 bg-white text-black font-black py-3 rounded-xl text-[9px] uppercase tracking-widest">SAVE PROFILE</button>
                                                      <button onClick={() => setEditingUserId(null)} className="px-4 bg-zinc-900 text-zinc-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest">EXIT</button>
                                                  </div>
                                              </div>
                                          ) : (
-                                             <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                                                 <div className="flex items-center gap-3">
-                                                     <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${user.role === UserRole.SUPPORT ? 'bg-blue-500/10 text-blue-500' : user.role === UserRole.ADMIN ? 'bg-purple-500/10 text-purple-500' : 'bg-zinc-800 text-zinc-500'}`}>
-                                                         {user.role}
-                                                     </div>
-                                                     {(user as any).password && (
-                                                         <div className="flex items-center gap-1 text-[8px] font-black text-zinc-600 uppercase">
-                                                             <Key className="w-2.5 h-2.5"/> Secret Key Active
-                                                         </div>
-                                                     )}
-                                                 </div>
-                                                 <div className="flex items-center gap-1.5">
-                                                     <div className={`w-1.5 h-1.5 rounded-full ${user.role === UserRole.VIEWER ? 'bg-zinc-800' : 'bg-emerald-500 animate-pulse'}`}></div>
-                                                     <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">{user.role === UserRole.VIEWER ? 'IDLE' : 'LIVE'}</span>
-                                                 </div>
+                                             <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-600 mt-4 pt-4 border-t border-white/5">
+                                                 <span>{user.role} IDENTITY</span>
+                                                 <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div> SECURE UNIT</span>
                                              </div>
                                          )}
                                      </div>
                                  ))}
-                                 {filteredRegistry.length === 0 && (
-                                     <div className="col-span-full py-20 text-center flex flex-col items-center justify-center opacity-20">
-                                         <Users className="w-16 h-16 mb-4" />
-                                         <p className="text-sm font-black uppercase tracking-[0.3em]">No matching identities found</p>
-                                     </div>
-                                 )}
                              </div>
                         </div>
                     </div>
@@ -647,7 +717,7 @@ const SuperAdminDashboard: React.FC = () => {
                         <div className="flex justify-between items-center bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-xl">
                             <div>
                                 <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Protocol</h2>
-                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing and team capacities</p>
+                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing tiers and team capacities</p>
                             </div>
                             <button onClick={() => { setIsAddingPlan(!isAddingPlan); setPlanForm({ id: '', name: '', price: 0, teams: 0 }); }} className="bg-white text-black hover:bg-blue-600 hover:text-white font-black px-8 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg">
                                 {isAddingPlan ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
@@ -657,54 +727,27 @@ const SuperAdminDashboard: React.FC = () => {
 
                         {isAddingPlan && (
                             <form onSubmit={handleSavePlan} className="bg-zinc-900/80 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up mb-10 shadow-2xl">
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Protocol Name</label>
-                                    <input required placeholder="e.g. SILVER PRO" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (INR)</label>
-                                    <input type="number" required placeholder="3000" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Max Teams</label>
-                                    <input type="number" required placeholder="5" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} />
-                                </div>
-                                <div className="flex items-end">
-                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
-                                        {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
-                                        AUTHORIZE PROTOCOL
-                                    </button>
-                                </div>
+                                <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Protocol Name</label><input required className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} /></div>
+                                <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (INR)</label><input type="number" required className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} /></div>
+                                <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Max Teams</label><input type="number" required className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} /></div>
+                                <div className="flex items-end"><button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-[10px]">SYNC PROTOCOL</button></div>
                             </form>
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {dbPlans.map(p => (
-                                <div key={p.id} className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 hover:border-blue-500/30 transition-all group relative overflow-hidden shadow-xl">
-                                    <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                        <button onClick={() => { setPlanForm(p); setIsAddingPlan(true); }} className="p-2 bg-zinc-900 rounded-lg text-blue-500 hover:bg-blue-500 hover:text-white transition-all"><Edit className="w-4 h-4"/></button>
-                                        <button onClick={() => deletePlan(p.id!)} className="p-2 bg-zinc-900 rounded-lg text-red-500 hover:bg-red-500 hover:text-white transition-all"><Trash2 className="w-4 h-4"/></button>
-                                    </div>
-                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-[0.3em] mb-2">Protocol Type</p>
-                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">{p.name}</h3>
+                                <div key={p.id} className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 hover:border-blue-500/30 transition-all group relative overflow-hidden shadow-xl text-center">
+                                    <h3 className="text-2xl font-black text-white uppercase mb-8">{p.name}</h3>
                                     <div className="space-y-4">
-                                        <div className="flex justify-between items-baseline border-b border-white/5 pb-2">
-                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Pricing</span>
-                                            <span className="text-2xl font-black text-blue-500">₹{p.price}</span>
-                                        </div>
-                                        <div className="flex justify-between items-baseline">
-                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Capacity</span>
-                                            <span className="text-xl font-black text-white">{p.teams} <span className="text-[8px] opacity-40">TEAMS</span></span>
-                                        </div>
+                                        <div className="flex justify-between items-baseline border-b border-white/5 pb-2"><span className="text-[10px] font-bold text-zinc-500 uppercase">Pricing</span><span className="text-2xl font-black text-blue-500">₹{p.price}</span></div>
+                                        <div className="flex justify-between items-baseline"><span className="text-[10px] font-bold text-zinc-500 uppercase">Capacity</span><span className="text-xl font-black text-white">{p.teams}</span></div>
+                                    </div>
+                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setPlanForm(p); setIsAddingPlan(true); }} className="text-zinc-600 hover:text-white"><Edit className="w-4 h-4"/></button>
+                                        <button onClick={() => deletePlan(p.id!)} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
                                     </div>
                                 </div>
                             ))}
-                            {dbPlans.length === 0 && (
-                                <div className="col-span-full py-20 text-center flex flex-col items-center justify-center opacity-20 border-2 border-dashed border-zinc-800 rounded-3xl">
-                                    <Server className="w-16 h-16 mb-4" />
-                                    <p className="text-sm font-black uppercase tracking-[0.3em]">No subscription protocols initialized</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -715,61 +758,35 @@ const SuperAdminDashboard: React.FC = () => {
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
                              <div className="flex justify-between items-center mb-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-emerald-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                                    <div className="bg-emerald-600 p-3 rounded-2xl shadow-xl">
                                         <Tag className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Promo Code Engine</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Discount protocol management</p>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Promo Engine</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Discount Registry Control</p>
                                     </div>
                                 </div>
                                 <button onClick={() => setIsAddingPromo(!isAddingPromo)} className="bg-white hover:bg-emerald-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
-                                    {isAddingPromo ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
                                     {isAddingPromo ? 'CANCEL' : 'CREATE PROMO'}
                                 </button>
                              </div>
 
                              {isAddingPromo && (
                                  <form onSubmit={handleSavePromo} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 animate-slide-up">
-                                     <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Code</label>
-                                         <input required placeholder="SAVE50" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-emerald-500" value={promoForm.code} onChange={e => setPromoForm({...promoForm, code: e.target.value})} />
-                                     </div>
-                                     <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Type</label>
-                                         <select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none" value={promoForm.discountType} onChange={e => setPromoForm({...promoForm, discountType: e.target.value as any})}>
-                                             <option value="PERCENT">Percentage</option>
-                                             <option value="FLAT">Flat INR</option>
-                                         </select>
-                                     </div>
-                                     <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Value</label>
-                                         <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-emerald-500" value={promoForm.discountValue} onChange={e => setPromoForm({...promoForm, discountValue: Number(e.target.value)})} />
-                                     </div>
-                                     <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Max Claims</label>
-                                         <input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-emerald-500" value={promoForm.maxClaims} onChange={e => setPromoForm({...promoForm, maxClaims: Number(e.target.value)})} />
-                                     </div>
-                                     <div className="md:col-span-4">
-                                         <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2">
-                                             <Zap className="w-5 h-5"/> INITIALIZE PROMO PROTOCOL
-                                         </button>
-                                     </div>
+                                     <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">CODE</label><input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase" value={promoForm.code} onChange={e => setPromoForm({...promoForm, code: e.target.value})} /></div>
+                                     <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">TYPE</label><select className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={promoForm.discountType} onChange={e => setPromoForm({...promoForm, discountType: e.target.value as any})}><option value="PERCENT">Percentage</option><option value="FLAT">Flat INR</option></select></div>
+                                     <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">VALUE</label><input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={promoForm.discountValue} onChange={e => setPromoForm({...promoForm, discountValue: Number(e.target.value)})} /></div>
+                                     <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">MAX CLAIMS</label><input type="number" required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={promoForm.maxClaims} onChange={e => setPromoForm({...promoForm, maxClaims: Number(e.target.value)})} /></div>
+                                     <button type="submit" className="md:col-span-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs">ESTABLISH PROMO PROTOCOL</button>
                                  </form>
                              )}
 
                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                  {promos.map(p => (
-                                     <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 relative overflow-hidden group">
-                                         <div className="flex justify-between items-center mb-4">
-                                             <h3 className="text-xl font-black text-white">{p.code}</h3>
-                                             <button onClick={() => deletePromo(p.id!)} className="text-zinc-700 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
-                                         </div>
+                                     <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 group relative">
+                                         <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-black text-white">{p.code}</h3><button onClick={() => deletePromo(p.id!)} className="text-zinc-700 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button></div>
                                          <div className="text-3xl font-black text-emerald-500 mb-2">{p.discountType === 'PERCENT' ? `${p.discountValue}%` : `₹${p.discountValue}`} OFF</div>
-                                         <div className="flex justify-between text-[8px] font-black uppercase text-zinc-500">
-                                             <span>Used: {p.currentClaims} / {p.maxClaims}</span>
-                                             <span>Exp: {new Date(p.expiryDate).toLocaleDateString()}</span>
-                                         </div>
+                                         <div className="flex justify-between text-[8px] font-black uppercase text-zinc-500"><span>Claims: {p.currentClaims} / {p.maxClaims}</span><span>Exp: {new Date(p.expiryDate).toLocaleDateString()}</span></div>
                                      </div>
                                  ))}
                              </div>
@@ -777,67 +794,47 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 4. ALERTS TAB */}
+                {/* ALERTS TAB */}
                 {activeTab === 'ALERTS' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
                              <div className="flex justify-between items-center mb-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-purple-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(147,51,234,0.4)]">
+                                    <div className="bg-purple-600 p-3 rounded-2xl shadow-xl">
                                         <Megaphone className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">System Alert Manager</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure global broadcast popups</p>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter">System Broadcaster</h2>
+                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure global modal alerts</p>
                                     </div>
                                 </div>
                                 <button onClick={() => setIsAddingPopup(!isAddingPopup)} className="bg-white hover:bg-purple-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
-                                    {isAddingPopup ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
-                                    {isAddingPopup ? 'CANCEL' : 'DEPLOY BROADCAST'}
+                                    {isAddingPopup ? 'CANCEL' : 'DEPLOY ALERT'}
                                 </button>
                              </div>
 
                              {isAddingPopup && (
                                  <form onSubmit={handleSavePopup} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-8 mb-10 animate-slide-up">
                                      <div className="md:col-span-2 space-y-6">
-                                         <div>
-                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Alert Title</label>
-                                             <input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-purple-500" value={popupForm.title} onChange={e => setPopupForm({...popupForm, title: e.target.value})} />
-                                         </div>
-                                         <div>
-                                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Message Content</label>
-                                             <textarea rows={4} required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold outline-none focus:border-purple-500" value={popupForm.message} onChange={e => setPopupForm({...popupForm, message: e.target.value})} />
-                                         </div>
-                                         <div className="grid grid-cols-2 gap-4">
-                                            <div><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Delay (Sec)</label><input type="number" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={popupForm.delaySeconds} onChange={e => setPopupForm({...popupForm, delaySeconds: Number(e.target.value)})} /></div>
-                                            <div><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Expiry</label><input type="date" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" onChange={e => setPopupForm({...popupForm, expiryDate: new Date(e.target.value).getTime()})} /></div>
-                                         </div>
+                                         <div><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Title</label><input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black" value={popupForm.title} onChange={e => setPopupForm({...popupForm, title: e.target.value})} /></div>
+                                         <div><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Content</label><textarea rows={4} required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-bold" value={popupForm.message} onChange={e => setPopupForm({...popupForm, message: e.target.value})} /></div>
                                      </div>
                                      <div className="space-y-6">
-                                        <div className="flex flex-col items-center">
-                                            <div onClick={() => popupImgRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-                                                {popupPreviewImg ? <img src={popupPreviewImg} className="w-full h-full object-cover" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
-                                            </div>
+                                        <div onClick={() => popupImgRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
+                                            {popupPreviewImg ? <img src={popupPreviewImg} className="w-full h-full object-cover" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
                                             <input ref={popupImgRef} type="file" className="hidden" accept="image/*" onChange={async e => { if(e.target.files?.[0]) setPopupPreviewImg(await compressImage(e.target.files[0])); }} />
-                                            <p className="mt-2 text-[8px] font-black uppercase text-zinc-500">Alert Graphic</p>
                                         </div>
-                                        <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all">INITIALIZE ALERT</button>
+                                        <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs">ACTIVATE BROADCAST</button>
                                      </div>
                                  </form>
                              )}
 
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                  {popups.map(p => (
-                                     <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 relative group">
-                                         <div className="flex justify-between items-start mb-4">
-                                             <h3 className="text-lg font-black text-white uppercase truncate">{p.title}</h3>
-                                             <button onClick={() => deletePopup(p.id!)} className="text-zinc-700 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
-                                         </div>
+                                     <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 relative group shadow-lg">
+                                         <div className="flex justify-between items-start mb-4"><h3 className="text-lg font-black text-white uppercase truncate">{p.title}</h3><button onClick={() => deletePopup(p.id!)} className="text-zinc-700 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button></div>
                                          <p className="text-[10px] text-zinc-400 font-bold line-clamp-2 mb-4">{p.message}</p>
-                                         <div className="pt-4 border-t border-white/5 flex justify-between text-[8px] font-black uppercase text-zinc-600">
-                                            <span>Delay: {p.delaySeconds}s</span>
-                                            <span>Active until: {new Date(p.expiryDate).toLocaleDateString()}</span>
-                                         </div>
+                                         <div className="pt-4 border-t border-white/5 flex justify-between text-[8px] font-black uppercase text-zinc-600"><span>Delay: {p.delaySeconds}s</span><span>Exp: {new Date(p.expiryDate).toLocaleDateString()}</span></div>
                                      </div>
                                  ))}
                              </div>
@@ -845,26 +842,23 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 5. DATABASE TAB */}
+                {/* DATABASE TAB */}
                 {activeTab === 'DATABASE' && (
                     <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                        <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
                              <div className="flex items-center gap-4 mb-10">
-                                <div className="bg-red-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)]">
+                                <div className="bg-red-600 p-3 rounded-2xl shadow-xl">
                                     <HardDrive className="w-6 h-6 text-white" />
                                 </div>
-                                <div>
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Infrastructure Node</h2>
-                                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Resource allocation & retention</p>
-                                </div>
+                                <h2 className="text-3xl font-black uppercase tracking-tighter">Infrastructure Hub</h2>
                              </div>
 
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
                                 {[
-                                    { label: 'Total Registry Docs', val: stats.totalDocsEstimate.toLocaleString(), color: 'text-white' },
-                                    { label: 'Storage Intensity', val: `${totalGB} GB`, color: 'text-red-500' },
-                                    { label: 'System Latency', val: '12ms', color: 'text-blue-400' },
-                                    { label: 'Health Status', val: 'HEALTHY', color: 'text-green-500' }
+                                    { label: 'Registry Load', val: stats.totalDocsEstimate.toLocaleString(), color: 'text-white' },
+                                    { label: 'Storage Stress', val: `${totalGB} GB`, color: 'text-red-500' },
+                                    { label: 'Latency Node', val: '0.04s', color: 'text-blue-400' },
+                                    { label: 'Health Status', val: 'OPERATIONAL', color: 'text-green-500' }
                                 ].map(card => (
                                     <div key={card.label} className="bg-black/40 p-8 rounded-3xl border border-white/5">
                                         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-2">{card.label}</p>
@@ -873,19 +867,16 @@ const SuperAdminDashboard: React.FC = () => {
                                 ))}
                              </div>
 
-                             <div className="bg-zinc-950 p-8 rounded-[2rem] border border-white/5 relative overflow-hidden">
+                             <div className="bg-zinc-950 p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
                                 <div className="relative z-10 max-w-2xl">
-                                    <h3 className="text-xl font-black uppercase tracking-widest text-red-500 mb-4 flex items-center gap-2">
-                                        <AlertTriangle className="w-5 h-5" /> Deletion Threshold Policy
+                                    <h3 className="text-2xl font-black uppercase tracking-widest text-red-500 mb-4 flex items-center gap-2">
+                                        <AlertTriangle className="w-6 h-6" /> Data Retention Protocol
                                     </h3>
-                                    <p className="text-zinc-400 text-sm leading-relaxed mb-8">
-                                        Configure the lifecycle of unpaid or completed auction instances. After the retention period, 
-                                        unpaid or completed auctions are flagged for automated purging. **LIFETIME** instances override this.
-                                    </p>
+                                    <p className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium">Configure system-wide TTL for completed or inactive tournament environments. Inactive instances are flagged for purging after this threshold.</p>
                                     <div className="flex items-center gap-4">
-                                        <input type="number" className="w-40 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xl font-black text-center" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} />
-                                        <button onClick={handleSaveGlobalRetention} disabled={savingRetention} className="flex-1 bg-white text-black font-black py-4 rounded-2xl shadow-xl transition-all hover:bg-red-600 hover:text-white">
-                                            {savingRetention ? <RefreshCw className="animate-spin h-5 w-5 mx-auto"/> : 'INITIALIZE GLOBAL POLICY'}
+                                        <input type="number" className="w-40 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-2xl font-black text-center" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} />
+                                        <button onClick={handleSaveGlobalRetention} disabled={savingRetention} className="flex-1 bg-white text-black font-black py-5 rounded-2xl shadow-xl transition-all hover:bg-red-600 hover:text-white uppercase text-xs tracking-widest">
+                                            {savingRetention ? <RefreshCw className="animate-spin h-5 w-5 mx-auto"/> : 'INITIALIZE RETENTION POLICY'}
                                         </button>
                                     </div>
                                 </div>
@@ -894,22 +885,18 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 6. GRAPHICS TAB */}
+                {/* GRAPHICS TAB */}
                 {activeTab === 'GRAPHICS' && (
                     <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                        <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
                              <div className="flex justify-between items-center mb-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                                    <div className="bg-blue-600 p-3 rounded-2xl shadow-xl">
                                         <Layers className="w-6 h-6 text-white" />
                                     </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Global Asset Library</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Shared visual protocol components</p>
-                                    </div>
+                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Visual Protocol Library</h2>
                                 </div>
                                 <button onClick={() => setIsAddingAsset(!isAddingAsset)} className="bg-white hover:bg-blue-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
-                                    {isAddingAsset ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
                                     {isAddingAsset ? 'CANCEL' : 'DEPLOY ASSET'}
                                 </button>
                              </div>
@@ -917,24 +904,12 @@ const SuperAdminDashboard: React.FC = () => {
                              {isAddingAsset && (
                                  <form onSubmit={handleSaveAsset} className="bg-black/40 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 animate-slide-up">
                                      <div className="space-y-6">
-                                         <div>
-                                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Asset Name</label>
-                                             <input required placeholder="ICC 2024 FRAME" className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={assetForm.name} onChange={e => setAssetForm({...assetForm, name: e.target.value})} />
-                                         </div>
-                                         <div>
-                                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Protocol Type</label>
-                                             <div className="grid grid-cols-3 gap-2">
-                                                 {['BACKGROUND', 'FRAME', 'LOGO'].map(t => (
-                                                     <button key={t} type="button" onClick={() => setAssetForm({...assetForm, type: t as any})} className={`py-2 rounded-xl text-[8px] font-black transition-all border ${assetForm.type === t ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>{t}</button>
-                                                 ))}
-                                             </div>
-                                         </div>
-                                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all">ESTABLISH GLOBAL ASSET</button>
+                                         <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Asset Identity</label><input required className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase" value={assetForm.name} onChange={e => setAssetForm({...assetForm, name: e.target.value})} /></div>
+                                         <div><label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Protocol Type</label><div className="grid grid-cols-3 gap-2">{['BACKGROUND', 'FRAME', 'LOGO'].map(t => (<button key={t} type="button" onClick={() => setAssetForm({...assetForm, type: t as any})} className={`py-2 rounded-xl text-[8px] font-black transition-all border ${assetForm.type === t ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>{t}</button>))}</div></div>
+                                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl uppercase text-xs">SAVE TO GLOBAL REPOSITORY</button>
                                      </div>
-                                     <div className="flex flex-col items-center">
-                                         <div onClick={() => assetInputRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-                                             {assetPreview ? <img src={assetPreview} className="w-full h-full object-contain p-4" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
-                                         </div>
+                                     <div onClick={() => assetInputRef.current?.click()} className="w-full aspect-video bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shadow-inner">
+                                         {assetPreview ? <img src={assetPreview} className="w-full h-full object-contain p-4" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
                                          <input ref={assetInputRef} type="file" className="hidden" accept="image/*" onChange={async e => { if(e.target.files?.[0]) setAssetPreview(await compressImage(e.target.files[0])); }} />
                                      </div>
                                  </form>
@@ -942,12 +917,9 @@ const SuperAdminDashboard: React.FC = () => {
 
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                  {globalAssets.map(a => (
-                                     <div key={a.id} className="bg-zinc-950 rounded-3xl border border-white/5 overflow-hidden group relative">
+                                     <div key={a.id} className="bg-zinc-950 rounded-[2rem] border border-white/5 overflow-hidden group relative shadow-md">
                                          <div className="aspect-video bg-black flex items-center justify-center p-2"><img src={a.url} className="max-h-full max-w-full object-contain" /></div>
-                                         <div className="p-4 border-t border-white/5 flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-zinc-400 truncate max-w-[100px]">{a.name}</span>
-                                            <button onClick={() => deleteAsset(a.id)} className="text-zinc-700 hover:text-red-500"><Trash2 className="w-3 h-3"/></button>
-                                         </div>
+                                         <div className="p-4 border-t border-white/5 flex justify-between items-center"><span className="text-[10px] font-black uppercase text-zinc-400 truncate max-w-[120px]">{a.name}</span><button onClick={() => deleteAsset(a.id)} className="text-zinc-700 hover:text-red-500 transition-colors"><Trash2 className="w-3 h-3"/></button></div>
                                      </div>
                                  ))}
                              </div>
@@ -955,47 +927,37 @@ const SuperAdminDashboard: React.FC = () => {
                     </div>
                 )}
 
-                {/* 7. BROADCAST TAB */}
+                {/* TICKER TAB */}
                 {activeTab === 'BROADCAST' && (
                     <div className="space-y-12 animate-fade-in">
-                        <div className="bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                        <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
                              <div className="flex justify-between items-center mb-10">
                                 <div className="flex items-center gap-4">
-                                    <div className="bg-orange-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+                                    <div className="bg-orange-600 p-3 rounded-2xl shadow-xl">
                                         <Newspaper className="w-6 h-6 text-white" />
                                     </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tighter">Global Ticker Hub</h2>
-                                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Manage global news & announcements</p>
-                                    </div>
+                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Global Ticker Registry</h2>
                                 </div>
                                 <button onClick={() => setIsAddingBroadcast(!isAddingBroadcast)} className="bg-white hover:bg-orange-600 text-black hover:text-white font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all">
-                                    {isAddingBroadcast ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
                                     {isAddingBroadcast ? 'CANCEL' : 'DEPLOY TICKER'}
                                 </button>
                              </div>
 
                              {isAddingBroadcast && (
-                                 <form onSubmit={handleSaveBroadcast} className="bg-black/40 p-8 rounded-3xl border border-white/5 space-y-6 mb-10 animate-slide-up">
-                                     <div>
-                                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Message String</label>
-                                         <input required placeholder="SYSTEM MAINTENANCE SCHEDULED FOR 2:00 AM..." className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-orange-500" value={broadcastForm.message} onChange={e => setBroadcastForm({...broadcastForm, message: e.target.value})} />
-                                     </div>
-                                     <button type="submit" className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all">DEPLOY TICKER BROADCAST</button>
+                                 <form onSubmit={handleSaveBroadcast} className="bg-black/40 p-10 rounded-[2rem] border border-white/5 space-y-6 mb-12 animate-slide-up">
+                                     <div><label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Broadcast Message String</label><input required placeholder="SYSTEM MAINTENANCE SCHEDULED..." className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-sm font-black uppercase tracking-widest" value={broadcastForm.message} onChange={e => setBroadcastForm({...broadcastForm, message: e.target.value})} /></div>
+                                     <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs">INITIATE GLOBAL TICKER</button>
                                  </form>
                              )}
 
                              <div className="space-y-4">
                                  {broadcasts.map(b => (
-                                     <div key={b.id} className="bg-zinc-950 p-6 rounded-2xl border border-white/5 flex justify-between items-center group">
-                                         <div className="flex items-center gap-6">
-                                            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-                                            <p className="text-xs font-black uppercase tracking-widest text-zinc-300">{b.message}</p>
-                                         </div>
-                                         <button onClick={async () => { if(window.confirm("Purge ticker?")) await db.collection('systemBroadcasts').doc(b.id).delete(); }} className="text-zinc-800 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                     <div key={b.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 flex justify-between items-center group shadow-md">
+                                         <div className="flex items-center gap-6"><div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div><p className="text-sm font-black uppercase tracking-widest text-zinc-300">{b.message}</p></div>
+                                         <button onClick={async () => { if(window.confirm("Purge ticker?")) await db.collection('systemBroadcasts').doc(b.id).delete(); }} className="text-zinc-800 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5"/></button>
                                      </div>
                                  ))}
-                                 {broadcasts.length === 0 && <div className="p-20 text-center text-zinc-700 italic font-black uppercase text-[10px] tracking-widest">No ticker broadcasts active</div>}
+                                 {broadcasts.length === 0 && <div className="p-20 text-center text-zinc-700 italic font-black uppercase text-[10px] tracking-widest">Registry empty: No active news strings</div>}
                              </div>
                         </div>
                     </div>
