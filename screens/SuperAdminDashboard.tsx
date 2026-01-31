@@ -75,7 +75,6 @@ const SuperAdminDashboard: React.FC = () => {
     // Plans Management
     const [dbPlans, setDbPlans] = useState<any[]>([]);
     const [planForm, setPlanForm] = useState({ id: '', name: '', price: 0, teams: 0 });
-    const [isEditingPlan, setIsEditingPlan] = useState(false);
     const [isAddingPlan, setIsAddingPlan] = useState(false);
 
     // Promo Codes State
@@ -239,6 +238,36 @@ const SuperAdminDashboard: React.FC = () => {
         });
     };
 
+    // 1. Subscription Plan Handlers
+    const handleSavePlan = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!planForm.name) return;
+        setIsProcessing(true);
+        try {
+            const pData = {
+                name: planForm.name,
+                price: Number(planForm.price),
+                teams: Number(planForm.teams),
+                updatedAt: Date.now()
+            };
+            if (planForm.id) {
+                await db.collection('subscriptionPlans').doc(planForm.id).update(pData);
+            } else {
+                await db.collection('subscriptionPlans').add({ ...pData, createdAt: Date.now() });
+            }
+            setIsAddingPlan(false);
+            setPlanForm({ id: '', name: '', price: 0, teams: 0 });
+            alert("Subscription Protocol Authorized!");
+        } catch (err: any) { alert("Fail: " + err.message); }
+        setIsProcessing(false);
+    };
+
+    const deletePlan = async (id: string) => {
+        if (window.confirm("Permanently purge this subscription plan? This will affect new upgrades.")) {
+            await db.collection('subscriptionPlans').doc(id).delete();
+        }
+    };
+
     // Filters for Registry
     const filteredRegistry = userRegistry.filter(u => {
         const matchesRole = registryFilter === 'ALL' || u.role === registryFilter;
@@ -246,7 +275,7 @@ const SuperAdminDashboard: React.FC = () => {
         return matchesRole && matchesSearch;
     });
 
-    // 1. Promo Handlers
+    // 2. Promo Handlers
     const handleSavePromo = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -266,7 +295,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 2. Popup Handlers
+    // 3. Popup Handlers
     const handleSavePopup = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -291,7 +320,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 3. Database Handlers
+    // 4. Database Handlers
     const handleSaveGlobalRetention = async () => {
         setSavingRetention(true);
         try {
@@ -301,7 +330,7 @@ const SuperAdminDashboard: React.FC = () => {
         setSavingRetention(false);
     };
 
-    // 4. Graphics Handlers
+    // 5. Graphics Handlers
     const handleSaveAsset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!assetPreview || !assetForm.name) return;
@@ -327,7 +356,7 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    // 5. Broadcast Handlers
+    // 6. Broadcast Handlers
     const handleSaveBroadcast = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
@@ -615,29 +644,67 @@ const SuperAdminDashboard: React.FC = () => {
                 {/* PLANS TAB */}
                 {activeTab === 'PLANS' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5">
+                        <div className="flex justify-between items-center bg-zinc-900/50 p-10 rounded-[2.5rem] border border-white/5 shadow-xl">
                             <div>
-                                <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Plans</h2>
-                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing tiers</p>
+                                <h2 className="text-3xl font-black uppercase tracking-tighter">Subscription Protocol</h2>
+                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Configure pricing and team capacities</p>
                             </div>
-                            <button onClick={() => { setIsAddingPlan(true); setPlanForm({ id: '', name: '', price: 0, teams: 0 }); }} className="bg-white text-black font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all">
-                                <Plus className="w-4 h-4 inline mr-2"/> DEPLOY PROTOCOL
+                            <button onClick={() => { setIsAddingPlan(!isAddingPlan); setPlanForm({ id: '', name: '', price: 0, teams: 0 }); }} className="bg-white text-black hover:bg-blue-600 hover:text-white font-black px-8 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg">
+                                {isAddingPlan ? <XCircle className="w-4 h-4 inline mr-2"/> : <Plus className="w-4 h-4 inline mr-2"/>}
+                                {isAddingPlan ? 'CANCEL' : 'DEPLOY PROTOCOL'}
                             </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                        {isAddingPlan && (
+                            <form onSubmit={handleSavePlan} className="bg-zinc-900/80 p-8 rounded-3xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up mb-10 shadow-2xl">
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Protocol Name</label>
+                                    <input required placeholder="e.g. SILVER PRO" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Price (INR)</label>
+                                    <input type="number" required placeholder="3000" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Max Teams</label>
+                                    <input type="number" required placeholder="5" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-xs font-black outline-none focus:border-blue-500" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} />
+                                </div>
+                                <div className="flex items-end">
+                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 uppercase text-[10px] tracking-widest">
+                                        {isProcessing ? <RefreshCw className="animate-spin w-4 h-4"/> : <ShieldCheck className="w-4 h-4"/>}
+                                        AUTHORIZE PROTOCOL
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {dbPlans.map(p => (
-                                <div key={p.id} className="bg-zinc-950 p-6 rounded-3xl border border-white/5 hover:border-blue-500/20 transition-all">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <span className="text-xl font-black tracking-tighter uppercase text-white">{p.name}</span>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setIsAddingPlan(true); setIsEditingPlan(true); setPlanForm(p); }} className="text-zinc-600 hover:text-blue-500"><Edit className="w-4 h-4"/></button>
-                                            <button onClick={async () => { if(window.confirm("Purge?")) await db.collection('subscriptionPlans').doc(p.id).delete(); }} className="text-zinc-600 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                <div key={p.id} className="bg-zinc-950 p-8 rounded-[2.5rem] border border-white/5 hover:border-blue-500/30 transition-all group relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                        <button onClick={() => { setPlanForm(p); setIsAddingPlan(true); }} className="p-2 bg-zinc-900 rounded-lg text-blue-500 hover:bg-blue-500 hover:text-white transition-all"><Edit className="w-4 h-4"/></button>
+                                        <button onClick={() => deletePlan(p.id!)} className="p-2 bg-zinc-900 rounded-lg text-red-500 hover:bg-red-500 hover:text-white transition-all"><Trash2 className="w-4 h-4"/></button>
+                                    </div>
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-[0.3em] mb-2">Protocol Type</p>
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">{p.name}</h3>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-baseline border-b border-white/5 pb-2">
+                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Pricing</span>
+                                            <span className="text-2xl font-black text-blue-500">₹{p.price}</span>
+                                        </div>
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Capacity</span>
+                                            <span className="text-xl font-black text-white">{p.teams} <span className="text-[8px] opacity-40">TEAMS</span></span>
                                         </div>
                                     </div>
-                                    <div className="text-4xl font-black text-blue-500 mb-4">₹{p.price}</div>
-                                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Upto {p.teams} Teams</p>
                                 </div>
                             ))}
+                            {dbPlans.length === 0 && (
+                                <div className="col-span-full py-20 text-center flex flex-col items-center justify-center opacity-20 border-2 border-dashed border-zinc-800 rounded-3xl">
+                                    <Server className="w-16 h-16 mb-4" />
+                                    <p className="text-sm font-black uppercase tracking-[0.3em]">No subscription protocols initialized</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
