@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
-import { AuctionStatus, AuctionSetup } from '../types';
-import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users, BookOpen, CheckCircle, Scale, CreditCard, ShieldCheck, FileText, Zap, Star, Monitor, MessageSquare, Smartphone, Layout, Youtube, ChevronRight, UserPlus } from 'lucide-react';
+import { AuctionSetup } from '../types';
+import { Play, Calendar, History, Trophy, Users, BookOpen, CheckCircle, Scale, CreditCard, ShieldCheck, FileText, Zap, Star, Monitor, MessageSquare, Smartphone, Layout, Youtube, ChevronRight, UserPlus } from 'lucide-react';
 import { db } from '../firebase';
 
 const CricketBallIcon = ({ className }: { className?: string }) => (
@@ -14,7 +14,7 @@ const CricketBallIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.ReactNode }> = ({ auction, navigate, getStatusBadge }) => {
+const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.ReactNode, index: number }> = ({ auction, navigate, getStatusBadge, index }) => {
     const [teamCount, setTeamCount] = useState<number | null>(null);
 
     useEffect(() => {
@@ -34,22 +34,24 @@ const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) =>
     const isPublicReg = auction.registrationConfig?.isPublic ?? true;
 
     return (
-        <div className="bg-secondary border border-accent rounded-xl p-6 hover:border-highlight transition-all flex flex-col relative overflow-hidden group">
+        <div 
+            className="bg-secondary border border-accent rounded-xl p-6 hover:border-highlight transition-all flex flex-col relative overflow-hidden group shadow-lg reveal-element"
+            style={{ transitionDelay: `${(index % 4) * 150}ms` }}
+        >
             {getStatusBadge(auction.status)}
             <div className="flex justify-between items-start mb-2 mt-2">
-                <h3 className="text-xl font-bold text-white">{auction.title}</h3>
-                <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded">View Room</button>
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">{auction.title}</h3>
+                <button onClick={() => navigate(`/auction/${auction.id}`)} className="bg-white/10 hover:bg-highlight hover:text-primary text-white text-[10px] font-black uppercase px-3 py-1.5 rounded transition-colors">Terminal</button>
             </div>
-            <div className="text-text-secondary text-sm mb-4 flex items-center gap-2">
-                {(isRegOpen && isPublicReg) ? <span className="text-green-400 font-bold text-[10px] uppercase border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded">Reg Open</span> : (isRegOpen && !isPublicReg) ? <span className="text-blue-400 font-bold text-[10px] uppercase border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 rounded">Private Reg</span> : <span className="text-gray-500 font-bold text-[10px] uppercase border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 rounded">Reg Closed</span>}
-                <span className="text-gray-600">•</span>
-                <span>{teamCount !== null ? teamCount : '-'} / {auction.totalTeams} Teams</span>
+            <div className="text-text-secondary text-sm mb-4 flex items-center gap-2 font-medium">
+                {(isRegOpen && isPublicReg) ? <span className="text-green-400 font-bold text-[9px] uppercase border border-green-500/30 bg-green-500/10 px-2 py-0.5 rounded tracking-widest">Reg Open</span> : (isRegOpen && !isPublicReg) ? <span className="text-blue-400 font-bold text-[9px] uppercase border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 rounded tracking-widest">Private</span> : <span className="text-gray-500 font-bold text-[9px] uppercase border border-gray-500/30 bg-gray-500/10 px-2 py-0.5 rounded tracking-widest">Closed</span>}
+                <span className="text-gray-600 opacity-30">•</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider">{teamCount !== null ? teamCount : '-'} / {auction.totalTeams} Teams</span>
             </div>
-            <div className="mt-auto pt-4 border-t border-gray-700 flex justify-between items-center text-xs text-text-secondary">
+            <div className="mt-auto pt-4 border-t border-gray-700/50 flex justify-between items-center text-[10px] font-bold text-text-secondary uppercase tracking-widest">
                 <span>Starts: {auction.date || 'TBA'}</span>
                 <div className="flex gap-2">
-                <span className="bg-accent px-2 py-1 rounded text-white">{auction.sport}</span>
-                {isRegOpen && isPublicReg && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:underline font-bold">Register Player</button>}
+                    {isRegOpen && isPublicReg && <button onClick={() => navigate(`/auction/${auction.id}/register`)} className="text-highlight hover:text-white transition-colors">Join League</button>}
                 </div>
             </div>
         </div>
@@ -87,8 +89,8 @@ const LandingPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
       const s = (status || '').toUpperCase();
-      if (s === 'IN_PROGRESS' || s === 'LIVE') return <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-3 py-1 animate-pulse">LIVE NOW</div>;
-      if (s === 'NOT_STARTED') return <div className="absolute top-0 right-0 bg-green-600 text-white text-xs font-bold px-3 py-1">READY TO START</div>;
+      if (s === 'IN_PROGRESS' || s === 'LIVE') return <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black tracking-[0.2em] px-3 py-1 animate-pulse z-10">LIVE PROTOCOL</div>;
+      if (s === 'NOT_STARTED') return <div className="absolute top-0 right-0 bg-green-600 text-white text-[8px] font-black tracking-[0.2em] px-3 py-1 z-10">UPCOMING</div>;
       return null;
   };
 
@@ -125,248 +127,265 @@ const LandingPage: React.FC = () => {
                     <Trophy className="w-full h-full text-highlight" />
                 )}
             </div>
-            <span className="text-xl font-bold text-white tracking-wider hidden sm:inline">SM SPORTS</span>
+            <span className="text-xl font-bold text-white tracking-wider hidden sm:inline uppercase">SM SPORTS</span>
           </div>
           <div className="flex items-center gap-4 md:gap-8">
-            <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white transition-colors text-sm font-semibold hidden md:block">Pricing</button>
-            <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white transition-colors text-sm font-semibold hidden md:block">Terms</button>
-            <Link to="/auth" className="bg-highlight hover:bg-teal-400 text-primary font-bold py-2 px-5 rounded-lg transition-all shadow-lg shadow-highlight/20 text-sm">Dashboard</Link>
+            <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-black uppercase tracking-widest hidden md:block">Pricing</button>
+            <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white transition-colors text-[11px] font-black uppercase tracking-widest hidden md:block">Policies</button>
+            <Link to="/auth" className="bg-highlight hover:bg-teal-400 text-primary font-black py-2 px-6 rounded-xl transition-all shadow-lg shadow-highlight/20 text-[11px] uppercase tracking-[0.2em]">Launch OS</Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <header className="relative overflow-hidden py-20 lg:py-32">
+      <header className="relative overflow-hidden py-24 lg:py-40">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-teal-900/20 via-primary to-primary"></div>
         
-        {/* Hero Specific Animations */}
         <div className="absolute top-1/2 left-0 w-full flex justify-around opacity-5 pointer-events-none">
              <div className="animate-spin-slow"><CricketBallIcon className="w-64 h-64 text-red-600" /></div>
         </div>
 
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-block mb-4 px-3 py-1 rounded-full bg-accent/50 border border-accent text-highlight text-xs font-bold tracking-widest uppercase animate-pulse">The Future of Sports Bidding</div>
-          <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 tracking-tight">Manage Your <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-200">Cricket Auctions</span><br/> Professionally</h1>
-          <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">Experience the thrill of a real-time auction room. Organize players, manage team budgets, and bid live with our advanced auction platform.</p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl group">
-                <Play className="w-5 h-5 mr-2 fill-current group-hover:scale-125 transition-transform" /> Get Started
+          <div className="reveal-element inline-block mb-6 px-4 py-1.5 rounded-full bg-accent/30 border border-highlight/30 text-highlight text-[10px] font-black tracking-[0.3em] uppercase">The Digital Pitch is Ready</div>
+          <h1 className="reveal-element text-5xl md:text-8xl font-black text-white mb-8 tracking-tighter leading-none" style={{ transitionDelay: '200ms' }}>
+            YOUR AUCTION <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-100 italic">TRANSMITTED LIVE</span>
+          </h1>
+          <p className="reveal-element text-lg text-text-secondary max-w-2xl mx-auto mb-12 leading-relaxed font-medium" style={{ transitionDelay: '400ms' }}>
+            Professional-grade cricket auction management with real-time budgets, OBS integration, and automated player registration protocols.
+          </p>
+          <div className="reveal-element flex flex-col sm:flex-row justify-center gap-5" style={{ transitionDelay: '600ms' }}>
+            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-black py-5 px-10 rounded-2xl hover:bg-highlight hover:text-white transition-all shadow-2xl group text-xs uppercase tracking-widest">
+                <Play className="w-4 h-4 mr-3 fill-current group-hover:scale-125 transition-transform" /> Initialize Event
             </Link>
-            <button onClick={() => scrollToSection('pricing')} className="flex items-center justify-center bg-secondary border border-accent text-white font-bold py-4 px-8 rounded-xl hover:bg-accent transition-all shadow-lg">View Plans</button>
+            <button onClick={() => scrollToSection('pricing')} className="flex items-center justify-center bg-secondary border border-accent text-white font-black py-5 px-10 rounded-2xl hover:bg-accent transition-all shadow-xl text-xs uppercase tracking-widest">
+                Explore Protocols
+            </button>
           </div>
         </div>
       </header>
 
       {/* Auction Center */}
-      <section className="py-20 bg-secondary/30 border-t border-accent/50 relative">
+      <section className="py-24 bg-secondary/30 border-t border-accent/50 relative">
         <div className="container mx-auto px-6">
-          <div className="flex items-center justify-between mb-10"><h2 className="text-3xl font-bold text-white">Live Matches</h2></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="flex flex-col gap-4">
-               <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider flex items-center"><Calendar className="w-4 h-4 mr-2" /> Live & Upcoming</h4>
-               {loading ? <div className="text-text-secondary text-sm animate-pulse">Loading upcoming events...</div> : upcomingAuctions.length > 0 ? upcomingAuctions.map(auction => <AuctionCard key={auction.id} auction={auction} navigate={navigate} getStatusBadge={getStatusBadge} />) : <div className="bg-secondary/50 border border-dashed border-gray-700 rounded-xl p-6 text-center text-text-secondary text-sm">No upcoming auctions scheduled.</div>}
+          <div className="reveal-element flex items-center justify-between mb-16 border-l-4 border-highlight pl-8">
+            <div>
+              <h2 className="text-4xl font-black text-white uppercase tracking-tighter">Match Registry</h2>
+              <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mt-2">Active Tournament Instances</p>
             </div>
-            <div className="flex flex-col gap-4">
-               <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider flex items-center"><History className="w-4 h-4 mr-2" /> Past Results</h4>
-               {loading ? <div className="text-text-secondary text-sm animate-pulse">Loading results...</div> : pastAuctions.length > 0 ? pastAuctions.map(auction => <div key={auction.id} className="bg-secondary border border-accent rounded-xl p-6 opacity-80 hover:opacity-100 transition-all group"><h3 className="text-xl font-bold text-white mb-2">{auction.title}</h3><p className="text-text-secondary text-sm mb-4">Completed {auction.date}</p><div className="mt-auto pt-4 border-t border-gray-700 flex justify-between items-center text-xs text-text-secondary"><span>{auction.sport}</span><button onClick={() => navigate(`/auction/${auction.id}`)} className="text-green-400 hover:text-green-300 cursor-pointer font-bold hover:underline bg-transparent border-none p-0">View Stats</button></div></div>) : <div className="bg-secondary/50 border border-dashed border-gray-700 rounded-xl p-6 text-center text-text-secondary text-sm">No past auction results found.</div>}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="flex flex-col gap-6">
+               <h4 className="reveal-element text-[10px] font-black text-highlight uppercase tracking-[0.4em] flex items-center mb-2"><Calendar className="w-4 h-4 mr-3" /> Live & Upcoming Transmission</h4>
+               {loading ? (
+                 <div className="space-y-4">
+                    {[1,2].map(i => <div key={i} className="h-32 bg-secondary animate-pulse rounded-xl border border-accent/20"></div>)}
+                 </div>
+               ) : upcomingAuctions.length > 0 ? (
+                   upcomingAuctions.map((auction, idx) => (
+                       <AuctionCard key={auction.id} auction={auction} navigate={navigate} getStatusBadge={getStatusBadge} index={idx} />
+                   ))
+               ) : (
+                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-black uppercase tracking-widest opacity-50">No active events in transmission</div>
+               )}
+            </div>
+            <div className="flex flex-col gap-6">
+               <h4 className="reveal-element text-[10px] font-black text-text-secondary uppercase tracking-[0.4em] flex items-center mb-2"><History className="w-4 h-4 mr-3" /> Historical Archive</h4>
+               {loading ? (
+                 <div className="space-y-4">
+                    {[1,2].map(i => <div key={i} className="h-32 bg-secondary animate-pulse rounded-xl border border-accent/10 opacity-30"></div>)}
+                 </div>
+               ) : pastAuctions.length > 0 ? (
+                   pastAuctions.map((auction, idx) => (
+                    <div 
+                        key={auction.id} 
+                        className="bg-secondary border border-accent rounded-xl p-6 opacity-60 hover:opacity-100 transition-all group shadow-md reveal-element"
+                        style={{ transitionDelay: `${(idx % 4) * 150}ms` }}
+                    >
+                        <h3 className="text-lg font-black text-white mb-2 uppercase tracking-tight">{auction.title}</h3>
+                        <p className="text-text-secondary text-[10px] font-bold uppercase tracking-widest mb-4">Transmission Ended • {auction.date}</p>
+                        <div className="mt-auto pt-4 border-t border-gray-700/50 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                            <span className="bg-accent/50 px-2 py-1 rounded text-gray-400">{auction.sport}</span>
+                            <button onClick={() => navigate(`/auction/${auction.id}`)} className="text-green-400 hover:text-white transition-colors flex items-center gap-2">Protocol Logs <ChevronRight className="w-3 h-3"/></button>
+                        </div>
+                    </div>
+                   ))
+               ) : (
+                   <div className="reveal-element bg-secondary/50 border border-dashed border-gray-700 rounded-2xl p-10 text-center text-text-secondary text-xs font-black uppercase tracking-widest opacity-50">Archive directory empty</div>
+               )}
             </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-24 bg-primary relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-highlight/5 rounded-full blur-[100px] -mr-48 -mt-48"></div>
-          <div className="container mx-auto px-6 relative z-10">
-              <div className="text-center max-w-2xl mx-auto mb-16">
-                  <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4">Select Your Plan</h2>
-                  <p className="text-text-secondary">Scale your auction event with professional tools tailored to your tournament size.</p>
+      <section id="pricing" className="py-32 bg-primary relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-highlight/5 rounded-full blur-[150px] -mr-64 -mt-64"></div>
+          <div className="container mx-auto px-6 relative z-10 text-center">
+              <div className="reveal-element max-w-2xl mx-auto mb-20">
+                  <h2 className="text-5xl md:text-7xl font-black text-white mb-6 uppercase tracking-tighter">SELECT YOUR TIER</h2>
+                  <p className="text-text-secondary font-medium tracking-wide">Standardized operational protocols for tournaments of every magnitude.</p>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-24">
                   {PLANS.map((plan, i) => (
-                      <div key={i} className={`bg-secondary border ${plan.price === 5000 ? 'border-highlight ring-2 ring-highlight/20 scale-[1.02]' : 'border-accent'} rounded-3xl p-8 flex flex-col hover:border-gray-500 transition-all group relative overflow-hidden`}>
-                          {plan.price === 5000 && <div className="absolute top-6 right-6"><Zap className="w-6 h-6 text-highlight fill-current animate-pulse"/></div>}
-                          <div className="text-highlight text-[10px] font-black uppercase tracking-widest mb-3">{plan.badge}</div>
-                          <h3 className="text-2xl font-bold text-white mb-6">{plan.name}</h3>
-                          <div className="flex items-baseline mb-8">
-                              <span className="text-4xl font-black text-white">₹{plan.price}</span>
-                              <span className="text-sm text-gray-500 font-bold ml-1">/auction</span>
+                      <div 
+                        key={i} 
+                        className={`bg-secondary border ${plan.price === 5000 ? 'border-highlight ring-4 ring-highlight/10 scale-[1.05]' : 'border-accent'} rounded-[2.5rem] p-10 flex flex-col hover:border-gray-500 transition-all group relative overflow-hidden shadow-2xl reveal-element`}
+                        style={{ transitionDelay: `${i * 150}ms` }}
+                      >
+                          {plan.price === 5000 && <div className="absolute top-6 right-8"><Zap className="w-6 h-6 text-highlight fill-current animate-pulse"/></div>}
+                          <div className="text-highlight text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-left">{plan.badge} Protocol</div>
+                          <h3 className="text-3xl font-black text-white mb-10 text-left uppercase tracking-tight">{plan.name}</h3>
+                          <div className="flex items-baseline mb-12 border-b border-white/5 pb-8">
+                              <span className="text-5xl font-black text-white">₹{plan.price}</span>
+                              <span className="text-[10px] text-gray-500 font-black ml-2 uppercase tracking-widest">/ instance</span>
                           </div>
-                          <div className="space-y-4 mb-10 flex-grow">
-                              <div className="flex items-center gap-3 text-base text-gray-300 font-medium">
+                          <div className="space-y-5 mb-12 flex-grow text-left">
+                              <div className="flex items-center gap-4 text-sm text-gray-300 font-bold uppercase tracking-widest">
                                   <Users className="w-5 h-5 text-highlight"/>
-                                  Total Teams - Upto {plan.teams}
+                                  Capacity: {plan.teams} Teams
                               </div>
-                              <div className="flex items-center gap-3 text-sm text-gray-500">
+                              <div className="flex items-center gap-4 text-xs text-gray-500 font-bold uppercase tracking-widest">
                                   <CheckCircle className="w-4 h-4 text-green-500"/>
-                                  {plan.price === 0 ? 'Standard Overlays' : 'Full Pro Suite'}
+                                  {plan.price === 0 ? 'Standard Interface' : 'Full Command Suite'}
                               </div>
                           </div>
-                          <Link to="/auth?tab=admin&mode=register" className={`w-full py-4 rounded-2xl text-center font-bold transition-all ${plan.price === 5000 ? 'bg-highlight text-primary hover:bg-teal-400 shadow-lg shadow-highlight/20' : 'bg-accent/50 text-white hover:bg-accent'}`}>
-                              Get Started
+                          <Link to="/auth?tab=admin&mode=register" className={`w-full py-5 rounded-2xl text-center text-[10px] font-black uppercase tracking-[0.2em] transition-all ${plan.price === 5000 ? 'bg-highlight text-primary hover:bg-white shadow-xl' : 'bg-accent/40 text-white hover:bg-accent'}`}>
+                              Deploy License
                           </Link>
                       </div>
                   ))}
 
-                  {/* Custom Plan */}
-                  <div className="bg-gradient-to-br from-secondary to-zinc-900 border border-accent rounded-3xl p-8 flex flex-col hover:border-highlight transition-all">
-                      <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-3">Corporate</div>
-                      <h3 className="text-2xl font-bold text-white mb-6">Custom Plan</h3>
-                      <div className="text-4xl font-black text-white mb-10">Contact Us</div>
-                      <p className="text-sm text-gray-500 font-medium mb-10 flex-grow leading-relaxed">For large scale federations, custom rule engines, and dedicated onsite support.</p>
-                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="w-full bg-white text-primary font-bold py-4 rounded-2xl text-center hover:bg-gray-100 transition-colors">
-                          Contact Sales
+                  <div 
+                    className="bg-gradient-to-br from-secondary to-black border border-accent rounded-[2.5rem] p-10 flex flex-col hover:border-highlight transition-all shadow-2xl reveal-element"
+                    style={{ transitionDelay: '600ms' }}
+                  >
+                      <div className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-left">Enterprise Protocol</div>
+                      <h3 className="text-3xl font-black text-white mb-10 text-left uppercase tracking-tight">MEGALEAGUE</h3>
+                      <div className="text-2xl font-black text-white mb-12 h-[61px] flex items-center">Secure Custom Quote</div>
+                      <p className="text-[11px] text-gray-500 font-bold mb-12 flex-grow leading-relaxed uppercase tracking-widest text-left">Unlimited teams, dedicated field support, and custom broadcast overlays for large scale federations.</p>
+                      <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="w-full bg-white text-primary font-black py-5 rounded-2xl text-[10px] uppercase tracking-[0.2em] hover:bg-highlight hover:text-white transition-all">
+                          Contact Staff
                       </button>
                   </div>
               </div>
 
               {/* All Paid Plans Feature Highlight */}
-              <div className="bg-secondary/40 border border-accent rounded-[2.5rem] p-10 md:p-16 relative overflow-hidden">
+              <div className="bg-secondary/20 border border-highlight/20 rounded-[3rem] p-12 md:p-20 relative overflow-hidden backdrop-blur-xl reveal-element">
                   <div className="absolute top-0 right-0 p-8 opacity-5">
-                      <Star className="w-40 h-40 text-highlight" />
+                      <Star className="w-64 h-64 text-highlight" />
                   </div>
-                  <div className="max-w-4xl relative z-10">
-                      <h3 className="text-3xl font-black text-white mb-8 border-l-4 border-highlight pl-6">All Paid Plans Include</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><UserPlus className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">Online Registration</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">One time Player Data entry if available in excel.</p>
+                  <div className="max-w-4xl mx-auto relative z-10">
+                      <h3 className="text-3xl md:text-5xl font-black text-white mb-16 border-l-8 border-highlight pl-10 text-left uppercase tracking-tighter reveal-element">AUTHORIZED <br/> COMMAND FEATURES</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 text-left">
+                          {[
+                              { icon: <UserPlus className="w-6 h-6"/>, title: "Automated Enrollment", desc: "Public player registration portals with verified payment protocols." },
+                              { icon: <Layout className="w-6 h-6"/>, title: "Spectator Hub", desc: "Dedicated web interfaces for team owners and live audiences." },
+                              { icon: <Zap className="w-6 h-6"/>, title: "Logic Engine", desc: "Real-time budget tracking and automated squad verification." },
+                              { icon: <MessageSquare className="w-6 h-6"/>, title: "Broadcast Sync", desc: "Automated WhatsApp status updates and match logs for participants." },
+                              { icon: <Monitor className="w-6 h-6"/>, title: "Stadium Views", desc: "Ultra-low latency projector views and live bidding visualizers." },
+                              { icon: <Youtube className="w-6 h-6"/>, title: "OBS Integration", desc: "Professional stream overlays with dynamic player cards for OBS." }
+                          ].map((feat, idx) => (
+                              <div key={idx} className="flex gap-6 group reveal-element" style={{ transitionDelay: `${idx * 100}ms` }}>
+                                  <div className="bg-highlight/10 p-4 rounded-2xl h-fit text-highlight border border-highlight/20 group-hover:bg-highlight group-hover:text-primary transition-all">{feat.icon}</div>
+                                  <div>
+                                      <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">{feat.title}</h4>
+                                      <p className="text-[10px] text-text-secondary leading-relaxed font-bold uppercase opacity-60">{feat.desc}</p>
+                                  </div>
                               </div>
-                          </div>
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><Layout className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">Public Auction Page</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">Dedicated page for team owners, players and audience.</p>
-                              </div>
-                          </div>
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><Zap className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">Auto Calculation</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">Automatic points and budget calculation in real-time.</p>
-                              </div>
-                          </div>
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><MessageSquare className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">WhatsApp Updates</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">Automated status updates directly to players.</p>
-                              </div>
-                          </div>
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><Monitor className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">LED/Projector Screen</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">Real-time updating screen with multiple design options.</p>
-                              </div>
-                          </div>
-                          <div className="flex gap-4">
-                              <div className="bg-highlight/10 p-3 rounded-2xl h-fit text-highlight"><Youtube className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="text-white font-bold mb-1">YouTube Overlay</h4>
-                                  <p className="text-xs text-text-secondary leading-relaxed">Professional overlays for live streaming with multiple designs.</p>
-                              </div>
-                          </div>
+                          ))}
                       </div>
                   </div>
               </div>
 
-              <div className="mt-16 text-center">
-                  <p className="text-text-secondary font-medium mb-6">For more details or to conduct your tournament auction on ThePlayerAuction.com</p>
-                  <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-highlight hover:bg-teal-400 text-primary font-black px-12 py-4 rounded-2xl shadow-xl transition-all active:scale-95 uppercase tracking-widest text-sm">
-                      Contact Us Now
+              <div className="mt-24 text-center">
+                  <p className="text-text-secondary font-black text-[10px] uppercase tracking-[0.5em] mb-10 reveal-element">Transmission Authority verified</p>
+                  <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white hover:bg-highlight text-primary hover:text-white font-black px-16 py-5 rounded-2xl shadow-2xl transition-all active:scale-95 uppercase tracking-[0.2em] text-xs reveal-element">
+                      Consult Protocol Officer
                   </button>
               </div>
           </div>
       </section>
 
       {/* Legal Section */}
-      <section id="legal" className="py-24 bg-secondary/20 border-t border-accent/30 relative overflow-hidden">
-          <div className="absolute bottom-0 left-0 w-32 h-32 opacity-5 translate-y-1/2">
+      <section id="legal" className="py-32 bg-secondary/10 border-t border-accent/20 relative overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-64 h-64 opacity-5 translate-y-1/2">
                <CricketBallIcon className="w-full h-full text-white" />
           </div>
           <div className="container mx-auto px-6 relative z-10">
-              <div className="flex flex-col md:flex-row gap-16 items-start">
-                  <div className="md:w-1/3">
-                      <div className="flex items-center gap-3 mb-6">
-                          <div className="bg-white/10 p-2 rounded-lg"><Scale className="w-6 h-6 text-highlight"/></div>
-                          <h2 className="text-3xl font-bold text-white">Platform Rules</h2>
+              <div className="flex flex-col md:flex-row gap-20 items-start">
+                  <div className="md:w-1/3 reveal-element">
+                      <div className="flex items-center gap-4 mb-8">
+                          <div className="bg-highlight/10 p-3 rounded-xl border border-highlight/20"><Scale className="w-8 h-8 text-highlight"/></div>
+                          <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-none">Security <br/> Protocols</h2>
                       </div>
-                      <p className="text-text-secondary text-sm leading-relaxed mb-8">
-                          To ensure a fair and professional experience for everyone, we've established simple guidelines for organizers and players.
+                      <p className="text-text-secondary text-sm leading-relaxed mb-10 font-medium italic opacity-70">
+                          Ensuring technical integrity and operational compliance across all digital tournament environments.
                       </p>
-                      <div className="space-y-4">
-                          <div className="flex items-center gap-3 text-xs font-bold text-gray-400 uppercase tracking-widest"><ShieldCheck className="w-4 h-4 text-green-500"/> Secured Cloud Infrastructure</div>
-                          <div className="flex items-center gap-3 text-xs font-bold text-gray-400 uppercase tracking-widest"><FileText className="w-4 h-4 text-blue-500"/> GDPR & Data Privacy Complaint</div>
+                      <div className="space-y-5">
+                          <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest"><ShieldCheck className="w-5 h-5 text-green-500"/> Secured Cloud Infrastructure v4</div>
+                          <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FileText className="w-5 h-5 text-blue-500"/> Privacy Shield Authorized</div>
                       </div>
                   </div>
                   
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-8">
-                      <div className="space-y-4">
-                          <h4 className="text-white font-bold text-lg">Organizer Responsibilities</h4>
-                          <p className="text-text-secondary text-sm leading-relaxed">
-                              Organizers are responsible for managing their auctions fairly. SM SPORTS provides the tools for management but does not handle local team payments or player salaries.
-                          </p>
-                      </div>
-                      <div className="space-y-4">
-                          <h4 className="text-white font-bold text-lg">Privacy Policy</h4>
-                          <p className="text-text-secondary text-sm leading-relaxed">
-                              Your data is encrypted and secure. We do not sell player contact information or tournament data to third parties. All player photos are stored in secure cloud buckets.
-                          </p>
-                      </div>
-                      <div className="space-y-4">
-                          <h4 className="text-white font-bold text-lg">Refund Policy</h4>
-                          <p className="text-text-secondary text-sm leading-relaxed">
-                              Payments for auction upgrades are non-refundable once the auction features are activated. If you face technical issues, our support team will provide credits for future events.
-                          </p>
-                      </div>
-                      <div className="space-y-4">
-                          <h4 className="text-white font-bold text-lg">Content Guidelines</h4>
-                          <p className="text-text-secondary text-sm leading-relaxed">
-                              Tournament names, team logos, and player photos must comply with local laws. We reserve the right to remove any content that is offensive or illegal.
-                          </p>
-                      </div>
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-12">
+                      {[
+                        { title: "Operational Responsibility", desc: "Event leads are authorized to manage their local instances. SM SPORTS provides the OS and hardware bridges but does not regulate independent financial contracts." },
+                        { title: "Data Retention", desc: "System telemetry and player profiles are encrypted. Registry data is archived strictly for administrative verification and historical match logging." },
+                        { title: "Refund Protocol", desc: "License deployments are final once instance transmission begins. Operational credits may be issued for system-side interruptions only." },
+                        { title: "Content Authority", desc: "Administrator accounts must verify that all tournament assets (logos, photos) comply with the Standard Integrity Guidelines." }
+                      ].map((policy, idx) => (
+                        <div key={idx} className="space-y-5 reveal-element" style={{ transitionDelay: `${idx * 150}ms` }}>
+                            <h4 className="text-highlight font-black text-[10px] uppercase tracking-[0.3em]">{policy.title}</h4>
+                            <p className="text-text-secondary text-xs leading-relaxed font-bold uppercase opacity-60">{policy.desc}</p>
+                        </div>
+                      ))}
                   </div>
               </div>
           </div>
       </section>
 
-      <footer className="bg-secondary border-t border-accent py-12 mt-auto">
-        <div className="container mx-auto px-6">
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-              <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Users /></div><h4 className="text-white font-bold mb-2">Team Management</h4><p className="text-text-secondary text-sm">Owners can manage squads, view budgets, and strategize in real-time.</p></div>
-              <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Trophy /></div><h4 className="text-white font-bold mb-2">Live Bidding</h4><p className="text-text-secondary text-sm">Instant bid reflection for a real-world auction experience.</p></div>
-              <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><ShieldCheck /></div><h4 className="text-white font-bold mb-2">Admin Controls</h4><p className="text-text-secondary text-sm">Full control for auctioneers to manage lots and results.</p></div>
-              <div><div className="bg-accent/30 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-highlight"><Monitor /></div><h4 className="text-white font-bold mb-2">Live Broadcast</h4><p className="text-text-secondary text-sm">Professional overlays for OBS and Projector screens.</p></div>
+      <footer className="bg-secondary border-t border-accent/50 py-20 mt-auto relative overflow-hidden">
+        <div className="container mx-auto px-6 relative z-10">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
+              {[
+                { icon: <Users />, title: "Command Center", desc: "Remote team management and budget synchronization terminals." },
+                { icon: <Trophy />, title: "Live Transmission", desc: "Instant visual reflection of all bidding activity across the OS." },
+                { icon: <ShieldCheck />, title: "Root Control", desc: "Master override authority for auctioneers and field stewards." },
+                { icon: <Monitor />, title: "Broadcast Engine", desc: "Industrial-grade stream overlays for professional broadcasting." }
+              ].map((item, idx) => (
+                <div key={idx} className="reveal-element" style={{ transitionDelay: `${idx * 150}ms` }}>
+                    <div className="bg-accent/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-highlight border border-white/5">{item.icon}</div>
+                    <h4 className="text-white font-black text-xs uppercase tracking-widest mb-4">{item.title}</h4>
+                    <p className="text-text-secondary text-[11px] font-bold uppercase opacity-60 leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
            </div>
            
-           <div className="border-t border-gray-700 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
-               <div className="text-text-secondary text-sm font-medium">&copy; 2025 SM SPORTS. All rights reserved.</div>
-               <div className="flex flex-wrap justify-center gap-8">
-                   <Link to="/guide" className="text-highlight hover:underline text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                       <BookOpen className="w-4 h-4"/> User Manual
+           <div className="border-t border-gray-800 pt-12 flex flex-col lg:flex-row justify-between items-center gap-10">
+               <div className="text-gray-500 text-[11px] font-black uppercase tracking-[0.2em] reveal-element">&copy; 2025 SM SPORTS. All digital assets protected.</div>
+               <div className="flex flex-wrap justify-center gap-8 reveal-element">
+                   <Link to="/guide" className="text-highlight hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors">
+                       <BookOpen className="w-4 h-4"/> Field Guide
                    </Link>
-                   <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">Pricing</button>
-                   <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">Legal Terms</button>
-                   <Link to="/auth" className="text-text-secondary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">Admin Login</Link>
+                   <button onClick={() => scrollToSection('pricing')} className="text-text-secondary hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Licensing</button>
+                   <button onClick={() => scrollToSection('legal')} className="text-text-secondary hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Integrity</button>
+                   <Link to="/stafflogin" className="text-gray-600 hover:text-blue-400 text-[10px] font-black uppercase tracking-widest transition-colors">Staff Entrance</Link>
                </div>
            </div>
         </div>
       </footer>
 
       {/* Owner Attribution Highlighting */}
-      <div className="bg-highlight/10 py-6 border-t border-highlight/20 text-center relative overflow-hidden group">
+      <div className="bg-highlight/10 py-8 border-t border-highlight/20 text-center relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-highlight/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
-          <p className="text-text-secondary text-xs font-black uppercase tracking-[0.4em] relative z-10">
-              Owned and operated by <span className="text-highlight font-black border-b-2 border-highlight/50 pb-0.5">Zabiulla Khan</span>
+          <p className="text-text-secondary text-[10px] font-black uppercase tracking-[0.6em] relative z-10 reveal-element">
+              System Architecture by <span className="text-highlight font-black border-b-2 border-highlight/30 pb-0.5 group-hover:border-highlight transition-colors">Zabiulla Khan</span>
           </p>
       </div>
 
-      <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-6 right-6 bg-highlight text-primary p-3 rounded-full shadow-2xl z-50 hover:scale-110 active:scale-95 transition-transform"><Smartphone className="w-6 h-6"/></button>
+      <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-6 right-6 bg-highlight text-primary p-4 rounded-full shadow-2xl z-50 hover:scale-110 active:scale-95 transition-transform hover:bg-white shadow-highlight/20 border-4 border-primary"><Smartphone className="w-5 h-5"/></button>
     </div>
   );
 };
