@@ -380,7 +380,7 @@ const AuctionManage: React.FC = () => {
                                                         onChange={e => setRegConfig({...regConfig, razorpayKey: e.target.value})} 
                                                         placeholder="rzp_live_xxxxxxxxxxxx" 
                                                     />
-                                                    <p className="text-[8px] text-indigo-200 font-bold uppercase mt-3 tracking-widest leading-relaxed text-center">Fetch this from your Razorpay Dashboard > Settings > API Keys</p>
+                                                    <p className="text-[8px] text-indigo-200 font-bold uppercase mt-3 tracking-widest leading-relaxed text-center">Fetch this from your Razorpay Dashboard &gt; Settings &gt; API Keys</p>
                                                 </div>
                                             )}
 
