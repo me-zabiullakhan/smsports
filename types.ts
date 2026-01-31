@@ -1,3 +1,4 @@
+
 export enum PlayerCategory {
   Batsman = "Batsman",
   Bowler = "Bowler",
@@ -279,6 +280,7 @@ export interface AuctionSetup {
     planId?: string; // Plan ID associated with auction
     autoDeleteAt?: number; // Scheduled deletion timestamp
     isLifetime?: boolean; // No auto-delete flag
+    razorpayAuthorized?: boolean; // SUPER ADMIN controlled authorization
 }
 
 export type ScoreboardTheme = 'ICC_T20_2010' | 'ICC_T20_2012' | 'ICC_T20_2014' | 'ICC_T20_2016' | 'ICC_T20_2021' | 'ICC_T20_2022' | 'ICC_T20_2024' | 'CWC_2023' | 'DEFAULT';
