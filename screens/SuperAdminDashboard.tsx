@@ -10,7 +10,7 @@ import {
     Upload, Save, Eye, EyeOff, Layout, XCircle, Plus, CreditCard, CheckCircle, 
     Tag, Clock, Ban, Check, Zap, Server, Activity, AlertTriangle, HardDrive, 
     Calendar, ShieldCheck, Megaphone, Bell, Timer, Infinity as InfinityIcon, 
-    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key, Filter, ChevronDown, UserX, Monitor
+    MessageSquare, Layers, Newspaper, Headset, UserMinus, UserPlus, Mail, ShieldAlert, Key, Filter, ChevronDown, UserX, Monitor, Fingerprint
 } from 'lucide-react';
 
 const compressImage = (file: File): Promise<string> => {
@@ -144,7 +144,7 @@ const SuperAdminDashboard: React.FC = () => {
             setLoading(false);
         });
 
-        // Other listeners (registry, plans, promos, etc.)
+        // Registry, Plans, Promos, etc.
         const unsubRegistry = db.collection('users').onSnapshot(snap => {
             const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
             list.sort((a,b) => a.email.localeCompare(b.email));
@@ -176,71 +176,9 @@ const SuperAdminDashboard: React.FC = () => {
         });
 
         return () => {
-            unsubscribe();
-            unsubRegistry();
-            unsubPlans();
-            unsubPromos();
-            unsubPopups();
-            unsubRetention();
-            unsubAssets();
-            unsubBroadcasts();
+            unsubscribe(); unsubRegistry(); unsubPlans(); unsubPromos(); unsubPopups(); unsubRetention(); unsubAssets(); unsubBroadcasts();
         };
     }, []);
-
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!userForm.email || !userForm.password) return;
-        setIsProcessing(true);
-        try {
-            const usersRef = db.collection('users');
-            const snap = await usersRef.where('email', '==', userForm.email.toLowerCase()).limit(1).get();
-            let userDocId = snap.empty ? `USER_${Date.now()}` : snap.docs[0].id;
-
-            await usersRef.doc(userDocId).set({
-                email: userForm.email.toLowerCase(),
-                name: userForm.name || 'New User',
-                role: userForm.role,
-                password: userForm.password,
-                createdAt: Date.now()
-            }, { merge: true });
-
-            setIsAddingUser(false);
-            setUserForm({ email: '', name: '', password: '', role: UserRole.SUPPORT });
-            alert("Registry Identity Established!");
-        } catch (err: any) { alert("Fail: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const handleUpdateUser = async (uid: string) => {
-        setIsProcessing(true);
-        try {
-            await db.collection('users').doc(uid).update({
-                name: editForm.name,
-                email: editForm.email.toLowerCase(),
-                password: editForm.password,
-                role: editForm.role
-            });
-            setEditingUserId(null);
-            alert("Registry Profile Synced.");
-        } catch (err: any) { alert("Failed Update: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const handleDeleteUser = async (uid: string, email: string) => {
-        if (window.confirm(`Permanently terminate access for ${email}? This cannot be undone.`)) {
-            await db.collection('users').doc(uid).delete();
-        }
-    };
-
-    const handleOpenEdit = (user: UserProfile) => {
-        setEditingUserId(user.uid);
-        setEditForm({
-            name: user.name || '',
-            email: user.email,
-            password: (user as any).password || '',
-            role: user.role
-        });
-    };
 
     const handleSaveAuctionMetadata = async () => {
         if (!editingAuctionId) return;
@@ -266,133 +204,10 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    const handleSavePlan = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!planForm.name) return;
-        setIsProcessing(true);
-        try {
-            const pData = {
-                name: planForm.name,
-                price: Number(planForm.price),
-                teams: Number(planForm.teams),
-                updatedAt: Date.now()
-            };
-            if (planForm.id) {
-                await db.collection('subscriptionPlans').doc(planForm.id).update(pData);
-            } else {
-                await db.collection('subscriptionPlans').add({ ...pData, createdAt: Date.now() });
-            }
-            setIsAddingPlan(false);
-            setPlanForm({ id: '', name: '', price: 0, teams: 0 });
-            alert("Subscription Protocol Authorized!");
-        } catch (err: any) { alert("Fail: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const deletePlan = async (id: string) => {
-        if (window.confirm("Permanently purge this subscription plan? This will affect new upgrades.")) {
-            await db.collection('subscriptionPlans').doc(id).delete();
-        }
-    };
-
-    const filteredRegistry = userRegistry.filter(u => {
-        const matchesRole = registryFilter === 'ALL' || u.role === registryFilter;
-        const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) || (u.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesRole && matchesSearch;
-    });
-
     const filteredAuctions = auctions.filter(a => {
         const term = searchTerm.toLowerCase();
         return a.title.toLowerCase().includes(term) || a.id?.toLowerCase().includes(term) || a.createdBy?.toLowerCase().includes(term);
     });
-
-    const handleSavePromo = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            const data = { ...promoForm, code: promoForm.code?.toUpperCase(), currentClaims: 0, active: true, createdAt: Date.now() };
-            await db.collection('promoCodes').add(data);
-            setIsAddingPromo(false);
-            setPromoForm({ code: '', discountType: 'PERCENT', discountValue: 0, maxClaims: 10, expiryDate: Date.now() + 604800000 });
-            alert("Promo Code Authorized!");
-        } catch (err: any) { alert("Failed: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const deletePromo = async (id: string) => {
-        if (window.confirm("Purge promo protocol from registry?")) {
-            await db.collection('promoCodes').doc(id).delete();
-        }
-    };
-
-    const handleSavePopup = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            const data = { ...popupForm, imageUrl: popupPreviewImg, createdAt: Date.now() };
-            if (popupForm.id) {
-                await db.collection('systemPopups').doc(popupForm.id).update(data);
-            } else {
-                await db.collection('systemPopups').add(data);
-            }
-            setIsAddingPopup(false);
-            setPopupForm({ title: '', message: '', delaySeconds: 5, okButtonText: 'UNDERSTOOD', closeButtonText: 'CLOSE', showImage: false, showText: true, expiryDate: Date.now() + 86400000 * 7, isActive: true });
-            setPopupPreviewImg('');
-            alert("System Alert Broadcast Live!");
-        } catch (err: any) { alert("Popup Protocol Failed: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const deletePopup = async (id: string) => {
-        if (window.confirm("Purge this system alert?")) {
-            await db.collection('systemPopups').doc(id).delete();
-        }
-    };
-
-    const handleSaveGlobalRetention = async () => {
-        setSavingRetention(true);
-        try {
-            await db.collection('appConfig').doc('globalSettings').update({ defaultRetentionDays: retentionDays });
-            alert("Global Retention Policy Updated.");
-        } catch(e: any) { alert("Fail: " + e.message); }
-        setSavingRetention(false);
-    };
-
-    const handleSaveAsset = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!assetPreview || !assetForm.name) return;
-        setIsProcessing(true);
-        try {
-            await db.collection('globalAssets').add({
-                ...assetForm,
-                url: assetPreview,
-                createdBy: 'SUPER_ADMIN',
-                createdAt: Date.now()
-            });
-            setIsAddingAsset(false);
-            setAssetPreview('');
-            setAssetForm({ name: '', type: 'BACKGROUND' });
-            alert("Global Asset Deployed!");
-        } catch (e: any) { alert("Deploy Failed: " + e.message); }
-        setIsProcessing(false);
-    };
-
-    const deleteAsset = async (id: string) => {
-        if (window.confirm("Delete global graphic?")) {
-            await db.collection('globalAssets').doc(id).delete();
-        }
-    };
-
-    const handleSaveBroadcast = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            await db.collection('systemBroadcasts').add({ ...broadcastForm, createdAt: Date.now() });
-            setIsAddingBroadcast(false);
-            setBroadcastForm({ message: '', isActive: true });
-        } catch (e: any) { alert("Fail: " + e.message); }
-        setIsProcessing(false);
-    };
 
     return (
         <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500 selection:text-white">
@@ -507,7 +322,9 @@ const SuperAdminDashboard: React.FC = () => {
                                                 <div className="flex flex-wrap items-center gap-3 mt-1.5">
                                                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-3 py-0.5 rounded-full border border-red-500/20">#{auction.id}</span>
                                                     <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1.5"><Calendar className="w-3 h-3"/> {new Date(auction.createdAt || 0).toLocaleDateString()}</span>
-                                                    <span className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1.5"><Mail className="w-3 h-3"/> OWNER: {auction.createdBy?.slice(0, 15)}...</span>
+                                                    <span className={`text-[9px] font-black px-3 py-0.5 rounded-full border ${auction.razorpayAuthorized ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-800 text-zinc-500 border-white/5'}`}>
+                                                        {auction.razorpayAuthorized ? 'PAYMENT AUTH' : 'PAYMENT LOCKED'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -520,7 +337,10 @@ const SuperAdminDashboard: React.FC = () => {
                                                 </span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl transition-all border border-white/5 shadow-xl"><Edit className="w-5 h-5 text-zinc-400" /></button>
+                                                <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl transition-all border border-white/5 shadow-xl flex items-center gap-2">
+                                                    <Edit className="w-5 h-5 text-zinc-400" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Edit Metadata</span>
+                                                </button>
                                                 <button onClick={() => handleRemoteAssist(auction.id!)} className="bg-blue-600 hover:bg-blue-500 p-4 rounded-2xl transition-all shadow-xl"><Monitor className="w-5 h-5 text-white" /></button>
                                                 <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="bg-zinc-800 hover:bg-red-600 p-4 rounded-2xl transition-all border border-white/5 shadow-xl"><Trash2 className="w-5 h-5 text-zinc-400 group-hover:text-white" /></button>
                                             </div>
@@ -528,7 +348,11 @@ const SuperAdminDashboard: React.FC = () => {
                                     </div>
 
                                     {editingAuctionId === auction.id && (
-                                        <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up">
+                                        <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up bg-zinc-950/30 p-6 rounded-3xl border border-white/5">
+                                            <div className="col-span-full mb-4 flex items-center gap-2">
+                                                <Fingerprint className="w-4 h-4 text-red-500" />
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-300">Advanced Override Panel</h4>
+                                            </div>
                                             <div>
                                                 <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Manual Retention Lock</label>
                                                 <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
@@ -542,7 +366,7 @@ const SuperAdminDashboard: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Integrated Payments (Razorpay)</label>
+                                                <label className="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2">Integrated Payments (Razorpay)</label>
                                                 <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
                                                     <span className="text-[10px] font-bold text-zinc-400">Authorize Integration</span>
                                                     <button 
@@ -572,7 +396,7 @@ const SuperAdminDashboard: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {/* ... other tabs ... */}
+                {/* ... other tabs remain same ... */}
             </main>
         </div>
     );
