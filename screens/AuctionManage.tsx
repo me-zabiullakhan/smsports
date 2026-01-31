@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -163,10 +162,16 @@ const AuctionManage: React.FC = () => {
             } else {
                 await db.collection('auctions').doc(id).collection(col).add({ ...itemData, createdAt: Date.now() });
             }
-            setShowModal(false);
-            setEditItem(null);
-            setPreviewImage('');
+            // Fix: Use central closeModal function to reset state
+            closeModal();
         } catch (err: any) { alert("Save failed: " + err.message); }
+    };
+
+    // Add comment: Define missing closeModal function to reset modal-related state
+    const closeModal = () => {
+        setShowModal(false);
+        setEditItem(null);
+        setPreviewImage('');
     };
 
     const handleDelete = async (type: string, itemId: string) => {
@@ -343,6 +348,40 @@ const AuctionManage: React.FC = () => {
                     </div>
                 )}
 
+                {activeTab === 'TEAMS' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Franchise Registry ({teams.length})</h2>
+                            <div className="flex gap-2">
+                                <label className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase cursor-pointer hover:bg-gray-50 transition-all flex items-center gap-2">
+                                    <FileUp className="w-4 h-4"/> Import XLSX
+                                    <input type="file" className="hidden" accept=".xlsx, .xls" onChange={(e) => handleExcelImport(e, 'TEAM')}/>
+                                </label>
+                                <button onClick={() => { setModalType('TEAM'); setEditItem({ name: '', owner: '', budget: settingsForm.purseValue }); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg shadow-blue-600/20"><Plus className="w-4 h-4"/> Add Team</button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {teams.map(team => (
+                                <div key={team.id} className="bg-white p-5 rounded-[1.5rem] border border-gray-200 shadow-sm flex items-center justify-between group">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border border-gray-100 p-1">
+                                            {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain" /> : <Users className="text-gray-300 w-6 h-6"/>}
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-gray-800 uppercase text-sm leading-none">{team.name}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">₹{team.budget}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setModalType('TEAM'); setEditItem(team); setPreviewImage(team.logoUrl); setShowModal(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4"/></button>
+                                        <button onClick={() => handleDelete('TEAM', String(team.id))} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'PLAYERS' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
@@ -417,12 +456,6 @@ const AuctionManage: React.FC = () => {
                                     </tbody>
                                 </table>
                             </div>
-                            {players.length === 0 && (
-                                <div className="py-20 text-center flex flex-col items-center">
-                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-dashed border-gray-300"><Users className="text-gray-300 w-8 h-8"/></div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em]">Registry is empty</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -559,7 +592,6 @@ const AuctionManage: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-4 px-2">
                              <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Registration Queue ({registrations.length})</h2>
-                             <button className="text-blue-600 text-xs font-bold flex items-center gap-1 hover:underline"><Download className="w-4 h-4"/> Export CSV</button>
                         </div>
                         {registrations.length === 0 ? (
                             <div className="p-32 text-center text-gray-400 bg-white rounded-[3rem] border-2 border-dashed border-gray-200 flex flex-col items-center">
@@ -581,13 +613,41 @@ const AuctionManage: React.FC = () => {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border-2 ${reg.status === 'PENDING' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-green-50 text-green-600 border-green-200'}`}>{reg.status}</div>
-                                            <button className="p-2.5 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all"><Trash2 className="w-4 h-4"/></button>
-                                            <button className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg">Verify</button>
+                                            <button onClick={() => handleDelete('REGISTRATION', reg.id)} className="p-2.5 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all"><Trash2 className="w-4 h-4"/></button>
+                                            <button onClick={async () => {
+                                                await db.collection('auctions').doc(id!).collection('registrations').doc(reg.id).update({ status: 'APPROVED' });
+                                            }} className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg">Verify</button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {(activeTab === 'CATEGORIES' || activeTab === 'ROLES' || activeTab === 'SPONSORS') && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Manage {activeTab}</h2>
+                            <button onClick={() => {
+                                setModalType(activeTab === 'CATEGORIES' ? 'CATEGORY' : activeTab === 'ROLES' ? 'ROLE' : 'SPONSOR');
+                                setEditItem({});
+                                setShowModal(true);
+                            }} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg"><Plus className="w-4 h-4"/> Add New</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {(activeTab === 'CATEGORIES' ? categories : activeTab === 'ROLES' ? roles : sponsors).map((item: any) => (
+                                <div key={item.id} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between group">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 overflow-hidden">
+                                            {item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-contain" /> : <Layers className="text-gray-300 w-5 h-5"/>}
+                                        </div>
+                                        <p className="font-black text-gray-800 uppercase text-xs">{item.name}</p>
+                                    </div>
+                                    <button onClick={() => handleDelete(activeTab.slice(0, -1), item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </main>
@@ -599,7 +659,7 @@ const AuctionManage: React.FC = () => {
                         <div className="bg-blue-600 p-6 text-white flex justify-between items-center relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
                             <h3 className="text-lg font-black uppercase tracking-tight relative z-10">{editItem?.id ? 'Modify' : 'Initialize'} {modalType}</h3>
-                            <button onClick={() => setShowModal(false)} className="relative z-10 hover:rotate-90 transition-transform"><X className="w-6 h-6"/></button>
+                            <button onClick={closeModal} className="relative z-10 hover:rotate-90 transition-transform"><X className="w-6 h-6"/></button>
                         </div>
                         <form onSubmit={handleCrudSave} className="p-8 space-y-6">
                             <div>
