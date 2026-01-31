@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
@@ -59,14 +58,11 @@ const SuperAdminDashboard: React.FC = () => {
     });
 
     const totalGB = (stats.totalDocsEstimate * 0.00002).toFixed(2);
-
     const [logoPreview, setLogoPreview] = useState(state.systemLogoUrl || '');
     const logoInputRef = useRef<HTMLInputElement>(null);
-
-    // Common States
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // Registry / User Management States
+    // Registry / User Management
     const [userRegistry, setUserRegistry] = useState<UserProfile[]>([]);
     const [registryFilter, setRegistryFilter] = useState<'ALL' | 'SUPPORT' | 'ADMIN' | 'VIEWER'>('ALL');
     const [isAddingUser, setIsAddingUser] = useState(false);
@@ -74,46 +70,12 @@ const SuperAdminDashboard: React.FC = () => {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState({ email: '', name: '', password: '', role: UserRole.VIEWER });
 
-    // Auction Management (Metadata Editing)
+    // Auction Management
     const [editingAuctionId, setEditingAuctionId] = useState<string | null>(null);
     const [auctionEditForm, setAuctionEditForm] = useState<Partial<AuctionSetup>>({});
 
-    // Plans Management
-    const [dbPlans, setDbPlans] = useState<any[]>([]);
-    const [planForm, setPlanForm] = useState({ id: '', name: '', price: 0, teams: 0 });
-    const [isAddingPlan, setIsAddingPlan] = useState(false);
-
-    // Promo Codes State
-    const [promos, setPromos] = useState<PromoCode[]>([]);
-    const [isAddingPromo, setIsAddingPromo] = useState(false);
-    const [promoForm, setPromoForm] = useState<Partial<PromoCode>>({
-        code: '', discountType: 'PERCENT', discountValue: 0, maxClaims: 10, expiryDate: Date.now() + 604800000, active: true
-    });
-
-    // System Popups State
-    const [popups, setPopups] = useState<SystemPopup[]>([]);
-    const [isAddingPopup, setIsAddingPopup] = useState(false);
-    const [popupForm, setPopupForm] = useState<Partial<SystemPopup>>({
-        title: '', message: '', imageUrl: '', showImage: false, showText: true, delaySeconds: 5, okButtonText: 'UNDERSTOOD', closeButtonText: 'CLOSE', expiryDate: Date.now() + 86400000 * 7, isActive: true
-    });
-    const [popupPreviewImg, setPopupPreviewImg] = useState('');
-    const popupImgRef = useRef<HTMLInputElement>(null);
-
-    // Database Ops State
-    const [retentionDays, setRetentionDays] = useState(30);
-    const [savingRetention, setSavingRetention] = useState(false);
-
-    // Graphics Library State
+    // Graphics
     const [globalAssets, setGlobalAssets] = useState<ScoringAsset[]>([]);
-    const [isAddingAsset, setIsAddingAsset] = useState(false);
-    const [assetForm, setAssetForm] = useState({ name: '', type: 'BACKGROUND' as ScoringAsset['type'] });
-    const [assetPreview, setAssetPreview] = useState('');
-    const assetInputRef = useRef<HTMLInputElement>(null);
-
-    // Broadcast State
-    const [broadcasts, setBroadcasts] = useState<any[]>([]);
-    const [isAddingBroadcast, setIsAddingBroadcast] = useState(false);
-    const [broadcastForm, setBroadcastForm] = useState({ message: '', isActive: true });
 
     useEffect(() => {
         setLoading(true);
@@ -123,7 +85,7 @@ const SuperAdminDashboard: React.FC = () => {
             setAuctions(data);
             
             const uniqueOwners = new Set(data.map(a => a.createdBy).filter(Boolean));
-            const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT' || (a.status as any) === 'IN_PROGRESS' || (a.status as any) === 'LIVE').length;
+            const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT').length;
             
             const matchesSnap = await db.collection('matches').get();
             const playersSnap = await db.collectionGroup('players').get();
@@ -144,39 +106,20 @@ const SuperAdminDashboard: React.FC = () => {
             setLoading(false);
         });
 
-        // Registry, Plans, Promos, etc.
         const unsubRegistry = db.collection('users').onSnapshot(snap => {
             const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
             list.sort((a,b) => a.email.localeCompare(b.email));
             setUserRegistry(list);
         });
 
-        const unsubPlans = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
-            setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-
-        const unsubPromos = db.collection('promoCodes').onSnapshot(snap => {
-            setPromos(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromoCode)));
-        });
-
-        const unsubPopups = db.collection('systemPopups').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            setPopups(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemPopup)));
-        });
-
-        const unsubRetention = db.collection('appConfig').doc('globalSettings').onSnapshot(doc => {
-            if(doc.exists) setRetentionDays(doc.data()?.defaultRetentionDays || 30);
-        });
-
         const unsubAssets = db.collection('globalAssets').onSnapshot(snap => {
             setGlobalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
         });
 
-        const unsubBroadcasts = db.collection('systemBroadcasts').onSnapshot(snap => {
-            setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-
         return () => {
-            unsubscribe(); unsubRegistry(); unsubPlans(); unsubPromos(); unsubPopups(); unsubRetention(); unsubAssets(); unsubBroadcasts();
+            unsubscribe();
+            unsubRegistry();
+            unsubAssets();
         };
     }, []);
 
@@ -192,13 +135,13 @@ const SuperAdminDashboard: React.FC = () => {
     };
 
     const handleDeleteAuction = async (id: string, title: string) => {
-        if (window.confirm(`PERMANENT DELETION: Purge entire record for "${title}"? All teams, players and logs will be deleted.`)) {
+        if (window.confirm(`PERMANENT DELETION: Purge entire record for "${title}"? This will wipe all data.`)) {
             await db.collection('auctions').doc(id).delete();
         }
     };
 
     const handleRemoteAssist = (auctionId: string) => {
-        if (window.confirm("Entering Remote Assist Mode. You will be redirected to this auction's management terminal. Proceed?")) {
+        if (window.confirm("Entering Remote Assist Mode. You will be redirected to this auction. Proceed?")) {
             joinAuction(auctionId);
             navigate(`/auction/${auctionId}`);
         }
@@ -209,12 +152,18 @@ const SuperAdminDashboard: React.FC = () => {
         return a.title.toLowerCase().includes(term) || a.id?.toLowerCase().includes(term) || a.createdBy?.toLowerCase().includes(term);
     });
 
+    const filteredRegistry = userRegistry.filter(u => {
+        const matchesRole = registryFilter === 'ALL' || u.role === registryFilter;
+        const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) || (u.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+        return matchesRole && matchesSearch;
+    });
+
     return (
         <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500 selection:text-white">
             <nav className="bg-zinc-950 border-b border-zinc-800/50 sticky top-0 z-50 backdrop-blur-xl">
                 <div className="container mx-auto px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setActiveTab('OVERVIEW')}>
-                        <div className="bg-red-600 p-2.5 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:rotate-12 transition-all">
+                        <div className="bg-red-600 p-2.5 rounded-2xl shadow-xl group-hover:rotate-12 transition-all">
                             <Shield className="w-6 h-6 text-white" />
                         </div>
                         <div>
@@ -227,12 +176,6 @@ const SuperAdminDashboard: React.FC = () => {
                             {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
                             {id: 'REGISTRY', label: 'Users', icon: <Users className="w-4 h-4"/>},
                             {id: 'AUCTIONS', label: 'Auctions', icon: <Gavel className="w-4 h-4"/>},
-                            {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>},
-                            {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
-                            {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
-                            {id: 'BROADCAST', label: 'Ticker', icon: <Newspaper className="w-4 h-4"/>},
-                            {id: 'DATABASE', label: 'Database', icon: <HardDrive className="w-4 h-4"/>},
-                            {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>},
                         ].map(t => (
                             <button 
                                 key={t.id}
@@ -250,19 +193,6 @@ const SuperAdminDashboard: React.FC = () => {
             </nav>
 
             <main className="container mx-auto px-6 py-10 max-w-7xl">
-                
-                {(activeTab === 'REGISTRY' || activeTab === 'AUCTIONS') && (
-                    <div className="mb-8 relative animate-fade-in">
-                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-                        <input 
-                            placeholder={activeTab === 'REGISTRY' ? "SEARCH USERS BY EMAIL OR NAME..." : "SEARCH AUCTIONS BY TITLE, ID OR OWNER UID..."}
-                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-[2rem] py-6 pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all shadow-xl"
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                )}
-
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
@@ -289,26 +219,52 @@ const SuperAdminDashboard: React.FC = () => {
                              <div className="flex-1 text-center md:text-left">
                                 <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Master OS Identity</h2>
                                 <p className="text-zinc-400 text-sm max-w-xl mb-8 leading-relaxed font-medium">Inject global system branding that overrides tenant presets across all tournament environments.</p>
-                                <div className="flex flex-wrap gap-4">
-                                    <button onClick={() => logoInputRef.current?.click()} className="bg-white text-black font-black px-10 py-4 rounded-2xl flex items-center gap-3 transition-all hover:bg-red-600 hover:text-white">
-                                        <Upload className="w-5 h-5" /> REFLASH BRANDING
-                                    </button>
-                                    <input ref={logoInputRef} type="file" className="hidden" accept="image/*" onChange={async (e) => {
-                                        if (e.target.files?.[0]) {
-                                            const base64 = await compressImage(e.target.files[0]);
-                                            await db.collection('appConfig').doc('globalSettings').set({ systemLogoUrl: base64 }, { merge: true });
-                                            alert("System Brand Synced.");
-                                        }
-                                    }} />
-                                </div>
+                                <button onClick={() => logoInputRef.current?.click()} className="bg-white text-black font-black px-10 py-4 rounded-2xl flex items-center gap-3 transition-all hover:bg-red-600 hover:text-white">
+                                    <Upload className="w-5 h-5" /> REFLASH BRANDING
+                                </button>
+                                <input ref={logoInputRef} type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                    if (e.target.files?.[0]) {
+                                        const base64 = await compressImage(e.target.files[0]);
+                                        await db.collection('appConfig').doc('globalSettings').set({ systemLogoUrl: base64 }, { merge: true });
+                                        alert("System Brand Synced.");
+                                    }
+                                }} />
                              </div>
                         </div>
                     </div>
                 )}
 
-                {/* AUCTIONS MANAGEMENT TAB */}
+                {activeTab === 'REGISTRY' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="bg-zinc-900/30 p-8 rounded-[2rem] border border-white/5">
+                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-6">User Registry</h2>
+                            <div className="grid grid-cols-1 gap-4">
+                                {filteredRegistry.map(user => (
+                                    <div key={user.uid} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-bold">{user.email}</p>
+                                            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{user.role}</p>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-zinc-700">UID: {user.uid.slice(0,8)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'AUCTIONS' && (
                     <div className="space-y-6 animate-fade-in">
+                        <div className="mb-8 relative">
+                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
+                            <input 
+                                placeholder="SEARCH AUCTIONS..."
+                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-[2rem] py-6 pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all shadow-xl"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+
                         <div className="grid grid-cols-1 gap-4">
                             {filteredAuctions.map(auction => (
                                 <div key={auction.id} className="bg-zinc-900/30 p-8 rounded-[2rem] border border-white/5 hover:border-red-600/30 transition-all group overflow-hidden">
@@ -321,7 +277,6 @@ const SuperAdminDashboard: React.FC = () => {
                                                 <h3 className="text-2xl font-black uppercase tracking-tighter truncate text-white">{auction.title}</h3>
                                                 <div className="flex flex-wrap items-center gap-3 mt-1.5">
                                                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-3 py-0.5 rounded-full border border-red-500/20">#{auction.id}</span>
-                                                    <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1.5"><Calendar className="w-3 h-3"/> {new Date(auction.createdAt || 0).toLocaleDateString()}</span>
                                                     <span className={`text-[9px] font-black px-3 py-0.5 rounded-full border ${auction.razorpayAuthorized ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-800 text-zinc-500 border-white/5'}`}>
                                                         {auction.razorpayAuthorized ? 'PAYMENT AUTH' : 'PAYMENT LOCKED'}
                                                     </span>
@@ -331,44 +286,30 @@ const SuperAdminDashboard: React.FC = () => {
 
                                         <div className="flex items-center gap-6">
                                             <div className="text-right hidden md:block">
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Status Protocol</p>
                                                 <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase border ${auction.isPaid ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-zinc-800 text-zinc-500 border-white/5'}`}>
-                                                    {auction.isPaid ? 'Paid' : 'Free Trial'}
+                                                    {auction.isPaid ? 'Paid' : 'Trial'}
                                                 </span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl transition-all border border-white/5 shadow-xl flex items-center gap-2">
+                                                <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl border border-white/5 flex items-center gap-2">
                                                     <Edit className="w-5 h-5 text-zinc-400" />
-                                                    <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Edit Metadata</span>
                                                 </button>
-                                                <button onClick={() => handleRemoteAssist(auction.id!)} className="bg-blue-600 hover:bg-blue-500 p-4 rounded-2xl transition-all shadow-xl"><Monitor className="w-5 h-5 text-white" /></button>
-                                                <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="bg-zinc-800 hover:bg-red-600 p-4 rounded-2xl transition-all border border-white/5 shadow-xl"><Trash2 className="w-5 h-5 text-zinc-400 group-hover:text-white" /></button>
+                                                <button onClick={() => handleRemoteAssist(auction.id!)} className="bg-blue-600 hover:bg-blue-500 p-4 rounded-2xl"><Monitor className="w-5 h-5 text-white" /></button>
+                                                <button onClick={() => handleDeleteAuction(auction.id!, auction.title)} className="bg-zinc-800 hover:bg-red-600 p-4 rounded-2xl"><Trash2 className="w-5 h-5 text-zinc-400 group-hover:text-white" /></button>
                                             </div>
                                         </div>
                                     </div>
 
                                     {editingAuctionId === auction.id && (
-                                        <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up bg-zinc-950/30 p-6 rounded-3xl border border-white/5">
+                                        <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up bg-zinc-950/30 p-6 rounded-3xl">
                                             <div className="col-span-full mb-4 flex items-center gap-2">
                                                 <Fingerprint className="w-4 h-4 text-red-500" />
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-zinc-300">Advanced Override Panel</h4>
                                             </div>
                                             <div>
-                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Manual Retention Lock</label>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Integrated Payments (Razorpay)</label>
                                                 <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
-                                                    <span className="text-[10px] font-bold text-zinc-400">Permanent</span>
-                                                    <button 
-                                                        onClick={() => setAuctionEditForm({...auctionEditForm, isLifetime: !auctionEditForm.isLifetime})}
-                                                        className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.isLifetime ? 'bg-red-600' : 'bg-zinc-700'}`}
-                                                    >
-                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${auctionEditForm.isLifetime ? 'left-7' : 'left-1'}`}></div>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2">Integrated Payments (Razorpay)</label>
-                                                <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
-                                                    <span className="text-[10px] font-bold text-zinc-400">Authorize Integration</span>
+                                                    <span className="text-[10px] font-bold text-zinc-400">Authorize Integrated Gateway</span>
                                                     <button 
                                                         onClick={() => setAuctionEditForm({...auctionEditForm, razorpayAuthorized: !auctionEditForm.razorpayAuthorized})}
                                                         className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.razorpayAuthorized ? 'bg-indigo-600' : 'bg-zinc-700'}`}
@@ -377,17 +318,8 @@ const SuperAdminDashboard: React.FC = () => {
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Auto-Purge Schedule</label>
-                                                <input 
-                                                    type="date" 
-                                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-xs font-bold text-white outline-none"
-                                                    value={auctionEditForm.autoDeleteAt ? new Date(auctionEditForm.autoDeleteAt).toISOString().split('T')[0] : ''}
-                                                    onChange={e => setAuctionEditForm({...auctionEditForm, autoDeleteAt: new Date(e.target.value).getTime()})}
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <button onClick={handleSaveAuctionMetadata} className="w-full bg-white text-black font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95">SYNC METADATA</button>
+                                            <div className="flex items-end col-start-4">
+                                                <button onClick={handleSaveAuctionMetadata} className="w-full bg-white text-black font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95">SYNC OVERRIDE</button>
                                             </div>
                                         </div>
                                     )}
@@ -396,7 +328,6 @@ const SuperAdminDashboard: React.FC = () => {
                         </div>
                     </div>
                 )}
-                {/* ... other tabs remain same ... */}
             </main>
         </div>
     );
