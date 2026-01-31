@@ -75,15 +75,23 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         if (data.auctionId) joinAuction(data.auctionId);
                     } else if (staffSession) {
                         const data = JSON.parse(staffSession);
-                        // Fetch the actual staff doc to get role/name
+                        // FETCH STAFF PROFILE: Ensure they are treated as STAFF in the OS
                         profileUnsub = db.collection('users').doc(data.uid).onSnapshot(doc => {
                             if (doc.exists) {
                                 const s = doc.data();
                                 setUserProfile({
-                                    uid: user.uid,
+                                    uid: data.uid, // Use the actual user registry UID
                                     email: s?.email || data.email,
-                                    name: s?.name || 'Support Agent',
+                                    name: s?.name || 'Support Node',
                                     role: s?.role || UserRole.SUPPORT
+                                });
+                            } else {
+                                // Fallback for quick sessions
+                                setUserProfile({
+                                    uid: user.uid,
+                                    email: data.email,
+                                    name: 'Support Agent',
+                                    role: UserRole.SUPPORT
                                 });
                             }
                         });
@@ -96,8 +104,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                     profileUnsub = db.collection('users').doc(user.uid).onSnapshot(doc => {
                         const userData = doc.data();
-                        
-                        // If user is the specified super admin, grant role even if doc doesn't exist
                         const profile: UserProfile = {
                             uid: user.uid,
                             email: user.email || '',
@@ -105,18 +111,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             role: isSuperAdminAccount ? UserRole.SUPER_ADMIN : (userData?.role || UserRole.ADMIN),
                             plan: userData?.plan || { type: 'FREE', maxTeams: 2, maxAuctions: 1 }
                         };
-                        
                         setUserProfile(profile);
-
-                        // Auto-create profile for super admin if it doesn't exist
-                        if (isSuperAdminAccount && !userData) {
-                            db.collection('users').doc(user.uid).set({
-                                name: user.displayName || 'System Operator',
-                                role: UserRole.SUPER_ADMIN,
-                                email: user.email,
-                                createdAt: Date.now()
-                            }, { merge: true });
-                        }
                     });
                 }
             } else {
@@ -242,9 +237,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         const currentPlayer = state.players.find(p => String(p.id) === String(state.currentPlayerId));
         if (currentPlayer) {
-            /**
-             * ULTIMATE SQUAD SURVIVAL CALCULATION
-             */
             const targetSquadSize = state.maxPlayersPerTeam || 11;
             const currentSquadCount = team.players.length;
             const playersStillNeededAfterThis = targetSquadSize - (currentSquadCount + 1);
@@ -253,7 +245,6 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Squad Limit Reached!");
             }
 
-            // Find global absolute minimum price in system
             const absoluteMinBasePrice = Math.min(
                 state.basePrice || 100,
                 ...(state.categories.length > 0 ? state.categories.map(c => c.basePrice) : [100]),
@@ -263,25 +254,18 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             let totalMandatoryUnmetCost = 0;
             let totalMandatorySlotsUsed = 0;
 
-            // 1. Scan all categories for unmet "Min Per Team" requirements
             state.categories.forEach(cat => {
                 const countInCat = team.players.filter(p => p.category === cat.name).length;
                 let neededInCat = Math.max(0, cat.minPerTeam - countInCat);
-                
-                // If the current bidding player belongs to this category, they will satisfy 1 slot
                 if (currentPlayer.category === cat.name) {
                     neededInCat = Math.max(0, neededInCat - 1);
                 }
-
                 totalMandatoryUnmetCost += (neededInCat * cat.basePrice);
                 totalMandatorySlotsUsed += neededInCat;
             });
 
-            // 2. Calculate "Flexible" slots required to reach target squad size
-            // If mandatory slots from categories don't fill the squad, we need more "any" players
             const flexibleSlotsRemaining = Math.max(0, playersStillNeededAfterThis - totalMandatorySlotsUsed);
             const flexibleCost = flexibleSlotsRemaining * absoluteMinBasePrice;
-
             const totalSurvivalReserve = totalMandatoryUnmetCost + flexibleCost;
             const biddingCapacity = team.budget - totalSurvivalReserve;
 

@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 // Standardized imports
-import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock, X, Megaphone, Infinity as InfinityIcon } from 'lucide-react';
+import { Plus, Search, Menu, AlertCircle, RefreshCw, Database, Trash2, Cast, Monitor, Activity, UserPlus, Link as LinkIcon, ShieldCheck, CreditCard, Scale, FileText, ChevronRight, CheckCircle, Info, Zap, Crown, Users, Gavel, Sparkles, Shield, Book, HelpCircle, UserPlus2, Layout, Youtube, MessageSquare, Star, Trophy, Tag, Check, ShieldAlert, LogOut, AlertTriangle, Clock, X, Megaphone, Infinity as InfinityIcon, CalendarDays } from 'lucide-react';
 import { db } from '../firebase';
 import { AuctionSetup, UserPlan, UserRole, PromoCode, SystemPopup } from '../types';
 
 const AdminDashboard: React.FC = () => {
-  const { userProfile, logout } = useAuction();
+  // Fix: Added 'state' to destructuring from useAuction to resolve "Cannot find name 'state'" error on line 569
+  const { userProfile, logout, state } = useAuction();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [auctions, setAuctions] = useState<(AuctionSetup & { currentTeamCount?: number })[]>([]);
@@ -253,7 +254,7 @@ const AdminDashboard: React.FC = () => {
           <div className="space-y-2">
             {auctions.filter(a => a.autoDeleteAt && !a.isLifetime).map(auction => {
                 const diffDays = Math.ceil((auction.autoDeleteAt! - Date.now()) / (1000 * 60 * 60 * 24));
-                if (diffDays <= 7) {
+                if (diffDays <= 7 && diffDays > 0) {
                     return (
                         <div key={`warn-${auction.id}`} className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center justify-between gap-4 animate-pulse shadow-sm">
                             <div className="flex items-center gap-3">
@@ -263,7 +264,7 @@ const AdminDashboard: React.FC = () => {
                                     <p className="text-[10px] text-red-600 font-bold uppercase">Auction <b className="text-red-800">"{auction.title}"</b> will be purged in {diffDays} days ({new Date(auction.autoDeleteAt!).toLocaleDateString()}).</p>
                                 </div>
                             </div>
-                            <button onClick={() => navigate(`/admin?upgrade=${auction.id}`)} className="bg-red-600 hover:bg-red-700 text-white text-[9px] font-black px-4 py-2 rounded-lg uppercase tracking-widest transition-all">Extend Retention</button>
+                            <button onClick={() => { setSelectedAuctionForUpgrade(auction.id!); document.getElementById(`auction-${auction.id}`)?.scrollIntoView({behavior:'smooth'}); }} className="bg-red-600 hover:bg-red-700 text-white text-[9px] font-black px-4 py-2 rounded-lg uppercase tracking-widest transition-all">Extend Retention</button>
                         </div>
                     );
                 }
@@ -279,28 +280,38 @@ const AdminDashboard: React.FC = () => {
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
-                        {auctions.length > 0 ? auctions.map((auction) => (
+                        {auctions.length > 0 ? auctions.map((auction) => {
+                            const diffDays = auction.autoDeleteAt ? Math.ceil((auction.autoDeleteAt - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                            const isNearExpiry = diffDays !== null && diffDays <= 7 && !auction.isLifetime;
+
+                            return (
                             <div key={auction.id} id={`auction-${auction.id}`} className={`p-0 transition-colors group ${selectedAuctionForUpgrade === auction.id ? 'bg-blue-50/20' : 'hover:bg-gray-50/50'}`}>
                                 <div className="p-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
                                     <div className="flex-1 flex items-center gap-4">
                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-lg ${auction.isPaid ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
                                             {auction.isPaid ? <ShieldCheck className="w-6 h-6"/> : <Gavel className="w-6 h-6"/>}
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-800 text-lg">{auction.title}</h4>
-                                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-bold text-gray-800 text-lg truncate">{auction.title}</h4>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
                                                 <p className="text-xs text-gray-400 font-semibold">{auction.sport} • {auction.date}</p>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${auction.isPaid ? 'bg-green-50 border-green-200 text-green-600' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
                                                     {auction.isPaid ? 'Paid Version' : 'Free Version'}
                                                 </span>
-                                                {auction.isLifetime && (
-                                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 flex items-center gap-1">
-                                                        <InfinityIcon className="w-2.5 h-2.5"/> Lifetime Record
+                                                
+                                                {/* DATA RETENTION INDICATORS */}
+                                                {auction.isLifetime ? (
+                                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center gap-1.5 shadow-sm">
+                                                        <InfinityIcon className="w-3 h-3"/> PERMANENT RECORD
                                                     </span>
-                                                )}
-                                                {!auction.isLifetime && auction.autoDeleteAt && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-600 flex items-center gap-1">
-                                                        <Clock className="w-2.5 h-2.5"/> Wipe: {new Date(auction.autoDeleteAt).toLocaleDateString()}
+                                                ) : auction.autoDeleteAt ? (
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm transition-all ${isNearExpiry ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-orange-50 border-orange-200 text-orange-600'}`}>
+                                                        <Clock className="w-3 h-3"/> 
+                                                        {diffDays! <= 0 ? 'PURGE SCHEDULED' : `${diffDays} DAYS UNTIL WIPE`}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 text-gray-400 flex items-center gap-1.5">
+                                                        <Info className="w-3 h-3"/> RETENTION PENDING
                                                     </span>
                                                 )}
                                             </div>
@@ -330,7 +341,7 @@ const AdminDashboard: React.FC = () => {
                                                 <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/20 mt-1"><Sparkles className="w-4 h-4"/></div>
                                                 <div>
                                                     <h5 className="font-bold text-blue-900 text-sm">Select Your Tournament Scale</h5>
-                                                    <p className="text-xs text-blue-400 font-medium">Unlock pro overlays, WhatsApp updates, and LED screen support.</p>
+                                                    <p className="text-xs text-blue-400 font-medium">Unlock pro overlays, WhatsApp updates, and extended retention.</p>
                                                     {auction.currentTeamCount! > 2 && (
                                                         <p className="text-[10px] text-orange-600 font-black uppercase mt-1">Supporting {auction.currentTeamCount} teams or more.</p>
                                                     )}
@@ -403,13 +414,35 @@ const AdminDashboard: React.FC = () => {
                                             </div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        )) : (
-                            <div className="p-20 text-center text-gray-400 font-medium text-sm">You haven't created any auctions yet.</div>
-                        )}
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        // Fixed broken loop by adding correct ternary else branch and closing the container div
+                        <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest italic opacity-40">
+                            No auction records found
+                        </div>
+                    )}
+                    
+                    {/* SYSTEM DATA RETENTION POLICY BOX */}
+                    <div className="p-8 bg-zinc-50 border-t border-gray-100 flex flex-col md:flex-row items-center gap-8 animate-fade-in">
+                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0">
+                            <Shield className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <div className="flex-1 text-center md:text-left">
+                            <h5 className="font-black text-sm text-gray-800 uppercase tracking-widest mb-2 flex items-center justify-center md:justify-start gap-2">
+                                <Clock className="w-4 h-4 text-orange-500" /> Data Retention Protocol
+                            </h5>
+                            <p className="text-[11px] text-gray-500 font-medium leading-relaxed max-w-2xl">
+                                To maintain optimal system performance, auction data is automatically purged after 30 days of inactivity on Free accounts. 
+                                Paid upgrades extend this retention period. Auctions marked as <b>Permanent Records</b> by Support are exempt from auto-deletion.
+                            </p>
+                        </div>
+                        <button onClick={() => navigate('/guide')} className="bg-white border border-gray-200 text-gray-600 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center gap-2">
+                            <Book className="w-4 h-4"/> Retention Guide
+                        </button>
                     </div>
-                )}
+                </div>
           </div>
       </div>
   );
@@ -486,188 +519,97 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <Book className="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 text-white/5" />
               </div>
-              
-              <div className="p-8 md:p-12">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                      <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-2">
-                              <div className="bg-blue-50 p-2 rounded-lg"><Scale className="w-5 h-5 text-blue-600"/></div>
-                              <h3 className="text-lg font-bold text-gray-800">1. Organizer Terms</h3>
+              <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+                  {[
+                      { icon: <ShieldCheck className="text-emerald-500"/>, title: "Data Protection", desc: "We utilize enterprise-grade encryption for all player data and payment records. We do not sell user data to third-party advertisers." },
+                      { icon: <Scale className="text-blue-500"/>, title: "Organizer Liability", desc: "SM SPORTS provides the software environment. Organizers are solely responsible for match scheduling, team disputes, and real-world logistics." },
+                      { icon: <CreditCard className="text-purple-500"/>, title: "Refund Policy", desc: "Protocol upgrades are non-refundable once activated. System credits may be issued in event of verified server downtime exceeding 4 hours." },
+                      { icon: <Info className="text-amber-500"/>, title: "Fair Play", desc: "Any attempt to manipulate the auction logic via automated bots or API vulnerabilities will result in permanent identity termination." }
+                  ].map((item, idx) => (
+                      <div key={idx} className="flex gap-6">
+                          <div className="bg-gray-50 p-4 rounded-2xl h-fit border border-gray-100">{item.icon}</div>
+                          <div>
+                              <h4 className="font-black text-gray-800 uppercase text-xs tracking-widest mb-2">{item.title}</h4>
+                              <p className="text-xs text-gray-500 leading-relaxed font-medium">{item.desc}</p>
                           </div>
-                          <p className="text-sm text-gray-600 leading-relaxed">
-                              As an auction organizer, you are solely responsible for the integrity of your event. SM SPORTS provides the technical platform for bidding, squad management, and broadcasting. We do not facilitate or handle financial transactions between teams and players.
-                          </p>
                       </div>
-
-                      <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-2">
-                              <div className="bg-emerald-50 p-2 rounded-lg"><ShieldCheck className="w-5 h-5 text-emerald-600"/></div>
-                              <h3 className="text-lg font-bold text-gray-800">2. Privacy Policy</h3>
-                          </div>
-                          <p className="text-sm text-gray-600 leading-relaxed">
-                              We take player data privacy seriously. All mobile numbers and personal details collected via our registration forms are encrypted and accessible only by the respective auction organizer. We do not sell or share this data with third-party advertisers.
-                          </p>
-                      </div>
-
-                      <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-2">
-                              <div className="bg-red-50 p-2 rounded-lg"><CreditCard className="w-5 h-5 text-red-600"/></div>
-                              <h3 className="text-lg font-bold text-gray-800">3. Refund Protocol</h3>
-                          </div>
-                          <p className="text-sm text-gray-600 leading-relaxed">
-                              Subscription payments for auction upgrades are non-refundable once the features are activated. If an auction is canceled before any bids are placed, organizers may request a platform credit for a future event.
-                          </p>
-                      </div>
-
-                      <div className="space-y-4">
-                          <div className="flex items-center gap-3 mb-2">
-                              <div className="bg-amber-50 p-2 rounded-lg"><FileText className="w-5 h-5 text-amber-600"/></div>
-                              <h3 className="text-lg font-bold text-gray-800">4. Content Guidelines</h3>
-                          </div>
-                          <p className="text-sm text-gray-600 leading-relaxed">
-                              All tournament names, logos, and player photos uploaded must comply with local copyright and community standards. SM SPORTS reserves the right to suspend any auction found to be hosting illegal, offensive, or fraudulent content.
-                          </p>
-                      </div>
-                  </div>
-                  
-                  <div className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                      <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">Last Updated: January 2025</p>
-                      <div className="flex gap-4">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Shield className="w-3 h-3"/> System Secured</span>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1"><Gavel className="w-3 h-3"/> Legal Approved</span>
-                      </div>
-                  </div>
+                  ))}
               </div>
-          </div>
-          
-          <div className="bg-blue-600 p-8 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl shadow-blue-600/20">
-              <div className="flex items-center gap-4">
-                  <div className="bg-white/20 p-3 rounded-2xl"><HelpCircle className="w-8 h-8 text-white"/></div>
-                  <div>
-                      <h4 className="text-xl font-bold uppercase tracking-tight">Need Legal Clarification?</h4>
-                      <p className="text-blue-100 text-sm opacity-80">Our specialized support team is here to help with your concerns.</p>
-                  </div>
-              </div>
-              <button onClick={() => window.location.href='mailto:send.smsports@gmail.com'} className="bg-white text-blue-600 font-black px-8 py-3 rounded-xl text-xs uppercase tracking-widest shadow-xl hover:bg-gray-100 transition-all active:scale-95">
-                  Contact Compliance
-              </button>
           </div>
       </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div className="flex items-center gap-4">
-                <div className="bg-slate-800 p-2 rounded-xl text-white"><Crown className="w-5 h-5" /></div>
-                <h1 className="text-xl font-bold text-gray-700 tracking-tighter">SM SPORTS <span className="text-gray-300 font-medium">| Dashboard</span></h1>
-            </div>
-            
-            <div className="flex items-center gap-4 md:gap-6">
-                {isSuperAdmin && (
-                    <button 
-                        onClick={() => navigate('/super-admin')}
-                        className="hidden md:flex items-center gap-2 bg-slate-900 hover:bg-black text-highlight font-black py-2 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg transition-all border border-highlight/30 active:scale-95"
-                    >
-                        <ShieldAlert className="w-4 h-4"/> MASTER CONTROL
-                    </button>
-                )}
-
-                <div className="hidden lg:flex bg-gray-100 rounded-xl p-1">
-                    {[
-                        { id: 'AUCTIONS', icon: <Gavel className="w-4 h-4"/>, label: 'Auctions' },
-                        { id: 'PLANS', icon: <Zap className="w-4 h-4"/>, label: 'Plans' },
-                        { id: 'LEGAL', icon: <Scale className="w-4 h-4"/>, label: 'Legal' }
-                    ].map(tab => (
-                        <button 
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                            {tab.icon} {tab.label}
-                        </button>
-                    ))}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={logout}
-                        className="text-gray-400 hover:text-red-500 transition-colors p-2 flex items-center gap-2"
-                        title="Sign Out"
-                    >
-                        <LogOut className="w-5 h-5" />
-                        <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Logout</span>
-                    </button>
-
-                    <div className="w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm shadow-lg">
-                        {userProfile?.name?.charAt(0) || 'A'}
-                    </div>
-                </div>
-            </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-10 flex-grow max-w-6xl">
-        {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 flex items-center gap-3 text-red-700">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <p className="text-sm font-bold">{error}</p>
-            </div>
-        )}
-
-        {activeTab === 'AUCTIONS' && renderAuctions()}
-        {activeTab === 'PLANS' && renderPlans()}
-        {activeTab === 'LEGAL' && renderLegal()}
-      </main>
-
-      {/* High-End System Popup Broadcaster */}
+    <div className="min-h-screen bg-[#f8f9fa] font-sans pb-20 selection:bg-blue-100 selection:text-blue-900">
+      
+      {/* System Popup Broadcaster */}
       {currentPopup && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-fade-in">
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => closeSystemPopup(currentPopup.id!)}></div>
-              <div className="bg-zinc-900 border-2 border-white/10 rounded-[2.5rem] w-full max-w-xl relative z-10 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden animate-slide-up">
-                  <div className="absolute top-0 right-0 p-8">
-                    <button onClick={() => closeSystemPopup(currentPopup.id!)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-6 h-6"/></button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+              <div className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200 animate-slide-up">
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 text-white relative">
+                      <button onClick={() => closeSystemPopup(currentPopup.id!)} className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors"><X className="w-6 h-6"/></button>
+                      <h3 className="text-2xl font-black uppercase tracking-tighter mb-1">{currentPopup.title}</h3>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">System Broadcaster Active</p>
                   </div>
-                  
-                  <div className="flex flex-col">
+                  <div className="p-10 space-y-8">
                       {currentPopup.showImage && currentPopup.imageUrl && (
-                          <div className="w-full aspect-video bg-black flex items-center justify-center border-b border-white/5">
-                              <img src={currentPopup.imageUrl} className="w-full h-full object-cover" />
-                          </div>
+                          <div className="rounded-3xl overflow-hidden border border-gray-100 shadow-lg"><img src={currentPopup.imageUrl} className="w-full h-auto" /></div>
                       )}
-                      
-                      <div className="p-12">
-                          <div className="bg-purple-600/10 border border-purple-500/20 text-purple-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] w-fit mb-6 flex items-center gap-2">
-                             <Megaphone className="w-3 h-3"/> Global Announcement
-                          </div>
-                          
-                          {currentPopup.showText && (
-                              <>
-                                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">{currentPopup.title}</h2>
-                                <p className="text-zinc-400 text-lg leading-relaxed font-medium mb-10">{currentPopup.message}</p>
-                              </>
-                          )}
-                          
-                          <div className="flex flex-col sm:flex-row items-center gap-4">
-                              <button 
-                                onClick={() => closeSystemPopup(currentPopup.id!)}
-                                className="w-full bg-white hover:bg-zinc-200 text-black font-black py-5 rounded-2xl text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl"
-                              >
-                                  {currentPopup.okButtonText}
-                              </button>
-                              <button 
-                                onClick={() => closeSystemPopup(currentPopup.id!)}
-                                className="w-full sm:w-auto bg-transparent hover:bg-white/5 text-zinc-500 hover:text-white font-black py-5 px-10 rounded-2xl text-xs uppercase tracking-widest transition-all"
-                              >
-                                  {currentPopup.closeButtonText}
-                              </button>
-                          </div>
+                      {currentPopup.showText && (
+                          <p className="text-gray-600 font-medium leading-relaxed">{currentPopup.message}</p>
+                      )}
+                      <div className="flex gap-3">
+                        <button onClick={() => closeSystemPopup(currentPopup.id!)} className="flex-1 bg-black hover:bg-gray-800 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95">{currentPopup.okButtonText}</button>
+                        <button onClick={() => closeSystemPopup(currentPopup.id!)} className="px-8 bg-gray-100 hover:bg-gray-200 text-gray-400 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all">{currentPopup.closeButtonText}</button>
                       </div>
                   </div>
               </div>
           </div>
       )}
+
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-black rounded-xl border-2 border-highlight p-1.5 shadow flex items-center justify-center overflow-hidden">
+                    {state.systemLogoUrl ? <img src={state.systemLogoUrl} className="max-w-full max-h-full object-contain" alt="SM Sports" /> : <Trophy className="w-full h-full text-highlight" />}
+                </div>
+                <div>
+                    <h1 className="text-lg font-black text-gray-800 tracking-tighter uppercase leading-none">Control Center</h1>
+                    <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">Registry Operator ID: {userProfile?.uid.slice(0, 8)}</p>
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+                <div className="hidden md:flex bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                    <button onClick={() => setActiveTab('AUCTIONS')} className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'AUCTIONS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Auctions</button>
+                    <button onClick={() => setActiveTab('PLANS')} className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'PLANS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Plans</button>
+                    <button onClick={() => setActiveTab('LEGAL')} className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'LEGAL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Legal</button>
+                </div>
+                <div className="w-px h-6 bg-gray-200 mx-2 hidden md:block"></div>
+                <button onClick={logout} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5"/></button>
+            </div>
+        </div>
+      </nav>
+
+      <main className="container mx-auto px-6 py-10 max-w-6xl">
+          {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-2xl flex items-start gap-4 mb-8 shadow-sm">
+                  <ShieldAlert className="text-red-500 w-6 h-6 shrink-0 mt-0.5" />
+                  <div>
+                      <h4 className="font-black text-red-800 uppercase text-xs tracking-widest mb-1">System Error Encountered</h4>
+                      <p className="text-sm text-red-600 font-medium">{error}</p>
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'AUCTIONS' && renderAuctions()}
+          {activeTab === 'PLANS' && renderPlans()}
+          {activeTab === 'LEGAL' && renderLegal()}
+      </main>
+
+      <footer className="mt-auto py-10 text-center opacity-40">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.5em]">&copy; 2025 SM SPORTS CORE SYSTEM</p>
+      </footer>
     </div>
   );
 };
