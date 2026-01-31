@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
@@ -55,40 +54,26 @@ const SuperAdminDashboard: React.FC = () => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // Registry States
+    // Sub-Registry States
     const [userRegistry, setUserRegistry] = useState<UserProfile[]>([]);
-    const [registryFilter, setRegistryFilter] = useState<'ALL' | 'SUPPORT' | 'ADMIN' | 'VIEWER'>('ALL');
-    const [isAddingUser, setIsAddingUser] = useState(false);
-    const [userForm, setUserForm] = useState({ email: '', name: '', password: '', role: UserRole.SUPPORT });
-
-    // Auction States
     const [editingAuctionId, setEditingAuctionId] = useState<string | null>(null);
     const [auctionEditForm, setAuctionEditForm] = useState<Partial<AuctionSetup>>({});
-
-    // Plans States
     const [dbPlans, setDbPlans] = useState<any[]>([]);
     const [planForm, setPlanForm] = useState({ id: '', name: '', price: 0, teams: 0 });
     const [isAddingPlan, setIsAddingPlan] = useState(false);
-
-    // Promos States
     const [promos, setPromos] = useState<PromoCode[]>([]);
     const [isAddingPromo, setIsAddingPromo] = useState(false);
     const [promoForm, setPromoForm] = useState<Partial<PromoCode>>({
         code: '', discountType: 'PERCENT', discountValue: 0, maxClaims: 10, expiryDate: Date.now() + 604800000, active: true
     });
-
-    // System Broadcaster States
     const [popups, setPopups] = useState<SystemPopup[]>([]);
     const [isAddingPopup, setIsAddingPopup] = useState(false);
     const [popupForm, setPopupForm] = useState<Partial<SystemPopup>>({
         title: '', message: '', showImage: false, showText: true, delaySeconds: 5, okButtonText: 'OK', closeButtonText: 'CLOSE', isActive: true, expiryDate: Date.now() + 86400000 * 7
     });
     const [popupPreviewImg, setPopupPreviewImg] = useState('');
-
-    // Database Ops State
     const [retentionDays, setRetentionDays] = useState(30);
     const [globalAssets, setGlobalAssets] = useState<ScoringAsset[]>([]);
-    const [assetPreview, setAssetPreview] = useState('');
     const [broadcasts, setBroadcasts] = useState<any[]>([]);
 
     useEffect(() => {
@@ -97,40 +82,18 @@ const SuperAdminDashboard: React.FC = () => {
             const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AuctionSetup));
             data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             setAuctions(data);
-            
-            const uniqueOwners = new Set(data.map(a => a.createdBy).filter(Boolean));
-            const activeCount = data.filter(a => a.status === 'LIVE' || a.status === 'DRAFT').length;
-            setStats(prev => ({ ...prev, totalAuctions: data.length, activeAuctions: activeCount, totalAccounts: uniqueOwners.size }));
+            setStats(prev => ({ ...prev, totalAuctions: data.length }));
             setLoading(false);
         });
 
-        const unsubRegistry = db.collection('users').onSnapshot(snap => {
-            setUserRegistry(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
-        });
+        db.collection('users').onSnapshot(snap => setUserRegistry(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile))));
+        db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        db.collection('promoCodes').onSnapshot(snap => setPromos(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromoCode))));
+        db.collection('systemPopups').orderBy('createdAt', 'desc').onSnapshot(snap => setPopups(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemPopup))));
+        db.collection('globalAssets').onSnapshot(snap => setGlobalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset))));
+        db.collection('systemBroadcasts').onSnapshot(snap => setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        const unsubPlans = db.collection('subscriptionPlans').orderBy('price', 'asc').onSnapshot(snap => {
-            setDbPlans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-
-        const unsubPromos = db.collection('promoCodes').onSnapshot(snap => {
-            setPromos(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromoCode)));
-        });
-
-        const unsubPopups = db.collection('systemPopups').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            setPopups(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemPopup)));
-        });
-
-        const unsubAssets = db.collection('globalAssets').onSnapshot(snap => {
-            setGlobalAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as ScoringAsset)));
-        });
-
-        const unsubBroadcasts = db.collection('systemBroadcasts').onSnapshot(snap => {
-            setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-
-        return () => {
-            unsubscribe(); unsubRegistry(); unsubPlans(); unsubPromos(); unsubPopups(); unsubAssets(); unsubBroadcasts();
-        };
+        return () => unsubscribe();
     }, []);
 
     const handleSaveAuctionMetadata = async () => {
@@ -141,17 +104,6 @@ const SuperAdminDashboard: React.FC = () => {
             setEditingAuctionId(null);
             alert("Auction Metadata Patched!");
         } catch (err: any) { alert("Patch Failed: " + err.message); }
-        setIsProcessing(false);
-    };
-
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            await db.collection('users').add({ ...userForm, createdAt: Date.now() });
-            setIsAddingUser(false);
-            setUserForm({ email: '', name: '', password: '', role: UserRole.SUPPORT });
-        } catch (e: any) { alert(e.message); }
         setIsProcessing(false);
     };
 
@@ -167,29 +119,8 @@ const SuperAdminDashboard: React.FC = () => {
         setIsProcessing(false);
     };
 
-    const handleSavePromo = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            await db.collection('promoCodes').add({ ...promoForm, code: promoForm.code?.toUpperCase(), currentClaims: 0, createdAt: Date.now() });
-            setIsAddingPromo(false);
-        } catch (e: any) { alert(e.message); }
-        setIsProcessing(false);
-    };
-
-    const handleSavePopup = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        try {
-            await db.collection('systemPopups').add({ ...popupForm, imageUrl: popupPreviewImg, createdAt: Date.now() });
-            setIsAddingPopup(false);
-        } catch (e: any) { alert(e.message); }
-        setIsProcessing(false);
-    };
-
     const handleRemoteAssist = (auctionId: string) => {
-        if (!auctionId) return alert("No auction ID provided.");
-        if (window.confirm("REMOTE ASSIST: Jump into this auction dashboard with Super Admin Access?")) {
+        if (window.confirm("REMOTE ASSIST: Access this instance as Admin?")) {
             joinAuction(auctionId);
             navigate(`/auction/${auctionId}`);
         }
@@ -201,7 +132,7 @@ const SuperAdminDashboard: React.FC = () => {
     });
 
     return (
-        <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500 selection:text-white">
+        <div className="min-h-screen bg-black font-sans text-white selection:bg-red-500">
             <nav className="bg-zinc-950 border-b border-zinc-800/50 sticky top-0 z-50 backdrop-blur-xl">
                 <div className="container mx-auto px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setActiveTab('OVERVIEW')}>
@@ -214,22 +145,8 @@ const SuperAdminDashboard: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex bg-zinc-900 rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar">
-                        {[
-                            {id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>},
-                            {id: 'REGISTRY', label: 'Users', icon: <Users className="w-4 h-4"/>},
-                            {id: 'AUCTIONS', label: 'Auctions', icon: <Gavel className="w-4 h-4"/>},
-                            {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>},
-                            {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>},
-                            {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>},
-                            {id: 'BROADCAST', label: 'Ticker', icon: <Newspaper className="w-4 h-4"/>},
-                            {id: 'DATABASE', label: 'Database', icon: <HardDrive className="w-4 h-4"/>},
-                            {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>},
-                        ].map(t => (
-                            <button 
-                                key={t.id}
-                                onClick={() => setActiveTab(t.id as any)}
-                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
-                            >
+                        {[{id: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4"/>}, {id: 'REGISTRY', label: 'Users', icon: <Users className="w-4 h-4"/>}, {id: 'AUCTIONS', label: 'Auctions', icon: <Gavel className="w-4 h-4"/>}, {id: 'PLANS', label: 'Plans', icon: <Server className="w-4 h-4"/>}, {id: 'PROMOS', label: 'Promos', icon: <Tag className="w-4 h-4"/>}, {id: 'ALERTS', label: 'Alerts', icon: <Megaphone className="w-4 h-4"/>}, {id: 'BROADCAST', label: 'Ticker', icon: <Newspaper className="w-4 h-4"/>}, {id: 'DATABASE', label: 'Database', icon: <HardDrive className="w-4 h-4"/>}, {id: 'GRAPHICS', label: 'Graphics', icon: <ImageIcon className="w-4 h-4"/>}].map(t => (
+                            <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}>
                                 {t.icon} <span className="hidden lg:inline">{t.label}</span>
                             </button>
                         ))}
@@ -244,12 +161,7 @@ const SuperAdminDashboard: React.FC = () => {
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-12 animate-fade-in">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-                            {[
-                                { label: 'Storage Usage', val: totalGB, unit: 'GB', color: 'text-red-500' },
-                                { label: 'Live Auctions', val: auctions.length, unit: 'Active', color: 'text-green-500' },
-                                { label: 'Identity Pool', val: userRegistry.length, unit: 'IDs', color: 'text-blue-500' },
-                                { label: 'Support Nodes', val: userRegistry.filter(u => u.role === UserRole.SUPPORT).length, unit: 'Online', color: 'text-white' }
-                            ].map(s => (
+                            {[ { label: 'Storage Usage', val: totalGB, unit: 'GB', color: 'text-red-500' }, { label: 'Live Auctions', val: auctions.length, unit: 'Active', color: 'text-green-500' }, { label: 'Identity Pool', val: userRegistry.length, unit: 'IDs', color: 'text-blue-500' }, { label: 'Support Nodes', val: userRegistry.filter(u => u.role === UserRole.SUPPORT).length, unit: 'Online', color: 'text-white' } ].map(s => (
                                 <div key={s.label} className="bg-zinc-900/30 p-10 rounded-[2.5rem] border border-white/5 shadow-inner">
                                     <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">{s.label}</p>
                                     <div className="flex items-baseline gap-2">
@@ -259,14 +171,13 @@ const SuperAdminDashboard: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-
                         <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col md:flex-row items-center gap-12">
                              <div className="w-48 h-48 rounded-3xl bg-black border-4 border-zinc-800 p-4 shadow-xl flex items-center justify-center overflow-hidden relative">
                                 {state.systemLogoUrl ? <img src={state.systemLogoUrl} className="max-w-full max-h-full object-contain" /> : <ImageIcon className="w-12 h-12 text-zinc-800" />}
                              </div>
                              <div className="flex-1 text-center md:text-left">
                                 <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Master OS Identity</h2>
-                                <p className="text-zinc-400 text-sm max-w-xl mb-8 leading-relaxed font-medium">Inject global system branding that overrides tenant presets across all tournament environments.</p>
+                                <p className="text-zinc-400 text-sm max-w-xl mb-8 font-medium">Global system branding overrides tenant presets.</p>
                                 <button onClick={() => logoInputRef.current?.click()} className="bg-white text-black font-black px-10 py-4 rounded-2xl flex items-center gap-3 transition-all hover:bg-red-600 hover:text-white">
                                     <Upload className="w-5 h-5" /> REFLASH BRANDING
                                 </button>
@@ -274,7 +185,7 @@ const SuperAdminDashboard: React.FC = () => {
                                     if (e.target.files?.[0]) {
                                         const base64 = await compressImage(e.target.files[0]);
                                         await db.collection('appConfig').doc('globalSettings').set({ systemLogoUrl: base64 }, { merge: true });
-                                        alert("System Brand Synced.");
+                                        alert("Branding Synced.");
                                     }
                                 }} />
                              </div>
@@ -286,18 +197,16 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-black uppercase tracking-tighter">User Registry</h2>
-                            <button onClick={() => setIsAddingUser(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus className="w-4 h-4"/> ADD IDENTITY</button>
+                            <button className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Plus className="w-4 h-4"/> ADD IDENTITY</button>
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 gap-3">
                             {userRegistry.map(user => (
-                                <div key={user.uid} className="bg-zinc-900/30 p-6 rounded-2xl border border-white/5 flex justify-between items-center">
+                                <div key={user.uid} className="bg-zinc-900/30 p-5 rounded-2xl border border-white/5 flex justify-between items-center">
                                     <div>
-                                        <p className="font-bold text-lg">{user.email}</p>
-                                        <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{user.role}</p>
+                                        <p className="font-bold text-base">{user.email}</p>
+                                        <p className="text-[9px] text-zinc-500 uppercase font-black">{user.role}</p>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={async () => { if(window.confirm("Purge?")) await db.collection('users').doc(user.uid).delete(); }} className="p-3 bg-zinc-800 rounded-xl hover:bg-red-600 transition-all text-zinc-400 hover:text-white"><Trash2 className="w-4 h-4" /></button>
-                                    </div>
+                                    <button onClick={async () => { if(window.confirm("Purge?")) await db.collection('users').doc(user.uid).delete(); }} className="p-3 bg-zinc-800 rounded-xl hover:bg-red-600 transition-all text-zinc-400 hover:text-white"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                             ))}
                         </div>
@@ -308,25 +217,19 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="mb-8 relative">
                             <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
-                            <input 
-                                placeholder="SEARCH AUCTIONS BY TITLE OR ID..."
-                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-[2rem] py-6 pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:border-red-600 outline-none transition-all shadow-xl"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
+                            <input placeholder="SEARCH AUCTIONS..." className="w-full bg-zinc-900/50 border border-zinc-800 rounded-[2rem] py-6 pl-16 pr-6 text-sm font-bold uppercase outline-none focus:border-red-600 transition-all shadow-xl" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                         </div>
-
                         <div className="grid grid-cols-1 gap-4">
                             {filteredAuctions.map(auction => (
                                 <div key={auction.id} className="bg-zinc-900/30 p-8 rounded-[2rem] border border-white/5 hover:border-red-600/30 transition-all group overflow-hidden">
                                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-                                        <div className="flex items-center gap-6 flex-1 min-w-0">
+                                        <div className="flex items-center gap-6">
                                             <div className="w-16 h-16 rounded-2xl bg-black border border-white/5 flex items-center justify-center overflow-hidden shrink-0">
                                                 {auction.logoUrl ? <img src={auction.logoUrl} className="w-full h-full object-contain" /> : <Gavel className="w-6 h-6 text-zinc-700" />}
                                             </div>
-                                            <div className="min-w-0">
-                                                <h3 className="text-2xl font-black uppercase tracking-tighter truncate text-white">{auction.title}</h3>
-                                                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                                            <div>
+                                                <h3 className="text-2xl font-black uppercase tracking-tighter text-white">{auction.title}</h3>
+                                                <div className="flex items-center gap-3 mt-1.5">
                                                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-3 py-0.5 rounded-full border border-red-500/20">#{auction.id}</span>
                                                     <span className={`text-[9px] font-black px-3 py-0.5 rounded-full border ${auction.razorpayAuthorized ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-800 text-zinc-500 border-white/5'}`}>
                                                         {auction.razorpayAuthorized ? 'RAZORPAY AUTH' : 'PAYMENT LOCKED'}
@@ -334,17 +237,15 @@ const SuperAdminDashboard: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
-
                                         <div className="flex gap-2">
-                                            <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="p-4 bg-zinc-800 rounded-2xl hover:bg-zinc-700 transition-all border border-white/5"><Edit className="w-5 h-5 text-zinc-400" /></button>
-                                            <button onClick={() => handleRemoteAssist(auction.id!)} className="p-4 bg-blue-600 rounded-2xl hover:bg-blue-500 transition-all shadow-xl"><Monitor className="w-5 h-5 text-white" /></button>
-                                            <button onClick={async () => { if(window.confirm("Purge?")) db.collection('auctions').doc(auction.id!).delete(); }} className="p-4 bg-zinc-800 rounded-2xl hover:bg-red-600 transition-all border border-white/5"><Trash2 className="w-5 h-5 text-zinc-400 group-hover:text-white" /></button>
+                                            <button onClick={() => { setEditingAuctionId(auction.id!); setAuctionEditForm(auction); }} className="p-4 bg-zinc-800 rounded-2xl hover:bg-zinc-700 transition-all"><Edit className="w-5 h-5 text-zinc-400" /></button>
+                                            <button onClick={() => handleRemoteAssist(auction.id!)} className="p-4 bg-blue-600 rounded-2xl hover:bg-blue-500 transition-all"><Monitor className="w-5 h-5 text-white" /></button>
+                                            <button onClick={async () => { if(window.confirm("Purge?")) db.collection('auctions').doc(auction.id!).delete(); }} className="p-4 bg-zinc-800 rounded-2xl hover:bg-red-600 transition-all"><Trash2 className="w-5 h-5 text-zinc-400" /></button>
                                         </div>
                                     </div>
-
                                     {editingAuctionId === auction.id && (
                                         <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-4 gap-8 animate-slide-up bg-zinc-950/30 p-6 rounded-3xl">
-                                            <div className="col-span-full mb-4 flex items-center gap-2">
+                                            <div className="col-span-full mb-2 flex items-center gap-2">
                                                 <Fingerprint className="w-4 h-4 text-red-500" />
                                                 <h4 className="text-xs font-black uppercase tracking-widest text-zinc-300">Advanced Override Panel</h4>
                                             </div>
@@ -352,10 +253,7 @@ const SuperAdminDashboard: React.FC = () => {
                                                 <label className="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2">Integrated Payments (Razorpay)</label>
                                                 <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
                                                     <span className="text-[10px] font-bold text-zinc-400">Authorize Integrated Gateway</span>
-                                                    <button 
-                                                        onClick={() => setAuctionEditForm({...auctionEditForm, razorpayAuthorized: !auctionEditForm.razorpayAuthorized})}
-                                                        className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.razorpayAuthorized ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                                                    >
+                                                    <button onClick={() => setAuctionEditForm({...auctionEditForm, razorpayAuthorized: !auctionEditForm.razorpayAuthorized})} className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.razorpayAuthorized ? 'bg-indigo-600' : 'bg-zinc-700'}`}>
                                                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${auctionEditForm.razorpayAuthorized ? 'left-7' : 'left-1'}`}></div>
                                                     </button>
                                                 </div>
@@ -363,11 +261,8 @@ const SuperAdminDashboard: React.FC = () => {
                                             <div>
                                                 <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Retention Lock</label>
                                                 <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/5">
-                                                    <span className="text-[10px] font-bold text-zinc-400">Permanent Active</span>
-                                                    <button 
-                                                        onClick={() => setAuctionEditForm({...auctionEditForm, isLifetime: !auctionEditForm.isLifetime})}
-                                                        className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.isLifetime ? 'bg-red-600' : 'bg-zinc-700'}`}
-                                                    >
+                                                    <span className="text-[10px] font-bold text-zinc-400">Lifetime Registry Active</span>
+                                                    <button onClick={() => setAuctionEditForm({...auctionEditForm, isLifetime: !auctionEditForm.isLifetime})} className={`w-12 h-6 rounded-full transition-all relative ${auctionEditForm.isLifetime ? 'bg-red-600' : 'bg-zinc-700'}`}>
                                                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${auctionEditForm.isLifetime ? 'left-7' : 'left-1'}`}></div>
                                                     </button>
                                                 </div>
@@ -386,8 +281,8 @@ const SuperAdminDashboard: React.FC = () => {
                 {activeTab === 'PLANS' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black uppercase tracking-tighter">Monetization Tier Manager</h2>
-                            <button onClick={() => setIsAddingPlan(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus className="w-4 h-4"/> NEW PLAN</button>
+                            <h2 className="text-2xl font-black uppercase tracking-tighter">Monetization Tiers</h2>
+                            <button onClick={() => setIsAddingPlan(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Plus className="w-4 h-4"/> NEW PLAN</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {dbPlans.map(plan => (
@@ -395,7 +290,7 @@ const SuperAdminDashboard: React.FC = () => {
                                     <button onClick={async () => { if(window.confirm("Delete?")) db.collection('subscriptionPlans').doc(plan.id).delete(); }} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-500"><Trash2 className="w-4 h-4"/></button>
                                     <h3 className="text-xl font-black uppercase mb-4">{plan.name}</h3>
                                     <p className="text-4xl font-black text-blue-500 mb-6">₹{plan.price}</p>
-                                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-500"><Users className="w-4 h-4"/> UPTO {plan.teams} TEAMS</div>
+                                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-500 font-mono tracking-widest"><Users className="w-4 h-4"/> UPTO {plan.teams} FRANCHISES</div>
                                 </div>
                             ))}
                         </div>
@@ -406,18 +301,18 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-black uppercase tracking-tighter">Authorized Promos</h2>
-                            <button onClick={() => setIsAddingPromo(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus className="w-4 h-4"/> NEW PROMO</button>
+                            <button onClick={() => setIsAddingPromo(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Plus className="w-4 h-4"/> NEW PROMO</button>
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 gap-3">
                             {promos.map(promo => (
-                                <div key={promo.id} className="bg-zinc-900/30 p-6 rounded-2xl border border-white/5 flex justify-between items-center">
+                                <div key={promo.id} className="bg-zinc-900/30 p-6 rounded-2xl border border-white/5 flex justify-between items-center group">
                                     <div>
-                                        <p className="font-black text-2xl tracking-widest text-emerald-400">{promo.code}</p>
-                                        <p className="text-[10px] font-bold text-zinc-500 uppercase">{promo.discountType}: {promo.discountValue}</p>
+                                        <p className="font-black text-2xl tracking-widest text-emerald-400 italic">{promo.code}</p>
+                                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{promo.discountType}: {promo.discountValue}</p>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-bold text-zinc-400">{promo.currentClaims} / {promo.maxClaims} Claims</p>
-                                        <button onClick={async () => { if(window.confirm("Purge?")) db.collection('promoCodes').doc(promo.id!).delete(); }} className="text-red-500 mt-2 hover:underline text-[10px] font-black">PURGE CODE</button>
+                                    <div className="text-right flex items-center gap-6">
+                                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono">{promo.currentClaims} / {promo.maxClaims} CLAIMS</p>
+                                        <button onClick={async () => { if(window.confirm("Purge?")) db.collection('promoCodes').doc(promo.id!).delete(); }} className="p-3 bg-zinc-800 rounded-xl hover:bg-red-600 transition-all"><Trash2 className="w-4 h-4"/></button>
                                     </div>
                                 </div>
                             ))}
@@ -428,20 +323,19 @@ const SuperAdminDashboard: React.FC = () => {
                 {activeTab === 'ALERTS' && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black uppercase tracking-tighter">System Broadcaster</h2>
-                            <button onClick={() => setIsAddingPopup(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus className="w-4 h-4"/> NEW ALERT</button>
+                            <h2 className="text-2xl font-black uppercase tracking-tighter">Broadcaster Alerts</h2>
+                            <button onClick={() => setIsAddingPopup(true)} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Plus className="w-4 h-4"/> NEW ALERT</button>
                         </div>
                         <div className="grid grid-cols-1 gap-6">
                             {popups.map(popup => (
-                                <div key={popup.id} className="bg-zinc-900/30 p-8 rounded-[2.5rem] border border-white/5 flex flex-col md:flex-row gap-8 items-center">
-                                    {popup.imageUrl && <div className="w-40 h-40 bg-black rounded-3xl overflow-hidden shadow-xl"><img src={popup.imageUrl} className="w-full h-full object-cover" /></div>}
+                                <div key={popup.id} className="bg-zinc-900/30 p-8 rounded-[2.5rem] border border-white/5 flex flex-col md:flex-row gap-8 items-center group relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+                                    {popup.imageUrl && <div className="w-40 h-40 bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/5"><img src={popup.imageUrl} className="w-full h-full object-cover" /></div>}
                                     <div className="flex-1">
-                                        <h3 className="text-xl font-black uppercase mb-2">{popup.title}</h3>
-                                        <p className="text-sm text-zinc-500 line-clamp-2">{popup.message}</p>
+                                        <h3 className="text-xl font-black uppercase mb-2 tracking-tight">{popup.title}</h3>
+                                        <p className="text-sm text-zinc-500 line-clamp-3 font-medium">{popup.message}</p>
                                     </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={async () => { if(window.confirm("Delete?")) db.collection('systemPopups').doc(popup.id!).delete(); }} className="bg-zinc-800 p-4 rounded-2xl hover:bg-red-600 transition-all border border-white/5"><Trash2 className="w-5 h-5"/></button>
-                                    </div>
+                                    <button onClick={async () => { if(window.confirm("Purge?")) db.collection('systemPopups').doc(popup.id!).delete(); }} className="p-4 bg-zinc-800 rounded-2xl hover:bg-red-600 transition-all"><Trash2 className="w-5 h-5"/></button>
                                 </div>
                             ))}
                         </div>
@@ -450,21 +344,21 @@ const SuperAdminDashboard: React.FC = () => {
 
                 {activeTab === 'BROADCAST' && (
                     <div className="space-y-6 animate-fade-in">
-                        <h2 className="text-2xl font-black uppercase tracking-tighter">Global Ticker Registry</h2>
-                        <div className="bg-zinc-900/30 p-8 rounded-[2.5rem] border border-white/5">
+                        <h2 className="text-2xl font-black uppercase tracking-tighter">Ticker Registry</h2>
+                        <div className="bg-zinc-900/30 p-10 rounded-[3rem] border border-white/5">
                             <div className="space-y-4">
                                 {broadcasts.map(b => (
                                     <div key={b.id} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
-                                        <p className="text-sm font-bold uppercase tracking-widest">{b.message}</p>
-                                        <button onClick={async () => db.collection('systemBroadcasts').doc(b.id).delete()} className="text-red-500 hover:scale-110 transition-transform"><XCircle className="w-5 h-5"/></button>
+                                        <p className="text-sm font-bold uppercase tracking-widest text-zinc-300">{b.message}</p>
+                                        <button onClick={async () => db.collection('systemBroadcasts').doc(b.id).delete()} className="text-red-500 hover:scale-125 transition-all"><XCircle className="w-5 h-5"/></button>
                                     </div>
                                 ))}
-                                <div className="pt-6 border-t border-white/5 flex gap-4">
-                                    <input id="ticker-msg" placeholder="ENTER GLOBAL HIGHLIGHT PROTOCOL..." className="flex-1 bg-black border border-white/10 rounded-2xl px-6 py-4 text-xs font-bold outline-none focus:border-red-600 transition-colors uppercase tracking-widest" />
+                                <div className="pt-6 flex gap-4">
+                                    <input id="ticker-msg" placeholder="ENTER GLOBAL ANNOUNCEMENT..." className="flex-1 bg-black border border-white/10 rounded-2xl px-6 py-4 text-xs font-bold outline-none focus:border-red-600 transition-all uppercase tracking-widest" />
                                     <button onClick={async () => {
                                         const msg = (document.getElementById('ticker-msg') as HTMLInputElement).value;
                                         if(msg) { await db.collection('systemBroadcasts').add({ message: msg, createdAt: Date.now() }); (document.getElementById('ticker-msg') as HTMLInputElement).value = ''; }
-                                    }} className="bg-blue-600 px-10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl">DEPLOY</button>
+                                    }} className="bg-blue-600 px-10 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">DEPLOY</button>
                                 </div>
                             </div>
                         </div>
@@ -475,18 +369,18 @@ const SuperAdminDashboard: React.FC = () => {
                     <div className="space-y-8 animate-fade-in">
                         <div className="bg-zinc-900/30 p-10 rounded-[3rem] border border-white/5">
                             <div className="flex items-center gap-6 mb-8">
-                                <Database className="w-12 h-12 text-red-500" />
+                                <HardDrive className="w-12 h-12 text-red-500" />
                                 <div>
                                     <h2 className="text-3xl font-black uppercase tracking-tighter">Retention Protocol</h2>
-                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">Configure automated system purging policies</p>
+                                    <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em] mt-1 opacity-60">Global purging logic</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-4">Default Registry TTL (Days)</label>
+                                <div className="space-y-6">
+                                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest">Registry TTL (Days)</label>
                                     <div className="flex items-center gap-4">
-                                        <input type="number" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} className="w-24 bg-black border border-white/10 rounded-2xl py-4 text-center text-xl font-black" />
-                                        <button onClick={async () => { await db.collection('appConfig').doc('globalSettings').set({ defaultRetentionDays: retentionDays }, { merge: true }); alert("TTL Policy Updated."); }} className="bg-white text-black px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl">SYNC POLICY</button>
+                                        <input type="number" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} className="w-24 bg-black border border-white/10 rounded-2xl py-4 text-center text-xl font-black text-red-500" />
+                                        <button onClick={async () => { await db.collection('appConfig').doc('globalSettings').set({ defaultRetentionDays: retentionDays }, { merge: true }); alert("TTL Policy Updated."); }} className="bg-white text-black px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-2xl">SYNC PROTOCOL</button>
                                     </div>
                                 </div>
                             </div>
@@ -496,24 +390,23 @@ const SuperAdminDashboard: React.FC = () => {
 
                 {activeTab === 'GRAPHICS' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex justify-between items-center mb-8">
                             <h2 className="text-2xl font-black uppercase tracking-tighter">Global Asset Vault</h2>
-                            <div className="flex gap-2">
-                                <input type="file" id="asset-up" className="hidden" accept="image/*" onChange={async (e) => {
-                                    if(e.target.files?.[0]) setAssetPreview(await compressImage(e.target.files[0]));
-                                }} />
-                                <button onClick={() => document.getElementById('asset-up')?.click()} className="bg-zinc-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/5 hover:bg-zinc-700">SELECT SOURCE</button>
-                                <button onClick={async () => {
-                                    if(assetPreview) { await db.collection('globalAssets').add({ url: assetPreview, name: 'Global Asset ' + Date.now(), createdAt: Date.now(), type: 'BACKGROUND' }); setAssetPreview(''); alert("Asset Synced."); }
-                                }} className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">PUSH TO ALL</button>
-                            </div>
+                            <button onClick={() => document.getElementById('asset-up')?.click()} className="bg-white text-black px-8 py-3 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl hover:bg-red-600 hover:text-white transition-all"><Upload className="w-4 h-4"/> PUSH ASSET</button>
+                            <input type="file" id="asset-up" className="hidden" accept="image/*" onChange={async (e) => {
+                                if(e.target.files?.[0]) {
+                                    const img = await compressImage(e.target.files[0]);
+                                    await db.collection('globalAssets').add({ url: img, name: 'Master Graphic ' + Date.now(), createdAt: Date.now(), type: 'BACKGROUND' });
+                                }
+                            }} />
                         </div>
-                        {assetPreview && <div className="w-full h-48 bg-zinc-900 rounded-3xl overflow-hidden mb-6 flex justify-center p-4 border border-blue-500/30"><img src={assetPreview} className="max-h-full object-contain" /></div>}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             {globalAssets.map(asset => (
-                                <div key={asset.id} className="aspect-video bg-zinc-900 rounded-2xl border border-white/5 overflow-hidden group relative shadow-lg">
-                                    <img src={asset.url} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" />
-                                    <button onClick={async () => db.collection('globalAssets').doc(asset.id).delete()} className="absolute top-2 right-2 bg-red-600 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-xl"><Trash2 className="w-3 h-3 text-white"/></button>
+                                <div key={asset.id} className="aspect-video bg-zinc-900 rounded-2xl border border-white/5 overflow-hidden group relative shadow-2xl">
+                                    <img src={asset.url} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <button onClick={async () => db.collection('globalAssets').doc(asset.id).delete()} className="bg-red-600 p-3 rounded-full shadow-xl hover:scale-110 transition-transform"><Trash2 className="w-5 h-5"/></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -521,19 +414,19 @@ const SuperAdminDashboard: React.FC = () => {
                 )}
             </main>
 
-            {/* Modals Implementation */}
+            {/* MODALS */}
             {isAddingPlan && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-zinc-900 p-8 rounded-[2.5rem] border border-white/10 w-full max-w-md shadow-2xl">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-black uppercase tracking-tighter">Monetization Protocol</h3>
-                            <button onClick={() => setIsAddingPlan(false)}><XCircle className="w-6 h-6 text-zinc-500 hover:text-white transition-colors"/></button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+                    <div className="bg-zinc-900 p-10 rounded-[3rem] border border-white/10 w-full max-w-md shadow-[0_0_100px_rgba(37,99,235,0.2)]">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-xl font-black uppercase tracking-tighter italic">Tier Protocol</h3>
+                            <button onClick={() => setIsAddingPlan(false)}><XCircle className="w-8 h-8 text-zinc-700 hover:text-white transition-colors"/></button>
                         </div>
-                        <form onSubmit={handleSavePlan} className="space-y-4">
-                            <input placeholder="PLAN NAME" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold uppercase tracking-widest outline-none focus:border-blue-500" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} required />
-                            <input type="number" placeholder="PRICE (₹)" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none focus:border-blue-500" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} required />
-                            <input type="number" placeholder="MAX FRANCHISE TEAMS" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none focus:border-blue-500" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} required />
-                            <button type="submit" className="w-full bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95">AUTHORIZE SUBSCRIPTION</button>
+                        <form onSubmit={handleSavePlan} className="space-y-6">
+                            <input placeholder="PLAN LABEL" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold uppercase tracking-widest outline-none focus:border-blue-600" value={planForm.name} onChange={e => setPlanForm({...planForm, name: e.target.value})} required />
+                            <input type="number" placeholder="UNIT PRICE (₹)" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none focus:border-blue-600" value={planForm.price} onChange={e => setPlanForm({...planForm, price: Number(e.target.value)})} required />
+                            <input type="number" placeholder="MAX NODES (TEAMS)" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-6 text-xs font-bold outline-none focus:border-blue-600" value={planForm.teams} onChange={e => setPlanForm({...planForm, teams: Number(e.target.value)})} required />
+                            <button type="submit" className="w-full bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl transition-all active:scale-95">AUTHORIZE SUBSCRIPTION</button>
                         </form>
                     </div>
                 </div>
