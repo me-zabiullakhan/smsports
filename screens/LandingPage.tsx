@@ -1,9 +1,18 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuction } from '../hooks/useAuction';
 import { AuctionStatus, AuctionSetup } from '../types';
 import { Play, Calendar, History, ArrowRight, Shield, Trophy, Users, BookOpen, CheckCircle, Scale, CreditCard, ShieldCheck, FileText, Zap, Star, Monitor, MessageSquare, Smartphone, Layout, Youtube, ChevronRight, UserPlus } from 'lucide-react';
 import { db } from '../firebase';
+
+const CricketBallIcon = ({ className }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2C12 2 15 7 15 12C15 17 12 22 12 22" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5" />
+        <path d="M12 2C12 2 9 7 9 12C9 17 12 22 12 22" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5" />
+    </svg>
+);
 
 const AuctionCard: React.FC<{ auction: AuctionSetup, navigate: (path: string) => void, getStatusBadge: (status: string) => React.ReactNode }> = ({ auction, navigate, getStatusBadge }) => {
     const [teamCount, setTeamCount] = useState<number | null>(null);
@@ -91,7 +100,21 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-primary flex flex-col font-sans">
+    <div className="min-h-screen bg-primary flex flex-col font-sans relative overflow-x-hidden">
+      
+      {/* Dynamic Background Elements */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-[20%] left-[5%] animate-float opacity-10">
+              <CricketBallIcon className="w-16 h-16 text-red-500" />
+          </div>
+          <div className="absolute top-[60%] right-[10%] animate-float opacity-10" style={{ animationDelay: '2s' }}>
+              <Zap className="w-24 h-24 text-highlight" />
+          </div>
+          <div className="absolute top-[40%] left-[50%] animate-drift text-highlight font-black text-6xl select-none" style={{ animationDelay: '0s' }}>6</div>
+          <div className="absolute top-[15%] left-[20%] animate-drift text-white font-black text-4xl select-none" style={{ animationDelay: '4s' }}>4</div>
+          <div className="absolute top-[75%] left-[30%] animate-drift text-red-500 font-black text-5xl select-none" style={{ animationDelay: '8s' }}>W</div>
+      </div>
+
       <nav className="border-b border-accent bg-secondary/50 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({top:0, behavior:'smooth'})}>
@@ -115,19 +138,27 @@ const LandingPage: React.FC = () => {
       {/* Hero Section */}
       <header className="relative overflow-hidden py-20 lg:py-32">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-teal-900/20 via-primary to-primary"></div>
+        
+        {/* Hero Specific Animations */}
+        <div className="absolute top-1/2 left-0 w-full flex justify-around opacity-5 pointer-events-none">
+             <div className="animate-spin-slow"><CricketBallIcon className="w-64 h-64 text-red-600" /></div>
+        </div>
+
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-block mb-4 px-3 py-1 rounded-full bg-accent/50 border border-accent text-highlight text-xs font-bold tracking-widest uppercase">The Future of Sports Bidding</div>
+          <div className="inline-block mb-4 px-3 py-1 rounded-full bg-accent/50 border border-accent text-highlight text-xs font-bold tracking-widest uppercase animate-pulse">The Future of Sports Bidding</div>
           <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 tracking-tight">Manage Your <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-highlight to-teal-200">Cricket Auctions</span><br/> Professionally</h1>
           <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">Experience the thrill of a real-time auction room. Organize players, manage team budgets, and bid live with our advanced auction platform.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl"><Play className="w-5 h-5 mr-2 fill-current" /> Get Started</Link>
+            <Link to="/auth?tab=admin&mode=register" className="flex items-center justify-center bg-white text-primary font-bold py-4 px-8 rounded-xl hover:bg-gray-100 transition-all shadow-xl group">
+                <Play className="w-5 h-5 mr-2 fill-current group-hover:scale-125 transition-transform" /> Get Started
+            </Link>
             <button onClick={() => scrollToSection('pricing')} className="flex items-center justify-center bg-secondary border border-accent text-white font-bold py-4 px-8 rounded-xl hover:bg-accent transition-all shadow-lg">View Plans</button>
           </div>
         </div>
       </header>
 
       {/* Auction Center */}
-      <section className="py-20 bg-secondary/30 border-t border-accent/50">
+      <section className="py-20 bg-secondary/30 border-t border-accent/50 relative">
         <div className="container mx-auto px-6">
           <div className="flex items-center justify-between mb-10"><h2 className="text-3xl font-bold text-white">Live Matches</h2></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -155,7 +186,7 @@ const LandingPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
                   {PLANS.map((plan, i) => (
                       <div key={i} className={`bg-secondary border ${plan.price === 5000 ? 'border-highlight ring-2 ring-highlight/20 scale-[1.02]' : 'border-accent'} rounded-3xl p-8 flex flex-col hover:border-gray-500 transition-all group relative overflow-hidden`}>
-                          {plan.price === 5000 && <div className="absolute top-6 right-6"><Zap className="w-6 h-6 text-highlight fill-current"/></div>}
+                          {plan.price === 5000 && <div className="absolute top-6 right-6"><Zap className="w-6 h-6 text-highlight fill-current animate-pulse"/></div>}
                           <div className="text-highlight text-[10px] font-black uppercase tracking-widest mb-3">{plan.badge}</div>
                           <h3 className="text-2xl font-bold text-white mb-6">{plan.name}</h3>
                           <div className="flex items-baseline mb-8">
@@ -254,8 +285,11 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Legal Section */}
-      <section id="legal" className="py-24 bg-secondary/20 border-t border-accent/30">
-          <div className="container mx-auto px-6">
+      <section id="legal" className="py-24 bg-secondary/20 border-t border-accent/30 relative overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-32 h-32 opacity-5 translate-y-1/2">
+               <CricketBallIcon className="w-full h-full text-white" />
+          </div>
+          <div className="container mx-auto px-6 relative z-10">
               <div className="flex flex-col md:flex-row gap-16 items-start">
                   <div className="md:w-1/3">
                       <div className="flex items-center gap-3 mb-6">

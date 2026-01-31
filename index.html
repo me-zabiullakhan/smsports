@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -23,12 +24,60 @@
             },
             animation: {
               'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'drift': 'drift 15s linear infinite',
+              'spin-slow': 'spin 10s linear infinite',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+                '50%': { transform: 'translateY(-20px) rotate(10deg)' },
+              },
+              drift: {
+                '0%': { transform: 'translateX(-10%) translateY(0)', opacity: '0' },
+                '10%': { opacity: '0.3' },
+                '90%': { opacity: '0.3' },
+                '100%': { transform: 'translateX(110%) translateY(-50px)', opacity: '0' },
+              }
             }
           }
         }
       }
     </script>
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+      /* Hide standard scrollbar for cleaner look */
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #38b2ac55; border-radius: 10px; }
+      
+      /* Mouse Trailing Ball Style */
+      #mouse-trailer {
+        height: 24px;
+        width: 24px;
+        background-color: #ff4757;
+        border-radius: 50%;
+        position: fixed;
+        left: 0;
+        top: 0;
+        pointer-events: none;
+        z-index: 9999;
+        transition: transform 0.15s ease-out;
+        border: 2px solid white;
+        box-shadow: 0 0 15px rgba(255, 71, 87, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #mouse-trailer::after {
+        content: "";
+        width: 100%;
+        height: 2px;
+        background: rgba(255,255,255,0.4);
+        position: absolute;
+        transform: rotate(45deg);
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {
@@ -51,7 +100,16 @@
 </script>
 </head>
   <body class="bg-primary text-text-main">
+    <div id="mouse-trailer" class="hidden md:flex"></div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      const trailer = document.getElementById("mouse-trailer");
+      window.onmousemove = e => {
+        const x = e.clientX - trailer.offsetWidth / 2;
+        const y = e.clientY - trailer.offsetHeight / 2;
+        trailer.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    </script>
   </body>
 </html>
