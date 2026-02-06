@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Key, Hash, Info, AlertTriangle, User, Chrome, ShieldAlert, ChevronRight, RefreshCw, ShieldCheck, Zap, Headset } from 'lucide-react';
 import { auth, db } from '../firebase';
 import firebase from 'firebase/compat/app';
 import { useAuction } from '../hooks/useAuction';
@@ -84,7 +85,7 @@ const AuthScreen: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-primary font-sans flex items-center justify-center p-4 relative">
+        <div className="min-h-screen bg-primary font-sans flex items-center justify-center p-4 relative text-text-main">
             <div className="absolute inset-0 bg-primary/90 backdrop-blur-sm"></div>
             
             <div className="w-full max-w-md relative z-10 flex flex-col items-center">
@@ -182,6 +183,19 @@ const AuthScreen: React.FC = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                    
+                    {/* STAFF ENTRANCE LINK */}
+                    <div className="mt-8 text-center">
+                        <Link 
+                            to="/staff-login" 
+                            className="inline-flex items-center gap-2 text-text-secondary hover:text-highlight transition-all group"
+                        >
+                            <div className="bg-secondary p-1.5 rounded-lg border border-accent/20 group-hover:border-highlight/50 transition-colors">
+                                <Headset className="w-4 h-4" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Authorized Staff Entrance</span>
+                        </Link>
                     </div>
                 </div>
             </div>

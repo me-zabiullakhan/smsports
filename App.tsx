@@ -79,12 +79,12 @@ const AppContent: React.FC = () => {
               isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <AuthScreen />
           } />
 
-          <Route path="/stafflogin" element={
+          <Route path="/staff-login" element={
               isLoggedIn ? <Navigate to={getAuthRedirect()} replace /> : <StaffLogin />
           } />
 
           <Route path="/staff-dashboard" element={
-              isSupportStaff ? <StaffDashboard /> : <Navigate to="/stafflogin" replace />
+              isSupportStaff ? <StaffDashboard /> : <Navigate to="/staff-login" replace />
           } />
 
           <Route path="/super-admin" element={
