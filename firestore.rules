@@ -1,0 +1,165 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: auctions
+    // Document ID: auctionId
+    // Fields:
+    //   - name: string (required)
+    //   - date: string (required)
+    //   - venue: string (optional)
+    //   - totalTeams: number (optional)
+    //   - logoUrl: string (optional)
+    //   - dateTBD: bool (optional)
+    //   - slabs: list (optional)
+    //   - createdAt: number (optional)
+    //
+    // Subcollection: auctions/{auctionId}/categories
+    // Fields:
+    //   - name: string (required)
+    //   - basePrice: number (required)
+    //   - bidIncrement: number (required)
+    //   - minPerTeam: number (required)
+    //   - maxPerTeam: number (required)
+    //   - slabs: list (optional)
+    //   - imageUrl: string (optional)
+    //   - createdAt: number (optional)
+    //
+    // Subcollection: auctions/{auctionId}/players
+    // Fields:
+    //   - name: string (required)
+    //   - category: string (required)
+    //   - role: string (required)
+    //   - photoUrl: string (optional)
+    //   - createdAt: number (optional)
+    //
+    // Subcollection: auctions/{auctionId}/registrations
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - phone: string (required)
+    //   - playerType: string (required)
+    //   - photoUrl: string (optional)
+    //   - paymentScreenshot: string (optional)
+    //   - status: string (required) - pending, approved, rejected
+    //   - createdAt: number (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "info.digitalmount@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isSuperAdmin() {
+      return isAdmin(); // For now, super admin is the one with the specific email
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidString(field, maxLen) {
+      return request.resource.data[field] is string && request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidNumber(field) {
+      return request.resource.data[field] is number;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /auctions/{auctionId} {
+      allow read: if true; // Publicly readable for registration
+      allow write: if isAdmin() || isSuperAdmin();
+
+      match /categories/{categoryId} {
+        allow read: if true;
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /players/{playerId} {
+        allow read: if true;
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /teams/{teamId} {
+        allow read: if true;
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /roles/{roleId} {
+        allow read: if true;
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /sponsors/{sponsorId} {
+        allow read: if true;
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /registrations/{regId} {
+        allow read: if isAdmin() || isSuperAdmin() || (isAuthenticated() && request.auth.token.email == resource.data.email);
+        allow create: if true; // Allow anyone to register
+        allow update, delete: if isAdmin() || isSuperAdmin();
+      }
+
+      match /captainCodes/{codeId} {
+        allow read: if true;
+        allow update: if true; // Allow incrementing usage count
+        allow write: if isAdmin() || isSuperAdmin();
+      }
+
+      match /waitlist/{waitId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    match /promoCodes/{promoId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /subscriptionPlans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /systemPopups/{popupId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /globalAssets/{assetId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /systemBroadcasts/{broadcastId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /appConfig/{configId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+  }
+}
